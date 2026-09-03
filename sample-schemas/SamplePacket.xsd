@@ -1,0 +1,759 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SamplePacket.xsd
+  ================
+  Root schema for the Sample Packet. Includes the two companion files and
+  defines all forms as global elements (plus one as an inline declaration
+  to exercise the inline-element-fallback path).
+
+  PACKET STRUCTURE:
+    SamplePacket                    ← root element (packet)
+      SampleHeader                  ← required, non-repeatable form
+      SampleEntityForm              ← required, non-repeatable form
+      SampleFinancialForm           ← required, non-repeatable form
+      SampleEventLog                ← required, REPEATABLE form (maxOccurs="unbounded")
+      (SampleSummary is declared INLINE inside SamplePacket's complexType,
+       not as a global element — exercises inline element fallback path)
+
+  xs:includes:
+    SampleCommonTypes.xsd  — named types (simpleTypes, AddressType, ContactInfoType)
+    SampleGroups.xsd       — named groups (AuditStampGroup, FlagsGroup, NestedRefGroup)
+
+  FEATURE COVERAGE MAP (search for tag to find the construct):
+    [FEATURE: xs:include]            — two xs:include declarations at top
+    [FEATURE: GroupContainer]        — named complexType references
+    [FEATURE: RadioGroup]            — xs:choice elements
+    [FEATURE: nested RadioGroup]     — xs:choice inside an xs:choice branch
+    [FEATURE: SequenceContainer]     — repeating xs:sequence (maxOccurs>1)
+    [FEATURE: xs:all transparent]    — xs:all element treated as transparent sequence
+    [FEATURE: xs:group ref]          — xs:group ref="AuditStampGroup" etc.
+    [FEATURE: nested xs:group ref]   — xs:group ref="NestedRefGroup"
+    [FEATURE: xs:attribute]          — xs:attribute on complexType (in AddressType/ContactInfoType)
+    [FEATURE: TextInput]             — xs:string fields
+    [FEATURE: NumericInput]          — xs:integer fields
+    [FEATURE: DecimalInput]          — xs:decimal fields
+    [FEATURE: DatePicker-direct]     — xs:date / xs:dateTime fields
+    [FEATURE: DatePicker-chain]      — inline simpleType restricting SampleDateType → xs:date
+    [FEATURE: Checkbox]              — xs:boolean fields
+    [FEATURE: Dropdown-named]        — field typed to StatusType / CategoryCodeType
+    [FEATURE: Dropdown-inline]       — inline xs:enumeration restriction
+    [FEATURE: ValidationRules]       — minLength, maxLength, pattern, minInclusive, maxInclusive
+    [FEATURE: required/optional]     — minOccurs="0" vs minOccurs="1"
+    [FEATURE: repeatable form]       — SampleEventLog maxOccurs="unbounded"
+    [FEATURE: inline element]        — SampleSummary declared inside SamplePacket's sequence
+    [FEATURE: PacketAnalyzer ref]    — element ref= style reference in packet sequence
+    [FEATURE: documentation]         — xs:annotation / xs:documentation throughout
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!-- [FEATURE: xs:include] ================================================
+       Both companion files are included. The flattener must inline all types
+       and groups from these files into the merged document before parsing.
+       Missing includes are FATAL. Missing imports are non-fatal (warn + skip).
+  -->
+  <xs:include schemaLocation="SampleCommonTypes.xsd"/>
+  <xs:include schemaLocation="SampleGroups.xsd"/>
+
+
+  <!-- =====================================================================
+       PACKET ROOT ELEMENT
+       =====================================================================
+       SamplePacket is the document root. PacketAnalyzer walks its content
+       model to build the PacketManifest (list of forms/sections).
+
+       Mix of element ref= (reference style, like MeF) and inline element
+       declarations (inline style, like Cap_N11). Both must be supported.
+       PacketAnalyzer.BuildSection reads ref first, then name.
+  -->
+  <xs:element name="SamplePacket">
+    <xs:annotation>
+      <xs:documentation>
+        Root element for the Sample Packet. Contains all forms for this submission.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+
+        <!-- [FEATURE: PacketAnalyzer ref] required non-repeatable -->
+        <xs:element ref="SampleHeader" minOccurs="1" maxOccurs="1"/>
+
+        <!-- [FEATURE: PacketAnalyzer ref] required non-repeatable -->
+        <xs:element ref="SampleEntityForm" minOccurs="1" maxOccurs="1"/>
+
+        <!-- [FEATURE: PacketAnalyzer ref] required non-repeatable -->
+        <xs:element ref="SampleFinancialForm" minOccurs="1" maxOccurs="1"/>
+
+        <!-- [FEATURE: repeatable form] required, unbounded instances -->
+        <xs:element ref="SampleEventLog" minOccurs="1" maxOccurs="unbounded"/>
+
+        <!-- [FEATURE: inline element] SampleSummary is NOT a global element.
+             ParseGlobalElement must fall back to searching inside this
+             sequence when asked for "SampleSummary". -->
+        <xs:element name="SampleSummary" minOccurs="1" maxOccurs="1">
+          <xs:annotation>
+            <xs:documentation>
+              Summary totals for the packet. Declared inline (not a global element)
+              to exercise the inline element fallback path in ParseGlobalElement.
+            </xs:documentation>
+          </xs:annotation>
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="TotalRecordCount" type="CountType">
+                <xs:annotation>
+                  <xs:documentation>Total number of event log entries in this packet.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+              <xs:element name="TotalAmount" type="PositiveAmountType">
+                <xs:annotation>
+                  <xs:documentation>Sum of all financial amounts across all forms.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+              <xs:element name="SummaryNotes" type="ShortStringType" minOccurs="0">
+                <xs:annotation>
+                  <xs:documentation>Optional free-text notes about this submission.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+              <!-- [FEATURE: xs:group ref] nested group ref in inline element -->
+              <xs:group ref="AuditStampGroup"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+
+  <!-- =====================================================================
+       FORM 1: SampleHeader
+       =====================================================================
+       A straightforward header form.
+
+       Features exercised:
+         [FEATURE: GroupContainer]     — uses ContactInfoType (named complexType)
+         [FEATURE: TextInput]          — ShortStringType, CodeStringType, inline strings
+         [FEATURE: Dropdown-named]     — StatusType, CategoryCodeType
+         [FEATURE: DatePicker-direct]  — xs:date field
+         [FEATURE: DatePicker-chain]   — inline simpleType restricting SampleDateType
+         [FEATURE: NumericInput]       — YearType
+         [FEATURE: Checkbox]           — xs:boolean
+         [FEATURE: xs:all transparent] — xs:all at element level
+         [FEATURE: required/optional]  — mix of minOccurs="0" and "1"
+         [FEATURE: documentation]      — annotations throughout
+         [FEATURE: xs:attribute]       — via ContactInfoType → AddressType
+  -->
+  <xs:element name="SampleHeader">
+    <xs:annotation>
+      <xs:documentation>Header information for the submission packet.</xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+
+        <xs:element name="PacketId">
+          <xs:annotation>
+            <xs:documentation>Unique identifier for this packet. Format: two uppercase letters followed by 4 digits.</xs:documentation>
+          </xs:annotation>
+          <!-- [FEATURE: TextInput + ValidationRules: pattern, maxLength] -->
+          <xs:simpleType>
+            <xs:restriction base="xs:string">
+              <xs:pattern value="[A-Z]{2}[0-9]{4}"/>
+              <xs:maxLength value="6"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+
+        <xs:element name="PacketTitle" type="ShortStringType">
+          <xs:annotation>
+            <xs:documentation>Human-readable title describing this packet.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="TaxYear" type="YearType">
+          <xs:annotation>
+            <!-- [FEATURE: NumericInput + ValidationRules: minInclusive, maxInclusive] -->
+            <xs:documentation>The tax year this packet covers, e.g. 2024.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="SubmissionDate" type="xs:date">
+          <!-- [FEATURE: DatePicker-direct] xs:date maps directly to DatePicker -->
+          <xs:annotation>
+            <xs:documentation>Date this packet was prepared for submission.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="EffectiveDateTime" type="xs:dateTime" minOccurs="0">
+          <!-- [FEATURE: DatePicker-direct] xs:dateTime also maps to DatePicker -->
+          <xs:annotation>
+            <xs:documentation>Optional. The exact date and time this record becomes effective.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="ExpiryDate" minOccurs="0">
+          <!-- [FEATURE: DatePicker-chain]
+               Inline xs:simpleType restricts SampleDateType (which restricts xs:date).
+               Parser must call resolveUltimateBaseType("SampleDateType") → xs:date
+               to correctly assign DatePicker kind. If the chain is not followed,
+               this field incorrectly becomes a TextInput. -->
+          <xs:annotation>
+            <xs:documentation>
+              Optional expiry date. Uses an inline simpleType restricting SampleDateType,
+              which in turn restricts xs:date. Tests two-level type chain resolution.
+            </xs:documentation>
+          </xs:annotation>
+          <xs:simpleType>
+            <xs:restriction base="SampleDateType"/>
+          </xs:simpleType>
+        </xs:element>
+
+        <xs:element name="PacketStatus" type="StatusType">
+          <!-- [FEATURE: Dropdown-named] named simpleType with enumeration -->
+          <xs:annotation>
+            <xs:documentation>Current status of this packet.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="IsAmended" type="xs:boolean">
+          <!-- [FEATURE: Checkbox] -->
+          <xs:annotation>
+            <xs:documentation>True if this packet amends a previously submitted packet.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="IsExtension" type="xs:boolean" minOccurs="0">
+          <!-- [FEATURE: Checkbox, optional] -->
+          <xs:annotation>
+            <xs:documentation>Optional. True if this packet was filed under an extension.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <!-- [FEATURE: GroupContainer] ContactInfoType → named complexType
+             ContactInfoType itself contains AddressType (another GroupContainer),
+             which has an xs:attribute. Tests container nesting depth and attribute support. -->
+        <xs:element name="PrimaryContact" type="ContactInfoType">
+          <xs:annotation>
+            <xs:documentation>Primary contact for this submission.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <!-- [FEATURE: xs:all transparent]
+             xs:all is treated as a non-repeating transparent sequence.
+             The wrapper does not appear in XML — its children are emitted directly
+             under SampleHeader. Order of child elements in XML is unrestricted. -->
+        <xs:all>
+          <xs:element name="InternalNotes" type="ShortStringType" minOccurs="0">
+            <xs:annotation>
+              <xs:documentation>Optional internal notes. Part of an xs:all block (order-independent).</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+          <xs:element name="ReviewerCode" type="CodeStringType" minOccurs="0">
+            <xs:annotation>
+              <xs:documentation>Optional code identifying the reviewer. Part of xs:all block.</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+        </xs:all>
+
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+
+  <!-- =====================================================================
+       FORM 2: SampleEntityForm
+       =====================================================================
+       Entity information with a choice group and a repeating section.
+
+       Features exercised:
+         [FEATURE: RadioGroup]             — xs:choice for entity type
+         [FEATURE: nested RadioGroup]      — nested xs:choice inside a branch
+         [FEATURE: GroupContainer]         — AddressType used directly
+         [FEATURE: SequenceContainer]      — repeating xs:sequence (PriorName list)
+         [FEATURE: TextInput]
+         [FEATURE: Dropdown-inline]        — inline enumeration restriction
+         [FEATURE: ValidationRules]
+         [FEATURE: required/optional]
+  -->
+  <xs:element name="SampleEntityForm">
+    <xs:annotation>
+      <xs:documentation>Entity identification and classification information.</xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+
+        <xs:element name="EntityName" type="ShortStringType">
+          <xs:annotation>
+            <xs:documentation>Legal name of the entity.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="EntityCode" type="CodeStringType">
+          <xs:annotation>
+            <xs:documentation>Unique code assigned to this entity. Two letters then 4 digits.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <!-- [FEATURE: RadioGroup]
+             xs:choice → RadioGroup kind.
+             Synthetic wrapper: "EntityTypeChoiceChoice" (or similar per naming convention).
+             Each branch → OptionN synthetic wrapper (IsGeneratedWrapper=true).
+             Selecting a branch shows its fields; the other branch's values are preserved
+             in FormEngine but not emitted to XML. -->
+        <xs:element name="EntityTypeChoice">
+          <xs:annotation>
+            <xs:documentation>
+              Select whether this entity is an Individual or an Organization.
+              Only the selected branch's fields are written to XML.
+            </xs:documentation>
+          </xs:annotation>
+          <xs:complexType>
+            <xs:choice>
+
+              <!-- Branch 1: Individual -->
+              <xs:sequence>
+                <xs:element name="IndividualFirstName" type="ShortStringType">
+                  <xs:annotation>
+                    <xs:documentation>First name of the individual.</xs:documentation>
+                  </xs:annotation>
+                </xs:element>
+                <xs:element name="IndividualLastName" type="ShortStringType">
+                  <xs:annotation>
+                    <xs:documentation>Last name of the individual.</xs:documentation>
+                  </xs:annotation>
+                </xs:element>
+                <xs:element name="IndividualBirthDate" type="xs:date">
+                  <!-- [FEATURE: DatePicker-direct inside choice branch] -->
+                  <xs:annotation>
+                    <xs:documentation>Date of birth of the individual.</xs:documentation>
+                  </xs:annotation>
+                </xs:element>
+
+                <!-- [FEATURE: nested RadioGroup]
+                     xs:choice nested inside a choice branch.
+                     Tests the fixed-point loop in SelectRadioGroupBranches:
+                     the inner RadioGroup is inside a collapsed panel until
+                     the outer branch is selected and UpdateLayout is called.
+                     Only then can the inner group be discovered and auto-selected. -->
+                <xs:element name="IdTypeChoice">
+                  <xs:annotation>
+                    <xs:documentation>
+                      Nested choice: what kind of ID does the individual hold?
+                      This is inside the Individual branch — only reachable after
+                      the outer choice selects Individual. Tests the fixed-point
+                      loop that discovers nested RadioGroups after branch expansion.
+                    </xs:documentation>
+                  </xs:annotation>
+                  <xs:complexType>
+                    <xs:choice>
+                      <!-- Inner branch 1 -->
+                      <xs:sequence>
+                        <xs:element name="PassportNumber">
+                          <xs:annotation>
+                            <xs:documentation>Passport document number.</xs:documentation>
+                          </xs:annotation>
+                          <xs:simpleType>
+                            <xs:restriction base="xs:string">
+                              <xs:pattern value="[A-Z0-9]{6,9}"/>
+                            </xs:restriction>
+                          </xs:simpleType>
+                        </xs:element>
+                        <xs:element name="PassportCountry" type="ShortStringType">
+                          <xs:annotation>
+                            <xs:documentation>Country of issuance for the passport.</xs:documentation>
+                          </xs:annotation>
+                        </xs:element>
+                      </xs:sequence>
+                      <!-- Inner branch 2 -->
+                      <xs:sequence>
+                        <xs:element name="DriverLicenseNumber">
+                          <xs:annotation>
+                            <xs:documentation>Driver license number.</xs:documentation>
+                          </xs:annotation>
+                          <xs:simpleType>
+                            <xs:restriction base="xs:string">
+                              <xs:maxLength value="20"/>
+                            </xs:restriction>
+                          </xs:simpleType>
+                        </xs:element>
+                        <xs:element name="DriverLicenseState" type="ShortStringType">
+                          <xs:annotation>
+                            <xs:documentation>State that issued the driver license.</xs:documentation>
+                          </xs:annotation>
+                        </xs:element>
+                      </xs:sequence>
+                    </xs:choice>
+                  </xs:complexType>
+                </xs:element>
+              </xs:sequence>
+
+              <!-- Branch 2: Organization -->
+              <xs:sequence>
+                <xs:element name="OrgLegalName" type="ShortStringType">
+                  <xs:annotation>
+                    <xs:documentation>Full legal name of the organization.</xs:documentation>
+                  </xs:annotation>
+                </xs:element>
+                <xs:element name="OrgType">
+                  <!-- [FEATURE: Dropdown-inline] inline enumeration -->
+                  <xs:annotation>
+                    <xs:documentation>Type of organization.</xs:documentation>
+                  </xs:annotation>
+                  <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                      <xs:enumeration value="Corporation"/>
+                      <xs:enumeration value="LLC"/>
+                      <xs:enumeration value="NonProfit"/>
+                      <xs:enumeration value="Partnership"/>
+                      <xs:enumeration value="SoleProprietorship"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                </xs:element>
+                <xs:element name="OrgFoundedYear" type="YearType" minOccurs="0">
+                  <xs:annotation>
+                    <xs:documentation>Optional. Year the organization was founded.</xs:documentation>
+                  </xs:annotation>
+                </xs:element>
+              </xs:sequence>
+
+            </xs:choice>
+          </xs:complexType>
+        </xs:element>
+
+        <!-- [FEATURE: GroupContainer] AddressType named complexType with xs:attribute -->
+        <xs:element name="RegisteredAddress" type="AddressType">
+          <xs:annotation>
+            <xs:documentation>Official registered address for the entity.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <!-- [FEATURE: SequenceContainer] repeating xs:sequence
+             An anonymous xs:sequence with maxOccurs>1 → SequenceContainer (IsRepeating=true).
+             Synthetic wrapper: "PriorNameListEntry" (IsGeneratedWrapper=true).
+             User can add/remove instances via Add/Remove buttons.
+             State stored as RepeatingInstanceCounts["PriorNameList"] = N.
+             Each instance path: PriorNameList[0].FormerName, PriorNameList[1].FormerName, etc. -->
+        <xs:element name="PriorNameList" minOccurs="0">
+          <xs:annotation>
+            <xs:documentation>
+              Optional list of previous names this entity has operated under.
+              Each entry is a repeating instance — tests SequenceContainer rendering,
+              add/remove buttons, instance count tracking, and path indexing.
+            </xs:documentation>
+          </xs:annotation>
+          <xs:complexType>
+            <xs:sequence maxOccurs="unbounded">
+              <xs:element name="FormerName" type="ShortStringType">
+                <xs:annotation>
+                  <xs:documentation>A previous name used by this entity.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+              <xs:element name="NameUsedUntil" type="xs:date">
+                <xs:annotation>
+                  <xs:documentation>Date this name was last used.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+              <xs:element name="NameChangeReason" minOccurs="0">
+                <xs:annotation>
+                  <xs:documentation>Optional reason for the name change.</xs:documentation>
+                </xs:annotation>
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="200"/>
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <!-- [FEATURE: xs:group ref] simple group ref
+             AuditStampGroup children (AuditCreatedBy, AuditCreatedDate,
+             AuditModifiedBy, AuditModifiedDate) are inlined directly here.
+             No "AuditStampGroup" element is ever created or emitted. -->
+        <xs:group ref="AuditStampGroup"/>
+
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+
+  <!-- =====================================================================
+       FORM 3: SampleFinancialForm
+       =====================================================================
+       Financial figures and a repeating line-item section.
+
+       Features exercised:
+         [FEATURE: DecimalInput]           — PositiveAmountType, PercentType
+         [FEATURE: NumericInput]           — CountType, YearType
+         [FEATURE: SequenceContainer]      — repeating line items
+         [FEATURE: RadioGroup]             — payment method choice
+         [FEATURE: nested xs:group ref]    — NestedRefGroup (recursive expansion)
+         [FEATURE: Dropdown-named]         — CategoryCodeType
+         [FEATURE: TextInput]
+         [FEATURE: ValidationRules]        — on amounts
+         [FEATURE: required/optional]
+  -->
+  <xs:element name="SampleFinancialForm">
+    <xs:annotation>
+      <xs:documentation>Financial summary and line-item detail for the submission.</xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+
+        <xs:element name="FiscalYear" type="YearType">
+          <xs:annotation>
+            <xs:documentation>Fiscal year these financials cover.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="GrossAmount" type="PositiveAmountType">
+          <!-- [FEATURE: DecimalInput + ValidationRules: minInclusive, totalDigits, fractionDigits] -->
+          <xs:annotation>
+            <xs:documentation>Total gross amount before deductions.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="DeductionAmount" type="PositiveAmountType" minOccurs="0">
+          <xs:annotation>
+            <xs:documentation>Optional total deduction amount.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="TaxRate" type="PercentType">
+          <!-- [FEATURE: DecimalInput + ValidationRules: minInclusive=0, maxInclusive=100, fractionDigits=2] -->
+          <xs:annotation>
+            <xs:documentation>Applicable tax rate as a percentage, e.g. 8.25.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="ItemCount" type="CountType">
+          <!-- [FEATURE: NumericInput + ValidationRules: minInclusive=0, maxInclusive=999] -->
+          <xs:annotation>
+            <xs:documentation>Number of line items in this form.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="CategoryCode" type="CategoryCodeType">
+          <!-- [FEATURE: Dropdown-named] second dropdown type -->
+          <xs:annotation>
+            <xs:documentation>Category classification code for these financials.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <!-- [FEATURE: RadioGroup] payment method choice -->
+        <xs:element name="PaymentMethodChoice">
+          <xs:annotation>
+            <xs:documentation>
+              How payment was or will be made. Exactly one branch must be selected.
+              Tests a top-level RadioGroup in a financial context.
+            </xs:documentation>
+          </xs:annotation>
+          <xs:complexType>
+            <xs:choice>
+              <!-- Branch: Electronic -->
+              <xs:sequence>
+                <xs:element name="BankRoutingNumber">
+                  <xs:annotation>
+                    <xs:documentation>9-digit ABA routing number.</xs:documentation>
+                  </xs:annotation>
+                  <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                      <xs:pattern value="[0-9]{9}"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                </xs:element>
+                <xs:element name="BankAccountNumber">
+                  <xs:annotation>
+                    <xs:documentation>Bank account number, up to 17 digits.</xs:documentation>
+                  </xs:annotation>
+                  <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                      <xs:pattern value="[0-9]{1,17}"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                </xs:element>
+              </xs:sequence>
+              <!-- Branch: Check -->
+              <xs:sequence>
+                <xs:element name="CheckNumber">
+                  <xs:annotation>
+                    <xs:documentation>Check number for paper payment.</xs:documentation>
+                  </xs:annotation>
+                  <xs:simpleType>
+                    <xs:restriction base="xs:string">
+                      <xs:pattern value="[0-9]{1,10}"/>
+                    </xs:restriction>
+                  </xs:simpleType>
+                </xs:element>
+                <xs:element name="CheckDate" type="xs:date">
+                  <xs:annotation>
+                    <xs:documentation>Date on the check.</xs:documentation>
+                  </xs:annotation>
+                </xs:element>
+              </xs:sequence>
+              <!-- Branch: Waived (no sub-fields) -->
+              <xs:sequence>
+                <xs:element name="WaiverCode" type="CodeStringType">
+                  <xs:annotation>
+                    <xs:documentation>Code authorizing the payment waiver.</xs:documentation>
+                  </xs:annotation>
+                </xs:element>
+              </xs:sequence>
+            </xs:choice>
+          </xs:complexType>
+        </xs:element>
+
+        <!-- [FEATURE: SequenceContainer] repeating line items with nested container
+             LineItems contains a repeating anonymous sequence.
+             Each instance has a GroupContainer (ItemDetail using a named complexType). -->
+        <xs:element name="LineItems" minOccurs="0">
+          <xs:annotation>
+            <xs:documentation>
+              Individual line items. Each entry is a repeating instance.
+              Tests SequenceContainer with a nested GroupContainer inside each instance.
+            </xs:documentation>
+          </xs:annotation>
+          <xs:complexType>
+            <xs:sequence maxOccurs="unbounded">
+              <xs:element name="LineDescription" type="ShortStringType">
+                <xs:annotation>
+                  <xs:documentation>Short description of this line item.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+              <xs:element name="LineAmount" type="PositiveAmountType">
+                <xs:annotation>
+                  <xs:documentation>Dollar amount for this line item.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+              <xs:element name="LineCategory" type="CategoryCodeType" minOccurs="0">
+                <xs:annotation>
+                  <xs:documentation>Optional category code for this line.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+              <xs:element name="LineDate" type="xs:date" minOccurs="0">
+                <xs:annotation>
+                  <xs:documentation>Optional date associated with this line item.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+
+        <!-- [FEATURE: nested xs:group ref]
+             NestedRefGroup references BOTH AuditStampGroup AND FlagsGroup.
+             The parser must recursively expand:
+               NestedRefGroup
+                 → AuditStampGroup → AuditCreatedBy, AuditCreatedDate, AuditModifiedBy, AuditModifiedDate
+                 → FlagsGroup (xs:all) → IsActive, IsVerified, IsConfidential
+             All 7 fields appear as direct children of SampleFinancialForm.
+             No group or xs:all wrapper tags ever appear in the XML. -->
+        <xs:group ref="NestedRefGroup"/>
+
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+
+  <!-- =====================================================================
+       FORM 4: SampleEventLog  (REPEATABLE)
+       =====================================================================
+       This form can appear multiple times in the packet (maxOccurs="unbounded"
+       in the packet root sequence above).
+
+       Each instance is identified by a documentId attribute on the XML element.
+       FormInstanceKey.InstanceId is derived from documentId on load, or a new
+       GUID is minted for user-added instances.
+
+       Features exercised:
+         [FEATURE: repeatable form]    — multiple instances in the packet
+         [FEATURE: TextInput]
+         [FEATURE: DatePicker-direct]
+         [FEATURE: NumericInput]
+         [FEATURE: Dropdown-inline]
+         [FEATURE: Checkbox]
+         [FEATURE: xs:group ref]       — FlagsGroup (xs:all inside group)
+         [FEATURE: required/optional]
+         [FEATURE: xs:attribute]       — documentId attribute for instance identity
+  -->
+  <xs:element name="SampleEventLog">
+    <xs:annotation>
+      <xs:documentation>
+        A single event log entry. Multiple instances may appear in one packet.
+        The documentId attribute is used to derive the FormInstanceKey.InstanceId
+        when loading saved XML, so instances are correctly matched to their state.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <!-- [FEATURE: xs:attribute] documentId identifies the repeating instance -->
+      <xs:attribute name="documentId" type="xs:string" use="optional">
+        <xs:annotation>
+          <xs:documentation>
+            Unique identifier for this event log instance. Used by the XML reader
+            to derive FormInstanceKey.InstanceId, so reloading preserves which
+            instance maps to which saved form state.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+      <xs:sequence>
+
+        <xs:element name="EventTitle" type="ShortStringType">
+          <xs:annotation>
+            <xs:documentation>Brief title for this event.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="EventDate" type="xs:date">
+          <xs:annotation>
+            <xs:documentation>Date the event occurred.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="EventType">
+          <!-- [FEATURE: Dropdown-inline] inline enumeration in repeatable form -->
+          <xs:annotation>
+            <xs:documentation>Classification of the event.</xs:documentation>
+          </xs:annotation>
+          <xs:simpleType>
+            <xs:restriction base="xs:string">
+              <xs:enumeration value="Submission"/>
+              <xs:enumeration value="Amendment"/>
+              <xs:enumeration value="Correction"/>
+              <xs:enumeration value="Withdrawal"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+
+        <xs:element name="EventSeverity" type="CountType">
+          <!-- [FEATURE: NumericInput] integer in repeatable form -->
+          <xs:annotation>
+            <xs:documentation>Severity level 0–999. Higher = more severe.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <xs:element name="EventDescription" minOccurs="0">
+          <xs:annotation>
+            <xs:documentation>Optional detailed description of the event.</xs:documentation>
+          </xs:annotation>
+          <xs:simpleType>
+            <xs:restriction base="xs:string">
+              <xs:maxLength value="500"/>
+            </xs:restriction>
+          </xs:simpleType>
+        </xs:element>
+
+        <xs:element name="RequiresFollowUp" type="xs:boolean">
+          <!-- [FEATURE: Checkbox] in repeatable form -->
+          <xs:annotation>
+            <xs:documentation>Whether this event requires a follow-up action.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+
+        <!-- [FEATURE: xs:group ref] FlagsGroup → xs:all (double transparency)
+             FlagsGroup contains xs:all → both are transparent.
+             IsActive, IsVerified, IsConfidential appear directly in SampleEventLog XML. -->
+        <xs:group ref="FlagsGroup"/>
+
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

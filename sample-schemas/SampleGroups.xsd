@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SampleGroups.xsd
+  ================
+  Named xs:group definitions included by SamplePacket.xsd via xs:include.
+
+  PURPOSE FOR DEVELOPERS:
+  This file tests:
+    - xs:group definition (named model groups)
+    - xs:group ref expansion in the parser (ExpandGroupRef):
+        the group itself produces NO SchemaElement and NO XML tag —
+        its children are inlined transparently into the parent
+    - Nested group refs (a group whose content references another group)
+    - A group containing xs:all (all-as-transparent-sequence)
+    - A group containing a simple xs:sequence of leaf fields
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!--
+    AuditStampGroup: simple sequence of audit fields
+    =====================================================
+    Exercises:
+      - Basic xs:group with xs:sequence
+      - Group expansion: AuditCreatedBy, AuditCreatedDate, AuditModifiedBy
+        appear as direct children of whatever references this group.
+        No "AuditStampGroup" element is ever created or emitted to XML.
+      - DatePicker (AuditCreatedDate, AuditModifiedDate via xs:date)
+      - TextInput (AuditCreatedBy, AuditModifiedBy)
+      - Optional fields inside a group (AuditModifiedBy, AuditModifiedDate)
+  -->
+  <xs:group name="AuditStampGroup">
+    <xs:annotation>
+      <xs:documentation>Standard audit trail fields. Inlined transparently wherever referenced.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="AuditCreatedBy">
+        <xs:annotation>
+          <xs:documentation>Username or identifier of the person who created this record.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="30"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="AuditCreatedDate" type="xs:date">
+        <xs:annotation>
+          <xs:documentation>Date this record was first created.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="AuditModifiedBy" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Username of person who last modified this record. Optional.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="30"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="AuditModifiedDate" type="xs:date" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Date this record was last modified. Optional.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:group>
+
+
+  <!--
+    FlagsGroup: xs:all inside a group
+    =====================================
+    Exercises:
+      - xs:all treated as transparent non-repeating sequence
+      - Boolean fields → Checkbox kind
+      - xs:all inside a group (double transparency: group transparent + all transparent)
+      - All children appear directly in parent without wrapper tags
+  -->
+  <xs:group name="FlagsGroup">
+    <xs:annotation>
+      <xs:documentation>
+        Boolean flag fields. Uses xs:all so order in XML is unrestricted.
+        The group and the xs:all wrapper are both transparent — flags appear
+        as direct children of whichever element references this group.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:all>
+      <xs:element name="IsActive" type="xs:boolean">
+        <xs:annotation>
+          <xs:documentation>Whether this record is currently active.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="IsVerified" type="xs:boolean">
+        <xs:annotation>
+          <xs:documentation>Whether this record has been verified by an administrator.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="IsConfidential" type="xs:boolean" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Optional. Whether this record is marked confidential.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:all>
+  </xs:group>
+
+
+  <!--
+    NestedRefGroup: a group that itself references another group
+    =============================================================
+    Exercises:
+      - Nested group ref expansion (recursive ExpandGroupRef)
+      - AuditStampGroup fields AND FlagsGroup fields both inlined into
+        whatever references NestedRefGroup — two levels of transparent expansion
+      - Parser must handle this without infinite loops or missing fields
+  -->
+  <xs:group name="NestedRefGroup">
+    <xs:annotation>
+      <xs:documentation>
+        Combines AuditStampGroup and FlagsGroup via nested group refs.
+        Tests recursive group expansion: every field from both groups
+        is inlined into the parent that references NestedRefGroup.
+      </xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <!-- Nested group ref #1: expands to AuditCreatedBy, AuditCreatedDate, etc. -->
+      <xs:group ref="AuditStampGroup"/>
+      <!-- Nested group ref #2: expands to IsActive, IsVerified, IsConfidential -->
+      <xs:group ref="FlagsGroup"/>
+    </xs:sequence>
+  </xs:group>
+
+</xs:schema>

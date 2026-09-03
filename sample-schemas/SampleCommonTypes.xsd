@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SampleCommonTypes.xsd
+  =====================
+  Shared named simple and complex types included by SamplePacket.xsd via xs:include.
+
+  PURPOSE FOR DEVELOPERS:
+  This file tests:
+    - xs:include resolution (flattener must merge these types into the flat document)
+    - Named simpleType with xs:restriction → Dropdown (EnumerationValues)
+    - Named simpleType restricting a primitive with pattern → TextInput + ValidationRules
+    - Named simpleType restricting xs:date → used by inline simpleType base resolution
+    - Named complexType → GroupContainer
+    - xs:attribute on a complexType → attribute prepended to children
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!-- =====================================================================
+       SIMPLE TYPES — kind resolution from named types
+       ===================================================================== -->
+
+  <!--
+    StatusType: enumeration → Dropdown
+    Exercises: EnumerationValues extraction, Dropdown kind assignment
+  -->
+  <xs:simpleType name="StatusType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Active"/>
+      <xs:enumeration value="Inactive"/>
+      <xs:enumeration value="Pending"/>
+      <xs:enumeration value="Closed"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!--
+    CategoryCodeType: enumeration → Dropdown
+    Exercises: second Dropdown type to confirm reuse
+  -->
+  <xs:simpleType name="CategoryCodeType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="A"/>
+      <xs:enumeration value="B"/>
+      <xs:enumeration value="C"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!--
+    ShortStringType: string with length constraints → TextInput + ValidationRules
+    Exercises: maxLength ValidationRule extraction
+  -->
+  <xs:simpleType name="ShortStringType">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+      <xs:maxLength value="50"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!--
+    CodeStringType: string with pattern → TextInput + pattern ValidationRule
+    Exercises: pattern ValidationRule, RegexSampleGenerator in TestDataFiller
+  -->
+  <xs:simpleType name="CodeStringType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[A-Z]{2}[0-9]{4}"/>
+      <xs:maxLength value="6"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!--
+    PercentType: decimal with range constraints → DecimalInput + ValidationRules
+    Exercises: minInclusive + maxInclusive ValidationRules on a decimal
+  -->
+  <xs:simpleType name="PercentType">
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="0.00"/>
+      <xs:maxInclusive value="100.00"/>
+      <xs:fractionDigits value="2"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!--
+    PositiveAmountType: decimal, no lower bound shown (just totalDigits) → DecimalInput
+    Exercises: totalDigits ValidationRule
+  -->
+  <xs:simpleType name="PositiveAmountType">
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="0"/>
+      <xs:totalDigits value="12"/>
+      <xs:fractionDigits value="2"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!--
+    CountType: integer with range → NumericInput + ValidationRules
+    Exercises: minInclusive + maxInclusive on integer
+  -->
+  <xs:simpleType name="CountType">
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="0"/>
+      <xs:maxInclusive value="999"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!--
+    SampleDateType: restricts xs:date → used to test inline simpleType base resolution
+    Exercises: resolveUltimateBaseType chain (SampleDateType → xs:date → DatePicker)
+    When an element uses an INLINE xs:simpleType restricting THIS named type,
+    the parser must chase the chain to xs:date to assign DatePicker kind.
+  -->
+  <xs:simpleType name="SampleDateType">
+    <xs:restriction base="xs:date"/>
+  </xs:simpleType>
+
+  <!--
+    YearType: integer with tight range → NumericInput
+  -->
+  <xs:simpleType name="YearType">
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="1900"/>
+      <xs:maxInclusive value="2100"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+
+  <!-- =====================================================================
+       COMPLEX TYPES — GroupContainer, xs:attribute
+       ===================================================================== -->
+
+  <!--
+    AddressType: named complexType → GroupContainer
+    Contains mixed leaf kinds and an xs:attribute.
+    Exercises:
+      - Named complexType → GroupContainer kind
+      - xs:attribute on complexType → attribute prepended to children
+      - Required vs. optional children within a container
+  -->
+  <xs:complexType name="AddressType">
+    <xs:annotation>
+      <xs:documentation>A mailing or physical address.</xs:documentation>
+    </xs:annotation>
+    <!-- xs:attribute: exercises attribute support (prepended to children list) -->
+    <xs:attribute name="addressKind" type="xs:string" use="optional">
+      <xs:annotation>
+        <xs:documentation>Mailing or Physical address indicator.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+    <xs:sequence>
+      <xs:element name="StreetLine1" type="ShortStringType">
+        <xs:annotation>
+          <xs:documentation>First line of street address.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="StreetLine2" type="ShortStringType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Optional second address line (suite, unit, etc.).</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="City" type="ShortStringType"/>
+      <xs:element name="StateCode" type="CodeStringType">
+        <xs:annotation>
+          <xs:documentation>Two-letter state code followed by 4-digit ZIP segment, e.g. HI0000.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="PostalCode">
+        <xs:annotation>
+          <xs:documentation>5-digit ZIP code.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9]{5}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!--
+    ContactInfoType: named complexType → GroupContainer
+    Exercises: GroupContainer nesting inside another GroupContainer (depth coloring)
+  -->
+  <xs:complexType name="ContactInfoType">
+    <xs:annotation>
+      <xs:documentation>Contact details for a person or organization.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="PhoneNumber">
+        <xs:annotation>
+          <xs:documentation>10-digit phone number, digits only.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9]{10}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="EmailAddress" type="ShortStringType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Optional email address.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="MailingAddress" type="AddressType">
+        <xs:annotation>
+          <xs:documentation>Primary mailing address.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+</xs:schema>

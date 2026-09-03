@@ -1,0 +1,372 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SamplePacket.xml
+  ================
+  A fully populated sample XML file matching SamplePacket.xsd.
+  Load this file with the tool after loading the schema folder to verify:
+
+    1. All forms appear in the nav tree
+    2. Every field is populated with the correct control type
+    3. All values are restored correctly after form switches
+    4. Repeating instances (PriorNameList, LineItems, two SampleEventLog entries) inflate correctly
+    5. Radio branch selection is restored (EntityTypeChoice → Organization branch)
+    6. Nested radio branch selection is restored (IdTypeChoice → DriverLicense branch,
+       even though it is inside the Individual branch which is NOT selected —
+       the stored value should be preserved in FormEngine but not visible)
+    7. PaymentMethodChoice → Electronic branch
+    8. xs:all fields (InternalNotes, ReviewerCode) round-trip correctly
+    9. Group-expanded fields (AuditCreatedBy etc.) appear directly in their parent
+   10. documentId attributes on SampleEventLog instances derive FormInstanceKey.InstanceId
+   11. SampleSummary (inline element) loads correctly via the inline element fallback path
+
+  ROUND-TRIP CONTRACT:
+  Save this file from the tool and diff against this original.
+  The output should be structurally identical (same elements, same values).
+  Differences in whitespace/formatting are acceptable.
+  Elements with no value and minOccurs="0" may be absent from the saved output.
+
+  UNMATCHED FIELDS TEST:
+  An <UnknownLegacyField> element is intentionally included inside SampleHeader.
+  The XML reader should collect it as an UnmatchedXmlField and report it to the
+  user after load. It must NOT cause a crash or block loading other fields.
+-->
+<SamplePacket>
+
+  <!-- ==================================================================
+       FORM: SampleHeader
+       ==================================================================
+       Tests:
+         - All 6 leaf kinds in one form
+         - xs:all fields (InternalNotes, ReviewerCode) — order-independent in XML
+         - GroupContainer nesting (ContactInfoType → AddressType)
+         - xs:attribute on AddressType (addressKind attribute)
+         - Inline simpleType chain: ExpiryDate uses SampleDateType → xs:date → DatePicker
+         - AuditStampGroup expansion: AuditCreatedBy etc. appear directly under SampleHeader
+  -->
+  <SampleHeader>
+
+    <!-- TextInput + pattern + maxLength ValidationRules -->
+    <PacketId>HI2025</PacketId>
+
+    <!-- TextInput + minLength + maxLength -->
+    <PacketTitle>Sample Submission Packet for Developer Testing</PacketTitle>
+
+    <!-- NumericInput + minInclusive + maxInclusive -->
+    <TaxYear>2024</TaxYear>
+
+    <!-- DatePicker-direct: xs:date -->
+    <SubmissionDate>2024-03-15</SubmissionDate>
+
+    <!-- DatePicker-direct: xs:dateTime (optional, present) -->
+    <EffectiveDateTime>2024-03-15T09:00:00</EffectiveDateTime>
+
+    <!-- DatePicker-chain: inline simpleType → SampleDateType → xs:date
+         If this loads as a TextInput instead of a DatePicker,
+         resolveUltimateBaseType is not chasing the chain correctly. -->
+    <ExpiryDate>2025-12-31</ExpiryDate>
+
+    <!-- Dropdown (StatusType enumeration) -->
+    <PacketStatus>Active</PacketStatus>
+
+    <!-- Checkbox: xs:boolean -->
+    <IsAmended>false</IsAmended>
+
+    <!-- Checkbox: xs:boolean, optional — present -->
+    <IsExtension>false</IsExtension>
+
+    <!-- GroupContainer: ContactInfoType (named complexType)
+         Contains PhoneNumber (TextInput+pattern), EmailAddress (optional TextInput),
+         MailingAddress (nested GroupContainer: AddressType with xs:attribute) -->
+    <PrimaryContact>
+      <PhoneNumber>8085550100</PhoneNumber>
+      <!-- EmailAddress is optional — omitted here to test optional omission -->
+      <MailingAddress addressKind="Mailing">
+        <!-- addressKind is an xs:attribute — prepended to AddressType children in the tool.
+             On load the reader must handle this as an attribute, not an element. -->
+        <StreetLine1>123 Test Boulevard</StreetLine1>
+        <!-- StreetLine2 is optional — omitted here -->
+        <City>Honolulu</City>
+        <!-- StateCode: CodeStringType pattern [A-Z]{2}[0-9]{4} -->
+        <StateCode>HI0000</StateCode>
+        <!-- PostalCode: inline pattern [0-9]{5} -->
+        <PostalCode>96813</PostalCode>
+      </MailingAddress>
+    </PrimaryContact>
+
+    <!-- xs:all fields: these can appear in any order in XML.
+         The tool must correctly read them regardless of position.
+         InternalNotes and ReviewerCode are both optional. -->
+    <ReviewerCode>AB1234</ReviewerCode>
+    <InternalNotes>Initial test submission created for developer verification.</InternalNotes>
+
+    <!-- AuditStampGroup expansion (xs:group ref="AuditStampGroup"):
+         These 4 fields appear directly under SampleHeader — no wrapper element.
+         AuditModifiedBy and AuditModifiedDate are optional (present here). -->
+    <AuditCreatedBy>testuser</AuditCreatedBy>
+    <AuditCreatedDate>2024-01-10</AuditCreatedDate>
+    <AuditModifiedBy>reviewuser</AuditModifiedBy>
+    <AuditModifiedDate>2024-02-20</AuditModifiedDate>
+
+    <!-- UNMATCHED FIELD TEST:
+         This element has no corresponding schema path.
+         The XML reader must record it as an UnmatchedXmlField and show it
+         in the UnmatchedFieldsWindow after load. It must NOT crash the reader
+         or prevent the other fields above from loading. -->
+    <UnknownLegacyField>some_legacy_value</UnknownLegacyField>
+
+  </SampleHeader>
+
+
+  <!-- ==================================================================
+       FORM: SampleEntityForm
+       ==================================================================
+       Tests:
+         - RadioGroup (EntityTypeChoice) with Organization branch SELECTED
+           (not Individual) — tests that the correct branch is shown on load
+         - Nested RadioGroup (IdTypeChoice inside Individual branch) has a
+           value for DriverLicense branch stored — but Individual branch is
+           NOT selected, so these values must be preserved in FormEngine
+           and NOT emitted to XML (they are absent from this file).
+           On a fresh load, the nested choice branch selection stored in
+           radioSelections must be null/absent since no values were selected.
+         - SequenceContainer: PriorNameList with 2 entries
+         - AuditStampGroup expansion
+         - AddressType (GroupContainer) with xs:attribute
+  -->
+  <SampleEntityForm>
+
+    <EntityName>Acme Sample Corporation</EntityName>
+    <EntityCode>AC9001</EntityCode>
+
+    <!-- RadioGroup: EntityTypeChoice → Organization branch selected.
+         The Organization branch fields (OrgLegalName, OrgType, OrgFoundedYear)
+         are present. Individual branch fields are absent.
+
+         RadioSelections stored as:
+           "SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice" →
+           "SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2"
+
+         (Exact synthetic path segment names depend on parser implementation —
+          the walkthrough document maps these to the XSD constructs.) -->
+    <OrgLegalName>Acme Sample Corporation</OrgLegalName>
+    <!-- Dropdown (inline enumeration: Corporation, LLC, NonProfit, Partnership, SoleProprietorship) -->
+    <OrgType>Corporation</OrgType>
+    <!-- NumericInput (YearType), optional — present -->
+    <OrgFoundedYear>1998</OrgFoundedYear>
+
+    <!-- GroupContainer: AddressType with addressKind attribute -->
+    <RegisteredAddress addressKind="Physical">
+      <StreetLine1>456 Corporate Drive</StreetLine1>
+      <StreetLine2>Suite 200</StreetLine2>
+      <City>Honolulu</City>
+      <StateCode>HI0001</StateCode>
+      <PostalCode>96814</PostalCode>
+    </RegisteredAddress>
+
+    <!-- SequenceContainer: PriorNameList with 2 repeating instances.
+         RepeatingInstanceCounts["PriorNameList"] = 2.
+         Paths:
+           PriorNameList[0].FormerName, PriorNameList[0].NameUsedUntil, PriorNameList[0].NameChangeReason
+           PriorNameList[1].FormerName, PriorNameList[1].NameUsedUntil  (NameChangeReason omitted = optional)
+
+         The tool must inflate 2 instance rows in the SequenceContainer
+         before restoring values. NameChangeReason on instance [1] is
+         absent — tests optional omission within a repeating entry. -->
+    <PriorNameList>
+      <FormerName>Acme Sample Industries</FormerName>
+      <NameUsedUntil>2010-06-30</NameUsedUntil>
+      <NameChangeReason>Rebranding to reflect expanded services.</NameChangeReason>
+    </PriorNameList>
+    <PriorNameList>
+      <FormerName>Acme Widgets LLC</FormerName>
+      <NameUsedUntil>1998-12-31</NameUsedUntil>
+      <!-- NameChangeReason omitted — optional, tests omission within repeating entry -->
+    </PriorNameList>
+
+    <!-- AuditStampGroup — expanded directly (no wrapper) -->
+    <AuditCreatedBy>dataentry1</AuditCreatedBy>
+    <AuditCreatedDate>2024-01-12</AuditCreatedDate>
+    <!-- AuditModifiedBy and AuditModifiedDate omitted — optional -->
+
+  </SampleEntityForm>
+
+
+  <!-- ==================================================================
+       FORM: SampleFinancialForm
+       ==================================================================
+       Tests:
+         - DecimalInput fields (GrossAmount, DeductionAmount, TaxRate)
+         - NumericInput fields (FiscalYear, ItemCount)
+         - RadioGroup: PaymentMethodChoice → Electronic branch
+         - SequenceContainer: LineItems with 2 entries
+         - NestedRefGroup expansion (AuditStampGroup + FlagsGroup):
+             7 fields inlined directly (AuditCreatedBy, AuditCreatedDate,
+             AuditModifiedBy, AuditModifiedDate, IsActive, IsVerified, IsConfidential)
+         - Dropdown (CategoryCodeType)
+         - Checkbox fields from FlagsGroup (IsActive, IsVerified, IsConfidential)
+  -->
+  <SampleFinancialForm>
+
+    <!-- NumericInput -->
+    <FiscalYear>2024</FiscalYear>
+
+    <!-- DecimalInput + PositiveAmountType (minInclusive=0, totalDigits=12, fractionDigits=2) -->
+    <GrossAmount>125000.00</GrossAmount>
+
+    <!-- DecimalInput, optional — present -->
+    <DeductionAmount>5000.00</DeductionAmount>
+
+    <!-- DecimalInput + PercentType (minInclusive=0, maxInclusive=100, fractionDigits=2) -->
+    <TaxRate>8.25</TaxRate>
+
+    <!-- NumericInput + CountType (minInclusive=0, maxInclusive=999) -->
+    <ItemCount>2</ItemCount>
+
+    <!-- Dropdown (CategoryCodeType: A, B, C) -->
+    <CategoryCode>B</CategoryCode>
+
+    <!-- RadioGroup: PaymentMethodChoice → Electronic branch (BankRoutingNumber + BankAccountNumber).
+         Check and Waived branch fields are absent.
+         RadioSelections:
+           "SampleFinancialForm.PaymentMethodChoice.PaymentMethodChoiceChoice" →
+           "...Option1" (Electronic branch) -->
+    <BankRoutingNumber>021000021</BankRoutingNumber>
+    <BankAccountNumber>123456789</BankAccountNumber>
+
+    <!-- SequenceContainer: LineItems with 2 entries.
+         RepeatingInstanceCounts["LineItems"] = 2.
+         Paths:
+           LineItems[0].LineDescription, LineItems[0].LineAmount, LineItems[0].LineCategory, LineItems[0].LineDate
+           LineItems[1].LineDescription, LineItems[1].LineAmount
+           (LineCategory and LineDate omitted on [1] — both optional) -->
+    <LineItems>
+      <LineDescription>Consulting services - Q1</LineDescription>
+      <LineAmount>75000.00</LineAmount>
+      <!-- LineCategory optional — present on first entry -->
+      <LineCategory>A</LineCategory>
+      <!-- LineDate optional — present on first entry -->
+      <LineDate>2024-03-31</LineDate>
+    </LineItems>
+    <LineItems>
+      <LineDescription>Consulting services - Q2</LineDescription>
+      <LineAmount>50000.00</LineAmount>
+      <!-- LineCategory and LineDate omitted — tests optional omission in repeating entry -->
+    </LineItems>
+
+    <!-- NestedRefGroup expansion (recursive: AuditStampGroup + FlagsGroup).
+         All 7 fields appear directly under SampleFinancialForm — no wrapper.
+
+         AuditStampGroup fields (4): -->
+    <AuditCreatedBy>finance1</AuditCreatedBy>
+    <AuditCreatedDate>2024-02-01</AuditCreatedDate>
+    <AuditModifiedBy>manager1</AuditModifiedBy>
+    <AuditModifiedDate>2024-03-01</AuditModifiedDate>
+
+    <!-- FlagsGroup fields via xs:all (3 Checkboxes):
+         xs:all means order in XML is unrestricted.
+         IsConfidential is optional — present here. -->
+    <IsActive>true</IsActive>
+    <IsVerified>true</IsVerified>
+    <IsConfidential>false</IsConfidential>
+
+  </SampleFinancialForm>
+
+
+  <!-- ==================================================================
+       FORM: SampleEventLog  INSTANCE 1  (documentId="EVT-001")
+       ==================================================================
+       Tests:
+         - Repeatable form — first of two instances
+         - documentId attribute → FormInstanceKey.InstanceId = "EVT-001"
+         - FlagsGroup expansion (xs:all → 3 Checkbox fields directly in element)
+         - All standard leaf kinds present
+  -->
+  <SampleEventLog documentId="EVT-001">
+
+    <!-- TextInput -->
+    <EventTitle>Initial Submission Received</EventTitle>
+
+    <!-- DatePicker-direct -->
+    <EventDate>2024-03-15</EventDate>
+
+    <!-- Dropdown (inline enumeration) -->
+    <EventType>Submission</EventType>
+
+    <!-- NumericInput (CountType) -->
+    <EventSeverity>1</EventSeverity>
+
+    <!-- TextInput, optional — present -->
+    <EventDescription>First submission of the sample packet. All required forms included.</EventDescription>
+
+    <!-- Checkbox -->
+    <RequiresFollowUp>false</RequiresFollowUp>
+
+    <!-- FlagsGroup (xs:group ref → xs:all → 3 Checkboxes, directly inlined).
+         IsConfidential omitted — it is minOccurs="0". -->
+    <IsActive>true</IsActive>
+    <IsVerified>false</IsVerified>
+
+  </SampleEventLog>
+
+
+  <!-- ==================================================================
+       FORM: SampleEventLog  INSTANCE 2  (documentId="EVT-002")
+       ==================================================================
+       Tests:
+         - Second repeatable form instance
+         - documentId="EVT-002" → distinct FormInstanceKey from EVT-001
+         - Switching between the two instances must restore each one's
+           independent state — they do NOT share FormState
+         - EventDescription omitted (optional) — tests optional omission
+         - IsConfidential present (shows optional field CAN appear)
+  -->
+  <SampleEventLog documentId="EVT-002">
+
+    <EventTitle>Amendment Filed</EventTitle>
+    <EventDate>2024-04-10</EventDate>
+    <EventType>Amendment</EventType>
+    <EventSeverity>3</EventSeverity>
+    <!-- EventDescription omitted — optional -->
+    <RequiresFollowUp>true</RequiresFollowUp>
+
+    <!-- FlagsGroup — IsConfidential present this time -->
+    <IsActive>true</IsActive>
+    <IsVerified>true</IsVerified>
+    <IsConfidential>true</IsConfidential>
+
+  </SampleEventLog>
+
+
+  <!-- ==================================================================
+       FORM: SampleSummary  (INLINE ELEMENT — fallback path test)
+       ==================================================================
+       SampleSummary is NOT a global xs:element. It is declared inside
+       SamplePacket's complexType/sequence. ParseGlobalElement("SampleSummary")
+       must fall back to searching the root's inline children.
+
+       If the fallback is not implemented, this form will fail to render
+       (no SchemaElement found) even though the XML loads fine.
+
+       Tests:
+         - Inline element fallback in ParseGlobalElement
+         - AuditStampGroup expansion inside an inline element
+         - SummaryNotes optional — omitted here
+  -->
+  <SampleSummary>
+
+    <!-- NumericInput (CountType) -->
+    <TotalRecordCount>2</TotalRecordCount>
+
+    <!-- DecimalInput (PositiveAmountType) -->
+    <TotalAmount>125000.00</TotalAmount>
+
+    <!-- SummaryNotes omitted — optional, tests omission -->
+
+    <!-- AuditStampGroup inside inline element — still expands correctly -->
+    <AuditCreatedBy>system</AuditCreatedBy>
+    <AuditCreatedDate>2024-03-15</AuditCreatedDate>
+    <!-- AuditModifiedBy, AuditModifiedDate omitted — optional -->
+
+  </SampleSummary>
+
+</SamplePacket>
