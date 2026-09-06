@@ -68,6 +68,12 @@ All models are plain JavaScript objects. Use JSDoc comments for type documentati
  * @property {number|null} maxOccurs        — null = unbounded
  * @property {boolean}  isRepeating
  * @property {boolean}  isGeneratedWrapper  — synthetic Choice/Entry node
+ * @property {boolean}  isAttribute         — true for xs:attribute-derived nodes;
+ *                                             written/read via setAttribute/getAttribute
+ *                                             on the PARENT element, never as its own child tag
+ * @property {boolean}  isInstanceIdSource  — true for the one attribute (by convention,
+ *                                             named `documentId`) that supplies
+ *                                             FormInstanceKey.instanceId for a repeatable form
  * @property {EnumerationOption[]} enumerationValues
  * @property {ValidationRule[]}   validationRules
  * @property {SchemaElement[]}    children
@@ -92,6 +98,18 @@ All models are plain JavaScript objects. Use JSDoc comments for type documentati
  * @property {Object.<string, number>} repeatingInstanceCounts — basePath → count
  * @property {Object.<string, string|null>} radioSelections   — choicePath → selectedBranchPath
  * @property {boolean} isDirty
+ * @property {UnmatchedXmlField[]} unmatchedFields   — XML elements found on read with no schema match
+ */
+```
+
+### UnmatchedXmlField
+
+```js
+/**
+ * @typedef {Object} UnmatchedXmlField
+ * @property {string} formName
+ * @property {string} xmlPath    — dot-path of the unrecognized element, e.g. "SampleHeader.UnknownLegacyField"
+ * @property {string} value      — the element's text content
  */
 ```
 
@@ -183,8 +201,12 @@ flattenFromRoot(files, rootFileName):
   4. Strip UTF-8 BOM (U+FEFF) from all file text before parsing
      — If any file contains U+FEFF, report them to the user before proceeding
      — Offer to strip them automatically
-  5. Return the merged XSD as a single DOM Document
+  5. Read targetNamespace = rootFile's <xs:schema targetNamespace="..."> attribute (absent → null,
+     meaning a no-namespace / chameleon schema — some MeF-style schemas do omit it)
+  6. Return { doc: the merged XSD as a single DOM Document, targetNamespace }
 ```
+
+**Real MeF schemas are namespace-qualified** (a `targetNamespace` plus, typically, `elementFormDefault="qualified"`), so `targetNamespace` is threaded through to the parser (§4, for `TypeLookupTable`/element resolution, which continues to key by local name only) and to the XML writer (§10, which needs it to produce a document real MeF ingestion will actually accept). See the MeF Compatibility Checklist near the end of this document for what's still unverified without a real sample schema — e.g. whether `attributeFormDefault` is ever `"qualified"` in practice, and whether an `xsi:schemaLocation` hint is expected on the output.
 
 ### BOM Detection
 
@@ -272,7 +294,11 @@ A node is transparent if `isGeneratedWrapper === true || kind === 'RadioGroup' |
 
 ### xs:attribute Support
 
-After resolving a `complexType`'s children, also collect `xs:attribute` elements (including those inherited from base types via `xs:extension`). Each attribute becomes a `SchemaElement` using the same kind-assignment rules. Attributes are prepended to the parent's `children` array. Skip duplicates by name.
+After resolving a `complexType`'s children, also collect `xs:attribute` elements (including those inherited from base types via `xs:extension`). Each attribute becomes a `SchemaElement` using the same kind-assignment rules, with `isAttribute = true` set on it. Attributes are prepended to the parent's `children` array. Skip duplicates by name.
+
+`isAttribute` nodes are never visited as ordinary element children by the XML writer/reader (§10, §11) — they are read via `element.getAttribute(name)` and written via `element.setAttribute(name, value)` on the attribute's *parent's* element, keyed in `FormState.fieldValues` the same way as any other child path (`parentPath.attributeName`).
+
+**Instance-id attribute convention:** if a repeatable form's complexType declares an attribute literally named `documentId`, mark that node `isInstanceIdSource = true`. It serves two roles: it is a normal editable field, and the XML reader uses its value to populate `FormInstanceKey.instanceId` (§11). Schemas that use a different attribute name for this purpose need to adjust this convention accordingly.
 
 ### xs:group Expansion
 
@@ -309,7 +335,20 @@ analyzePacket(flatDoc, rootElementName):
   4. Return PacketManifest { packetName, sections, allForms }
 ```
 
-**Root detection:** Scan the flat document for `xs:element` declarations at the top level that appear to be root candidates — elements that are not referenced as children of any other element, or elements with a specific naming convention.
+**Root detection:** No naming convention is assumed — root candidates are found purely by reference analysis:
+
+```
+findRootElementCandidates(flatDoc):
+  globalNames = set of every top-level xs:element[@name] in flatDoc
+  referenced = set()
+  for each xs:element[@ref] anywhere in flatDoc (at any depth, inside any
+      complexType/sequence/choice/all/group):
+    referenced.add(the ref value, stripped of any namespace prefix)
+  candidates = globalNames - referenced
+  return candidates
+```
+
+If `candidates` has exactly one member, that is the packet root. If it has more than one, present a "Choose Root" modal listing them (same modal referenced in §20 step 6). This mirrors the file-level root detection in §20 — one operates over `xs:include`/`xs:import` references between files, the other over `xs:element ref=` references between global elements within the merged document.
 
 ---
 
@@ -494,15 +533,27 @@ function create(element) {
 
 ### Path Rewriting
 
-After rendering a repeating instance at index `i`, walk all `data-path` attributes within it and replace the base path segment with the indexed version:
+Every descendant control rendered underneath a repeating section is, by construction, rendered via recursion starting from that repeating `SchemaElement` node itself (the synthetic Entry wrapper — see §4, §10). That node's own `elementPath` (computed once, unindexed, at parse time — e.g. `"SampleEntityForm.PriorNameList.PriorNameListEntry"`) is therefore guaranteed to be an exact prefix of every `data-path`/`data-choice-path` value inside the instance being rendered. Rewriting is a straightforward prefix replacement — no pattern-guessing regex needed:
 
+```js
+function rewriteInstancePaths(instanceRootEl, basePath, index) {
+  const indexedBase = basePath + '[' + index + ']';
+  const rewrite = (attrName) => {
+    instanceRootEl.querySelectorAll('[' + attrName + ']').forEach(el => {
+      const p = el.dataset[attrName === 'data-path' ? 'path' : 'choicePath'];
+      if (p === basePath || p.startsWith(basePath + '.')) {
+        el.dataset[attrName === 'data-path' ? 'path' : 'choicePath'] = indexedBase + p.slice(basePath.length);
+      }
+    });
+  };
+  rewrite('data-path');
+  rewrite('data-choice-path');
+}
 ```
-"SomeList.Field" → "SomeList[0].Field"
-```
 
-Use a regex: `/(\w+)(\.)` → check if the segment is the repeating base, then append `[i]`.
+`basePath` is always `schemaElement.elementPath` of the repeating node being instantiated (the Entry wrapper), not a name guessed out of the path string.
 
-This must process parents before children in DOM order.
+This must process parents before children in DOM order: if the newly-added instance itself contains a nested repeating section, that nested section's own `rewriteInstancePaths` call runs afterward and reads `data-path`/`data-choice-path` values that already carry the outer instance's `[i]` — so its `basePath` prefix check still matches.
 
 ### Inflation (Restore from FormState)
 
@@ -523,9 +574,21 @@ This is a fixed-point loop (cap 20 passes) because adding outer instances may re
 - Separator: `.` (dot)
 - Repeating index: `BaseName[0]`, `BaseName[1]`, etc.
 - Synthetic segments ARE included: `N11Choice`, `N11ChoiceOption1`, `SomeListEntry`
-- All lookups are case-insensitive
+- All lookups are case-insensitive — always `.toLowerCase()` a path immediately before using it as a `fieldValues`/`radioSelections`/`repeatingInstanceCounts` map key
 - `RadioGroup` path = the generated `{Parent}Choice` element's path
-- The selected branch path prefix stored in `radioSelections` is the **bare** (non-indexed) path used at schema parse time. When looking up which branch is selected for a runtime-indexed radio group, strip the instance index from the runtime path to compare against the bare stored path.
+- **`radioSelections` and `fieldValues` keys are always the full, exact *runtime* path** — including any ancestor `[i]` indices already resolved for the instance being read, written, or rendered. There is no separate "bare, schema-time" form of these keys and no index-stripping step anywhere: a radio group nested inside repeating instance `SomeList[1]` stores/reads its selection under `SomeList[1].SomeChoice`, never under the unindexed `SomeList.SomeChoice`. This applies uniformly across the form renderer, `FormEngine`, `xmlWriter`, and `xmlReader`.
+
+### `joinPath` helper
+
+All writer/reader/renderer code builds paths with one shared helper, never by ad-hoc string concatenation:
+
+```js
+function joinPath(prefix, name) {
+  return prefix ? prefix + '.' + name : name;
+}
+```
+
+Using `prefix + '.' + name` directly (without the empty-prefix guard) produces a leading-dot path (`.SampleEventLog` instead of `SampleEventLog`) at the root of every form tree, which then fails every subsequent `fieldValues` lookup under that root. `joinPath` is the only sanctioned way to extend a path in this codebase — see §10 and §11.
 
 ---
 
@@ -603,37 +666,96 @@ CSS:
 
 Produces a well-formed XML string from all FormState data.
 
+### Shared Helper Predicates
+
+These helpers are shared by `xmlWriter.js` and `xmlReader.js` (define once, e.g. exported from `parser.js`, and import from both):
+
+```js
+function isTransparent(el)  { return el.isGeneratedWrapper || el.kind === 'RadioGroup' || el.kind === 'SequenceContainer'; }
+function isAttribute(el)    { return el.isAttribute === true; }
+function isLeaf(el)         { return el.children.length === 0; }
+
+// True for the common "anonymous repeating sequence" idiom (§4 Synthetic Nodes):
+// a named, non-repeating container whose entire content model is a single
+// synthetic, transparent, repeating Entry wrapper (e.g. PriorNameList → PriorNameListEntry).
+// In this shape the OUTER container's own tag is what repeats in the XML instance
+// document — the Entry wrapper itself never emits a tag and exists only so that
+// FormEngine paths have somewhere to attach the `[i]` index.
+function isRepeatingContentContainer(el) {
+  return el.children.length === 1 && el.children[0].isRepeating && el.children[0].isGeneratedWrapper;
+}
+
+function joinPath(prefix, name) { return prefix ? prefix + '.' + name : name; }  // see §8
+```
+
+### Namespace-Aware Element Creation
+
+Real MeF schemas declare a `targetNamespace` (§3) and virtually always use `elementFormDefault="qualified"`, meaning every element in a conforming instance document must belong to that namespace. Building the output with plain `document.createElement(...)` — which creates elements in the (X)HTML namespace — would produce an XML string that looks right when eyeballed but fails schema validation on ingestion. `xmlWriter.js` keeps a small piece of module state for the duration of one `buildPacketXml` call so the rest of `buildNodes` (below) doesn't need a namespace parameter threaded through every call:
+
+```js
+let _doc = null, _targetNamespace = null;
+
+function createElement(tagName) {
+  return _targetNamespace ? _doc.createElementNS(_targetNamespace, tagName) : _doc.createElement(tagName);
+}
+```
+
+Attributes are created unqualified via plain `el.setAttribute(name, value)` — this matches the near-universal `attributeFormDefault="unqualified"` default. **Unverified without a real sample schema:** confirm `attributeFormDefault` against the actual target schema once available (the MeF Compatibility Checklist near the end of this document tracks this), and switch to `setAttributeNS` if it turns out to be `"qualified"`.
+
 ### Algorithm
 
 ```js
-function buildPacketXml(manifest, allFormStates, orderedInstanceKeys):
-  root = createElement(manifest.packetName)
+function buildPacketXml(manifest, allFormStates, orderedInstanceKeys, targetNamespace):
+  _targetNamespace = targetNamespace || null
+  _doc = document.implementation.createDocument(_targetNamespace, '', null)  // qualifiedName '' → no document element yet; documentElement stays null
+  const root = createElement(manifest.packetName)
+  _doc.appendChild(root)
   for each instanceKey in orderedInstanceKeys:
     state = allFormStates.get(instanceKey.toString())
     schemaElement = parser.parseGlobalElement(instanceKey.formName)
+    syncInstanceIdAttribute(schemaElement, state, instanceKey)
     buildNodes(root, schemaElement, state)
-  return serializeToString(root)
+  return new XMLSerializer().serializeToString(root)
 
+// Ensures the written XML carries the same instance id the reader would derive
+// on reload (§11), even if the user never touched the documentId field.
+function syncInstanceIdAttribute(schemaElement, state, instanceKey):
+  const idAttr = schemaElement.children.find(c => isAttribute(c) && c.isInstanceIdSource)
+  if (!idAttr || instanceKey.instanceId === instanceKey.formName): return  // non-repeatable form: no synthetic id
+  const key = joinPath(schemaElement.elementName, idAttr.elementName).toLowerCase()
+  if (isEmpty(state.fieldValues[key])):
+    state.fieldValues[key] = instanceKey.instanceId
+
+// `path` is always the prefix to prepend to `schemaElement`'s OWN name — i.e. the
+// full path of schemaElement's parent, never schemaElement's own path. Every
+// extension of it MUST go through joinPath (§8) to avoid a leading-dot key.
 function buildNodes(parentEl, schemaElement, state, path = ''):
-  if (isTransparent(schemaElement)):
-    if (schemaElement.kind === 'RadioGroup'):
-      buildChoiceNodes(parentEl, schemaElement, state, path)
-    else:
-      for each child in schemaElement.children:
-        buildNodes(parentEl, child, state, path)
+  if (schemaElement.kind === 'RadioGroup'):
+    buildChoiceNodes(parentEl, schemaElement, state, path)
     return
 
-  if (schemaElement.isRepeating):
-    count = state.repeatingInstanceCounts[schemaElement.elementName] ?? 1
+  if (isRepeatingContentContainer(schemaElement)):
+    const entryWrapper = schemaElement.children[0]
+    const entryPath = joinPath(joinPath(path, schemaElement.elementName), entryWrapper.elementName)
+    const count = state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] ?? 0
     for i in 0..count-1:
-      el = createElement(schemaElement.elementName)
-      for each child in schemaElement.children:
-        buildNodes(el, child, state, path + '[' + i + ']')
+      el = createElement(schemaElement.elementName)   // NOTE: outer container's name repeats, not the Entry wrapper's
+      for each grandchild in entryWrapper.children:
+        buildNodes(el, grandchild, state, entryPath + '[' + i + ']')
       parentEl.appendChild(el)
     return
 
-  value = state.fieldValues[path + '.' + schemaElement.elementName]  // case-insensitive
+  if (isTransparent(schemaElement)):   // generated wrappers with no special handling above (e.g. choice options)
+    for each child in schemaElement.children:
+      buildNodes(parentEl, child, state, path)
+    return
+
+  if (isAttribute(schemaElement)): return  // written by the parent container below, never visited directly
+
+  const currentPath = joinPath(path, schemaElement.elementName)
+
   if (isLeaf(schemaElement)):
+    const value = state.fieldValues[currentPath.toLowerCase()]
     if (isEmpty(value) and !schemaElement.isRequired): return  // omit optional empty
     el = createElement(schemaElement.elementName)
     if (!isEmpty(value)): el.textContent = formatValue(value, schemaElement)
@@ -642,9 +764,12 @@ function buildNodes(parentEl, schemaElement, state, path = ''):
 
   // Container
   el = createElement(schemaElement.elementName)
-  for each child in schemaElement.children:
-    buildNodes(el, child, state, path + '.' + schemaElement.elementName)
-  if (el.children.length > 0 || schemaElement.isRequired):
+  for each attr of schemaElement.children.filter(isAttribute):
+    const attrValue = state.fieldValues[joinPath(currentPath, attr.elementName).toLowerCase()]
+    if (!isEmpty(attrValue)): el.setAttribute(attr.elementName, formatValue(attrValue, attr))
+  for each child of schemaElement.children.filter(c => !isAttribute(c)):
+    buildNodes(el, child, state, currentPath)
+  if (el.children.length > 0 || el.attributes.length > 0 || schemaElement.isRequired):
     parentEl.appendChild(el)
 ```
 
@@ -652,19 +777,20 @@ function buildNodes(parentEl, schemaElement, state, path = ''):
 
 ```js
 function buildChoiceNodes(parentEl, choiceElement, state, path):
-  choicePath = path + '.' + choiceElement.elementName
-  selectedBranch = state.radioSelections[choicePath]
+  const choicePath = joinPath(path, choiceElement.elementName)
+  let selectedBranch = state.radioSelections[choicePath.toLowerCase()]
   if (!selectedBranch):
-    // Fallback: find first option that has any data
+    // Fallback: find first option that has any data (backward compat — see §22 invariant 17)
     for each option in choiceElement.children:
-      if hasDataUnder(option.elementPath, state.fieldValues):
-        selectedBranch = option.elementPath
+      const optionPath = joinPath(choicePath, option.elementName)
+      if hasDataUnder(optionPath, state.fieldValues):
+        selectedBranch = optionPath
         break
   if (!selectedBranch): return
-  selectedOption = choiceElement.children.find(c => pathsMatch(c.elementPath, selectedBranch))
+  const selectedOption = choiceElement.children.find(c => pathsMatch(joinPath(choicePath, c.elementName), selectedBranch))
   if (!selectedOption): return
   for each child in selectedOption.children:
-    buildNodes(parentEl, child, state, path)
+    buildNodes(parentEl, child, state, choicePath)   // option wrapper is transparent: contributes no path segment
 ```
 
 ### Value Formatting
@@ -683,69 +809,108 @@ Parses an XML file back into FormState for all forms.
 
 ### Algorithm
 
+Uses the same `isTransparent` / `isAttribute` / `isLeaf` / `isRepeatingContentContainer` / `joinPath` helpers defined in §10.
+
+**Namespace note:** a real MeF submission read back in will be namespace-qualified (§3, §10). No changes are needed to the `:scope > Name` queries below for that — CSS type selectors without a namespace prefix match an element by local name regardless of namespace per the Selectors spec, so `querySelector`/`querySelectorAll` on a namespaced `DOMParser` document continue to work unchanged. `getAttribute('documentId')` similarly matches an unqualified attribute regardless of the element's own namespace. **Unverified without a real sample schema:** re-confirm both assumptions once one is available (see the MeF Compatibility Checklist near the end of this document).
+
 ```js
 function readPacket(xmlString, manifest, schemaParser):
   doc = new DOMParser().parseFromString(xmlString, 'application/xml')
   result = new Map()  // instanceKey.toString() → FormState
 
   for each section in manifest.sections:
-    elements = doc.querySelectorAll(section.elementName)  // handles repeating
+    elements = doc.querySelectorAll(':scope > ' + section.elementName)  // direct children of the packet root only
     for (i, el) of elements.entries():
-      instanceId = el.getAttribute('documentId') || el.getAttribute('id') || generateUUID()
-      key = new FormInstanceKey(section.elementName, section.isRepeatable ? instanceId : section.elementName)
-      schemaElement = schemaParser.parseGlobalElement(section.elementName)
-      state = extractFormState(el, schemaElement, '')
+      const instanceId = section.isRepeatable
+        ? (el.getAttribute('documentId') || generateUUID())
+        : section.elementName
+      const key = new FormInstanceKey(section.elementName, instanceId)
+      const schemaElement = schemaParser.parseGlobalElement(section.elementName)
+      const state = extractFormState(el, schemaElement)
       result.set(key.toString(), state)
 
   return result
 
-function extractFormState(xmlEl, schemaElement, path):
-  state = { fieldValues: {}, repeatingInstanceCounts: {}, radioSelections: {}, isDirty: false }
-  walkElement(xmlEl, schemaElement, path, state)
+// `xmlEl` is already the element that corresponds to `schemaElement` itself
+// (e.g. the matched <SampleEventLog documentId="EVT-001"> node) — there is no
+// extra querySelector step to "find" it, unlike every recursive call below.
+function extractFormState(xmlEl, schemaElement):
+  const state = { fieldValues: {}, repeatingInstanceCounts: {}, radioSelections: {}, unmatchedFields: [], isDirty: false }
+  walkContainerBody(xmlEl, schemaElement, schemaElement.elementName, state)
   return state
 
+// Reads schemaElement's own attributes off xmlEl, then walks its non-attribute
+// children. `currentPath` is schemaElement's OWN full path (not its parent's).
+function walkContainerBody(xmlEl, schemaElement, currentPath, state):
+  for each attr of schemaElement.children.filter(isAttribute):
+    const raw = xmlEl.getAttribute(attr.elementName)
+    if (raw !== null):
+      state.fieldValues[joinPath(currentPath, attr.elementName).toLowerCase()] = parseValue(raw, attr)
+
+  const knownChildNames = new Set(
+    schemaElement.children.filter(c => !isAttribute(c)).map(c => c.elementName.toLowerCase())
+  )
+  for each domChild of xmlEl.children:      // direct element children only
+    if (!knownChildNames.has(domChild.tagName.toLowerCase())):
+      state.unmatchedFields.push({
+        formName: schemaElement.elementName,
+        xmlPath: joinPath(currentPath, domChild.tagName),
+        value: domChild.textContent
+      })
+
+  for each child of schemaElement.children.filter(c => !isAttribute(c)):
+    walkElement(xmlEl, child, currentPath, state)
+
+// `xmlEl` is the PARENT DOM element (schemaElement's tag, if any, is a *child*
+// of xmlEl). `path` is that parent's own full path — the prefix schemaElement's
+// name gets joined onto. This mirrors buildNodes' path contract exactly (§10).
 function walkElement(xmlEl, schemaElement, path, state):
-  if (isTransparent(schemaElement)):
-    // For choice: determine which branch's children are present in XML
-    if (schemaElement.kind === 'RadioGroup'):
-      for each option of schemaElement.children:
-        for each child of option.children:
-          xmlChild = xmlEl.querySelector(child.elementName)
-          if (xmlChild):
-            state.radioSelections[path + '.' + schemaElement.elementName] = option.elementPath
-            walkElement(xmlEl, option, path, state)  // recurse into that branch
-            break
-    else:
-      for each child of schemaElement.children:
-        walkElement(xmlEl, child, path, state)
+  if (schemaElement.kind === 'RadioGroup'):
+    const choicePath = joinPath(path, schemaElement.elementName)
+    for each option of schemaElement.children:
+      const firstRealChild = option.children.find(c => !isAttribute(c))
+      if (firstRealChild && xmlEl.querySelector(':scope > ' + firstRealChild.elementName)):
+        state.radioSelections[choicePath.toLowerCase()] = joinPath(choicePath, option.elementName)
+        for each grandchild of option.children:
+          walkElement(xmlEl, grandchild, choicePath, state)  // option wrapper is transparent: no extra segment
+        break
     return
 
-  if (schemaElement.isRepeating):
-    instances = xmlEl.querySelectorAll(':scope > ' + schemaElement.elementName)
-    state.repeatingInstanceCounts[schemaElement.elementName] = instances.length
+  if (isRepeatingContentContainer(schemaElement)):
+    const entryWrapper = schemaElement.children[0]
+    const instances = xmlEl.querySelectorAll(':scope > ' + schemaElement.elementName)
+    const entryPath = joinPath(joinPath(path, schemaElement.elementName), entryWrapper.elementName)
+    state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] = instances.length
     for (i, inst) of instances.entries():
-      for each child of schemaElement.children:
-        walkElement(inst, child, path + '[' + i + ']', state)
+      for each grandchild of entryWrapper.children:
+        walkElement(inst, grandchild, entryPath + '[' + i + ']', state)
     return
+
+  if (isTransparent(schemaElement)):   // defensive fallback; no current construct reaches this
+    for each child of schemaElement.children:
+      walkElement(xmlEl, child, path, state)
+    return
+
+  if (isAttribute(schemaElement)): return  // read by the parent's walkContainerBody, never visited directly
+
+  const currentPath = joinPath(path, schemaElement.elementName)
 
   if (isLeaf(schemaElement)):
-    childEl = xmlEl.querySelector(':scope > ' + schemaElement.elementName)
+    const childEl = xmlEl.querySelector(':scope > ' + schemaElement.elementName)
     if (childEl):
-      key = (path + '.' + schemaElement.elementName).replace(/^\./, '')
-      state.fieldValues[key.toLowerCase()] = parseValue(childEl.textContent, schemaElement)
-    else:
-      // Track as unmatched if it appeared in XML but not in schema
+      state.fieldValues[currentPath.toLowerCase()] = parseValue(childEl.textContent, schemaElement)
+    // else: absent from XML — leave unset; completeness/coloring will flag it if required
     return
 
-  childEl = xmlEl.querySelector(':scope > ' + schemaElement.elementName)
+  // Container
+  const childEl = xmlEl.querySelector(':scope > ' + schemaElement.elementName)
   if (childEl):
-    for each child of schemaElement.children:
-      walkElement(childEl, child, path + '.' + schemaElement.elementName, state)
+    walkContainerBody(childEl, schemaElement, currentPath, state)
 ```
 
 ### Unmatched Fields
 
-During reading, collect any XML element text content that could not be matched to a schema path. Report these to the user after load via a modal or panel.
+`walkContainerBody` compares each XML element's actual DOM children against the schema's known (non-attribute) child names and pushes anything it can't match onto `state.unmatchedFields` (see the `UnmatchedXmlField` typedef in §2) — for example `<UnknownLegacyField>` inside `<SampleHeader>` with no corresponding schema child. Loading continues; nothing aborts on an unmatched element. After load completes, collect `unmatchedFields` across all loaded forms and report them to the user via a modal or panel.
 
 ---
 
@@ -966,6 +1131,34 @@ Implement with `mousedown`/`mousemove`/`mouseup` on `#splitter`. Store sidebar w
 
 Implement via `transform: scale(N)` on `#form-content-host`. Ctrl+Plus, Ctrl+Minus, Ctrl+0. Also Ctrl+Wheel. Display current percentage in `#zoom-indicator`. Range: 50%–200%.
 
+**Known risk (deferred):** `transform: scale()` does not change layout box size, so scaling above 100% can make content overflow/clip against `#form-content-host`'s allocated space rather than growing the scrollable area to match. Ship the simple `transform: scale()` version first; if clipping turns out to be a real problem in practice, revisit by sizing a wrapper element to the post-scale dimensions (e.g. `width/height: calc(100% * N)` on a wrapper around the transformed content) so the scrollport grows with it.
+
+### Loading / Busy Overlay
+
+`#loading-overlay` (already in the HTML structure above) is a hard, input-blocking modal — not just a spinner for visual feedback. While it is visible:
+- It is `position: fixed`, covers the entire `#app` viewport, has `pointer-events: all`, and sits above every other element (`z-index` higher than the toolbar/sidebar/panels) so clicks and keystrokes cannot reach anything underneath.
+- All toolbar buttons are also explicitly `disabled` as a second line of defense (belt-and-suspenders — some keyboard shortcuts, e.g. Ctrl+Z, are wired at the `document` level and bypass individual button `disabled` state, so the overlay's own click/keydown capture is the real guard).
+- `#loading-text` is updated per operation, e.g. `"Parsing schema…"`, `"Reading XML…"`, `"Building XML…"`, `"Validating…"`, `"Creating package…"`.
+
+**Operations that must show it:** schema load (flatten → parse → packet analysis), XML load, XML save/write, "Validate" (§16 — full schema validation can be non-trivial work), "Create Submission Package" (§19), and "Fill All Fields" on large forms.
+
+**Why a naive implementation won't actually show it:** every heavy operation this spec describes (flattening, parsing, XML building, validation) is specified as synchronous, main-thread JavaScript. If code simply does `showOverlay(); doHeavyWork(); hideOverlay();`, the browser never gets a chance to paint the overlay before the synchronous work blocks the main thread — the UI just freezes with nothing shown, then unfreezes with the overlay already gone. The overlay must be shown and *painted* before the heavy work starts:
+
+```js
+async function withBusyOverlay(message, work) {
+  showOverlay(message);
+  await new Promise(requestAnimationFrame);  // let the browser paint the overlay...
+  await new Promise(requestAnimationFrame);  // ...a second frame for reliability across browsers
+  try {
+    return await work();   // work() itself may be fully synchronous — that's fine now
+  } finally {
+    hideOverlay();
+  }
+}
+```
+
+**Follow-up (not required now):** if a real MeF-scale schema makes even the overlay-covered synchronous work stretch into many seconds, consider moving flatten/parse/validate into a Web Worker so the tab stays responsive and the overlay can show real progress instead of an indeterminate spinner. Not needed until it's shown to be a problem — see also the large-schema performance note.
+
 ---
 
 ## 14. Undo / Redo System
@@ -1028,7 +1221,18 @@ class UndoService {
 - Trigger: `change` on radio `<input>` elements
 - Records: `{ instanceKey, radioGroupPath, oldBranch, newBranch, oldDirty, newDirty }`
 - Required groups skip the initial auto-selection (not undoable)
-- Store previous branch on `mousedown` / just before change fires
+- **Fix (was: capture on `mousedown`):** capturing "previous branch" on `mousedown` misses every keyboard-driven selection — arrow keys move focus between radios in a group and fire `change` with no preceding `mousedown` at all, so `oldBranch` would be wrong (or missing) for keyboard users. Don't snapshot from a separate, earlier DOM event. Instead, keep the group's own currently-selected branch as the single source of truth (the same `rgEl.dataset.selectedBranch` used by §20's fixed-point loop, or `formEngine.getRadioSelections()[choicePath]`), and read `oldBranch` from it at the very start of the `change` handler — *before* it gets overwritten with the new selection:
+  ```js
+  rgEl.addEventListener('change', (e) => {
+    if (undoService.isReplaying) return;
+    const oldBranch = rgEl.dataset.selectedBranch ?? null;   // read before mutating
+    const newBranch = e.target.dataset.optionPath;
+    rgEl.dataset.selectedBranch = newBranch;
+    formEngine.setRadioSelection(choicePath, newBranch);
+    undoService.recordAction(new RadioBranchSwapAction({ instanceKey, radioGroupPath: choicePath, oldBranch, newBranch, ... }));
+  });
+  ```
+  `change` itself already fires uniformly for mouse clicks, Space/Enter, and arrow-key navigation, so this single handler covers every input modality correctly with no separate snapshot event needed.
 
 **RepeatingInstanceAddAction**
 - Trigger: "Add" button click
@@ -1113,44 +1317,127 @@ A slide-in panel (Ctrl+F):
 
 **File:** `js/ui/validation.js`
 
+Full schema validation is a hard requirement for this tool — output is meant to be filed as real IRS/state MeF submissions, so "looks complete in the form" is not enough; the generated XML must actually conform to the schema's structure, not just each field's own facets.
+
 ### Field-Level Validation
 
-On `blur` (or immediately for select/checkbox), run the field's validation rules:
+On `blur` (or immediately for select/checkbox), run the field's validation rules. This now covers every `ValidationRule.kind` defined in §2, including `totalDigits`/`fractionDigits` (missing from earlier drafts of this spec — decimal fields like `PercentType` in the sample schema depend on it):
 
 ```js
 function validateField(value, element) {
-  if (!value && !element.isRequired) return { valid: true };
+  if (isEmpty(value) && !element.isRequired) return { valid: true };
   for (const rule of element.validationRules) {
     switch (rule.kind) {
-      case 'minLength': if (String(value).length < +rule.value) return { valid: false, message: `Min length: ${rule.value}` };
-      case 'maxLength': if (String(value).length > +rule.value) return { valid: false, message: `Max length: ${rule.value}` };
-      case 'pattern':   if (!new RegExp('^' + rule.value + '$').test(String(value))) return { valid: false, message: patternDescriber.describe(rule.value) };
-      case 'minInclusive': if (+value < +rule.value) return { valid: false, message: `Min value: ${rule.value}` };
-      case 'maxInclusive': if (+value > +rule.value) return { valid: false, message: `Max value: ${rule.value}` };
+      case 'minLength':      if (String(value).length < +rule.value) return { valid: false, message: `Min length: ${rule.value}` };
+      case 'maxLength':      if (String(value).length > +rule.value) return { valid: false, message: `Max length: ${rule.value}` };
+      case 'pattern':        if (!new RegExp('^(?:' + rule.value + ')$').test(String(value))) return { valid: false, message: patternDescriber.describe(rule.value) };
+      case 'minInclusive':   if (+value < +rule.value) return { valid: false, message: `Min value: ${rule.value}` };
+      case 'maxInclusive':   if (+value > +rule.value) return { valid: false, message: `Max value: ${rule.value}` };
+      case 'totalDigits':    if (String(value).replace(/[-.]/g, '').replace(/^0+(?=\d)/, '').length > +rule.value)
+                                return { valid: false, message: `Max total digits: ${rule.value}` };
+      case 'fractionDigits': { const frac = String(value).split('.')[1] || '';
+                                if (frac.length > +rule.value) return { valid: false, message: `Max decimal places: ${rule.value}` }; }
     }
   }
+  if (element.kind === 'DatePicker' && !isEmpty(value) && isNaN(Date.parse(value)))
+    return { valid: false, message: 'Invalid date' };
   return { valid: true };
 }
 ```
 
 Show error text below the input. Set the input's border to `var(--coloring-incomplete)`.
 
-### Schema Validation (XSD)
+### Full Structural Schema Validation
 
-The browser cannot use a native XSD validator. Implement a JavaScript XSD validator against the flat schema or use the field-level validation rules already extracted. For format errors (date, number) use `isNaN()` / `Date.parse()`.
+Field-level facet checks alone don't catch a wrong element count, a `xs:choice` with zero or multiple branches populated, or content that doesn't belong under the schema at all. A generic, arbitrary XSD 1.0/1.1 validator (identity constraints, substitution groups, wildcards, `xs:union`/`xs:list`, mixed content — see the MeF Compatibility Checklist near the end of this document) is out of scope for a from-scratch vanilla-JS tool. Instead, validate everything this tool's own parser (§4) already models — since the `SchemaElement` tree *is* this tool's representation of the schema, walking it against the actual document is a complete validator for every construct the tool supports:
 
-Optionally, use a library like `libxmljs` (via WASM) or `xsd-schema-validator` if a dependency is acceptable. If staying fully vanilla, rely entirely on the extracted `ValidationRules`.
+```js
+function validateSchema(manifest, allFormStates, schemaParser):
+  const errors = []   // { formName, path, kind: 'completeness'|'occurrence'|'choice'|'format'|'unmatched', message }
+
+  for each instanceKey of activeInstanceKeys(allFormStates):
+    const state = allFormStates.get(instanceKey.toString())
+    const schemaElement = schemaParser.parseGlobalElement(instanceKey.formName)
+    validateNode(schemaElement, state, '', errors, instanceKey.formName)
+    for each u of state.unmatchedFields:     // §11 — populated at XML-read time
+      errors.push({ formName: instanceKey.formName, path: u.xmlPath, kind: 'unmatched',
+                    message: `Unrecognized element in source XML: ${u.xmlPath}` })
+
+  return errors
+
+function validateNode(schemaElement, state, path, errors, formName):
+  if (schemaElement.kind === 'RadioGroup'):
+    const choicePath = joinPath(path, schemaElement.elementName)
+    const selected = state.radioSelections[choicePath.toLowerCase()]
+    const populatedCount = schemaElement.children.filter(opt => hasDataUnder(joinPath(choicePath, opt.elementName), state.fieldValues)).length
+    if (!selected && schemaElement.isRequired)
+      errors.push({ formName, path: choicePath, kind: 'completeness', message: 'A selection is required' })
+    else if (populatedCount > 1)
+      errors.push({ formName, path: choicePath, kind: 'choice', message: 'More than one option has data — only one branch may be populated' })
+    if (selected):
+      const opt = schemaElement.children.find(c => joinPath(choicePath, c.elementName) === selected)
+      for each child of opt.children: validateNode(child, state, choicePath, errors, formName)
+    return
+
+  if (isRepeatingContentContainer(schemaElement)):
+    const entryWrapper = schemaElement.children[0]
+    const count = state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] ?? 0
+    if (count < schemaElement.minOccurs)
+      errors.push({ formName, path: joinPath(path, schemaElement.elementName), kind: 'occurrence',
+                    message: `At least ${schemaElement.minOccurs} required, found ${count}` })
+    if (schemaElement.maxOccurs != null && count > schemaElement.maxOccurs)
+      errors.push({ formName, path: joinPath(path, schemaElement.elementName), kind: 'occurrence',
+                    message: `At most ${schemaElement.maxOccurs} allowed, found ${count}` })
+    const entryPath = joinPath(joinPath(path, schemaElement.elementName), entryWrapper.elementName)
+    for i in 0..count-1:
+      for each grandchild of entryWrapper.children: validateNode(grandchild, state, entryPath + '[' + i + ']', errors, formName)
+    return
+
+  if (isTransparent(schemaElement)):
+    for each child of schemaElement.children: validateNode(child, state, path, errors, formName)
+    return
+
+  if (isAttribute(schemaElement)):
+    const value = state.fieldValues[joinPath(path, schemaElement.elementName).toLowerCase()]
+    if (schemaElement.isRequired && isEmpty(value))
+      errors.push({ formName, path: joinPath(path, schemaElement.elementName), kind: 'completeness', message: 'Required attribute is missing' })
+    else if (!isEmpty(value)):
+      const r = validateField(value, schemaElement)
+      if (!r.valid) errors.push({ formName, path: joinPath(path, schemaElement.elementName), kind: 'format', message: r.message })
+    return
+
+  const currentPath = joinPath(path, schemaElement.elementName)
+
+  if (isLeaf(schemaElement)):
+    const value = state.fieldValues[currentPath.toLowerCase()]
+    if (isEmpty(value)):
+      if (schemaElement.isRequired) errors.push({ formName, path: currentPath, kind: 'completeness', message: 'Required field is empty' })
+      return
+    const r = validateField(value, schemaElement)
+    if (!r.valid) errors.push({ formName, path: currentPath, kind: 'format', message: r.message })
+    return
+
+  // Container: recurse; a required container with zero populated required descendants
+  // still surfaces as individual completeness errors from those descendants, so no
+  // separate "container is empty" check is needed here.
+  for each attr of schemaElement.children.filter(isAttribute): validateNode(attr, state, currentPath, errors, formName)
+  for each child of schemaElement.children.filter(c => !isAttribute(c)): validateNode(child, state, currentPath, errors, formName)
+```
+
+This reuses the exact same helpers and path contract as `buildNodes`/`walkElement` (§10, §11) by design — the validator, the writer, and the reader all have to agree on what the schema means, and keeping them structurally parallel is how that agreement is enforced rather than assumed.
+
+**Scope caveat:** this validates every construct the parser (§4) models — element/attribute presence, occurrence bounds, single-branch choice selection, and every extracted `ValidationRule` facet. It does **not** implement generic W3C XML Schema features the parser doesn't model: `xs:union`/`xs:list` simple types, identity constraints (`xs:key`/`xs:unique`/`xs:keyref`), substitution groups, wildcards (`xs:any`/`xs:anyAttribute`), mixed content, or `xsi:nil`. See the MeF Compatibility Checklist (near the end of this document) — if a real schema turns out to use any of these, the parser needs to be extended first, since this validator can only be as complete as the tree it walks.
 
 ### Validation Panel
 
-When "Validate" is clicked, collect all validation errors across all forms:
-1. For each form: get all stored field values, run `validateField` on each, collect errors with path and message.
-2. Also check completeness: any required field with an empty value is a completeness error (not a format error).
-3. Show results in `#validation-panel` (expand it). Each error is clickable: navigates to the form and highlights the field.
+When "Validate" is clicked:
+1. Run `validateSchema` (above) across every loaded form/instance.
+2. Show results in `#validation-panel` (expand it), grouped by form. Each error is clickable: navigates to the form and highlights the field via its `path`.
+3. Completeness (`kind: 'completeness'`) and format (`kind: 'format'`) errors are visually distinguished (see §22 invariant 4 — these are different concerns) but both block a clean bill of health.
 
 ### Validator Path Translation
 
-When displaying validation errors, paths in raw XML validator output contain element names without synthetic segments. Translate them by walking the schema tree and injecting `Choice`, `OptionN`, `Entry` segments to produce the control path used in the Form Engine.
+Not needed for `validateSchema` above — it's written directly against `SchemaElement` paths, so its error paths already match Form Engine control paths one-to-one. This subsection only applies if an *external* XSD validator (schema-validator library, MeF gateway pre-check, etc.) is ever plugged in downstream: its error paths will reference raw XML element names without synthetic `Choice`/`OptionN`/`Entry` segments, and must be translated by walking the schema tree and re-inserting those segments before they can be used to highlight a control.
 
 ---
 
@@ -1317,6 +1604,7 @@ const appState = {
   manifest: null,
   currentInstanceKey: null,
   flatDoc: null,
+  targetNamespace: null,   // from flattener.flattenFromRoot (§3); threaded into buildPacketXml (§10) on Save XML
   schemaParser: null,
   formEngine: new FormEngine(),
   undoService: new UndoService(),
@@ -1326,17 +1614,26 @@ const appState = {
 
 ### Schema Load Flow
 
+Steps 3–9 (reading files through packet analysis) run inside `withBusyOverlay('Parsing schema…', ...)` (§13).
+
 ```
 1. User clicks "Load Schema Folder"
 2. Browser shows folder picker (showDirectoryPicker or <input webkitdirectory>)
 3. Read all .xsd files as text → Map<filename, text>
 4. Scan for BOM/ZWNBSP → show BomCleanupModal if found → optionally strip
-5. Detect root XSD files (those not referenced by any other XSD in the set,
-   or the one with a reference to the top-level packet element)
-6. If multiple roots detected, show a "Choose Root" modal
-7. flatDoc = flattener.flattenFromRoot(files, rootFileName)
+5. Detect root XSD file(s) by pure file-reference analysis — no naming convention:
+     referencedFiles = set of every schemaLocation basename that appears in any
+       xs:include or xs:import across all files in the set
+     rootFileCandidates = allFileNames - referencedFiles
+   (A file that is never the target of another file's xs:include/xs:import is a root candidate.)
+6. If rootFileCandidates.length !== 1, show a "Choose Root" modal listing them
+7. { doc: flatDoc, targetNamespace } = flattener.flattenFromRoot(files, rootFileName)
+   appState.targetNamespace = targetNamespace
 8. parser = new SchemaParser(flatDoc)
-9. manifest = analyzePacket(flatDoc, rootElementName)
+9. rootElementCandidates = findRootElementCandidates(flatDoc)  // §5 — same "not referenced" logic, one level down: global elements not targeted by any xs:element ref=
+   If rootElementCandidates.length !== 1, show a "Choose Root" modal listing them
+   rootElementName = the single candidate (chosen automatically or by the user)
+   manifest = analyzePacket(flatDoc, rootElementName)
 10. undoService.clearHistory()
 11. formEngine.reset()
 12. buildNavTree(manifest)
@@ -1387,9 +1684,9 @@ function selectRadioGroupBranches(rootEl, formState) {
 function selectRadioGroupBranchesPass(rootEl, formState, normalisedKeys) {
   let anyChanged = false;
   rootEl.querySelectorAll('.radio-group').forEach(rgEl => {
-    const choicePath = rgEl.dataset.choicePath;
+    const choicePath = rgEl.dataset.choicePath;  // already the fully-indexed runtime path — see §8
     if (rgEl.dataset.selectedBranch) return;  // already selected in prior pass
-    const storedBranch = formState.radioSelections[choicePath];
+    const storedBranch = formState.radioSelections[choicePath.toLowerCase()];
     if (storedBranch) {
       selectBranch(rgEl, storedBranch);
       anyChanged = true;
@@ -1470,6 +1767,14 @@ These rules are critical for correctness. Violating them produces incorrect XML 
 
 23. **Undo stack cleared on schema load, root switch, XML load.** Form add/remove are undoable — they do NOT clear the stack.
 
+24. **Path extension always goes through `joinPath(prefix, name)` (§8).** Never string-concatenate `path + '.' + name` directly — at the root of a form tree `path` is `''`, and a bare concatenation produces a leading-dot key (`.SampleEventLog...`) that will never match anything in `fieldValues`.
+
+25. **A "repeating content model" container's own name is the XML tag that repeats — not its synthetic Entry wrapper's name.** For a named, non-repeating element whose sole child is a generated, transparent, repeating Entry wrapper (e.g. `PriorNameList` → `PriorNameListEntry`), the writer emits multiple `<PriorNameList>` siblings; `PriorNameListEntry` never appears as an XML tag at all. It exists purely so `FormEngine` paths have a segment to attach the `[i]` index to (`PriorNameList.PriorNameListEntry[0].FormerName`). See `isRepeatingContentContainer` in §10.
+
+26. **`isAttribute` nodes are read/written via `getAttribute`/`setAttribute` on their parent's element, never visited as ordinary element children.** Their `fieldValues` key is still `parentPath.attributeName`, same as any other child.
+
+27. **`radioSelections` keys carry whatever indices are already in scope at the point they're recorded — there is no separate "bare" form and no index-stripping step.** A radio group nested inside `SomeList[1]` is keyed `SomeList[1].SomeChoice`; the writer, reader, and renderer all compare selections using this same fully-resolved path (§8).
+
 ---
 
 ## 23. File Structure Reference
@@ -1523,3 +1828,32 @@ All JS files use ES modules (`<script type="module">`). No transpiler or bundler
 - **localStorage**: Use for settings persistence. No server, no cookies needed.
 - **Drag-and-drop folder**: As an alternative to `showDirectoryPicker`, support dragging a folder onto the drop zone. Use `DataTransferItem.webkitGetAsEntry()` to read directory contents recursively.
 - **ZIP creation**: JSZip (MIT license) is the recommended library. It is the only external dependency. Alternatively, use the native `CompressionStream` API (Chrome 80+, Firefox 113+) with manual ZIP format construction — feasible but complex.
+
+---
+
+## 25. MeF Real-World Readiness Checklist
+
+This tool is intended for real IRS/state MeF submissions, but no actual state or IRS MeF schema was available while writing this spec. Everywhere above that depends on an assumption about how those schemas are shaped, the assumption is called out inline as "unverified without a real sample schema." This section collects them in one place — work through it the moment a real schema is in hand, before trusting output against it:
+
+- **Namespaces** (§3, §10, §11): confirmed to design for `targetNamespace` + `elementFormDefault="qualified"`, the common case. Verify against the real schema:
+  - Is `attributeFormDefault` ever `"qualified"`? (assumed `"unqualified"` in §10)
+  - Does the schema (or the submission channel) expect `xsi:schemaLocation` on the output root? Not currently emitted.
+  - Do federal and state schemas in the same packet ever mix multiple namespaces in one instance document? Not currently modeled — §10/§11 assume one `targetNamespace` per packet.
+- **Constructs not modeled by the parser** (§4), and therefore invisible to `validateSchema` (§16) even though they're common in large real-world government schemas:
+  - `xs:union` / `xs:list` simple types
+  - Identity constraints: `xs:key`, `xs:unique`, `xs:keyref`
+  - Substitution groups (`substitutionGroup="..."`)
+  - Wildcards: `xs:any`, `xs:anyAttribute`
+  - Mixed content models, `xsi:nil`
+  - `xs:redefine`
+  - Complex-type inheritance via `xs:extension` on `xs:complexContent` (§4's `resolveUltimateBaseType` only follows `xs:restriction` chains for simple types — verify whether real schemas lean on complex-type `xs:extension` chains too, and extend the parser if so)
+- **Packaging** (§19): the manifest XML shape there is described as "follows the MeF StateManifest schema" without a citation — treat it as a placeholder, not a verified format. Source the actual manifest schema (federal `IRSStateManifest`/`ReturnHeaderState` conventions vary by state) before any real submission goes out through this tool.
+- **Scale**: real MeF schemas commonly run to thousands of elements across dozens of included files. Once a real schema is available, sanity-check flatten/parse/render/validate performance against it — the Web Worker follow-up noted in §13's Loading Overlay section becomes relevant here if load times are unacceptable.
+
+None of this blocks building the tool against the sample schema now — it's the concrete punch list for the first real integration pass.
+
+---
+
+## 26. Accessibility (Deferred)
+
+Explicitly deferred to a later pass, by decision — not an oversight. Revisit once the core tool is working end-to-end. At minimum, expect to cover: ARIA roles/labels for the custom `.radio-group` widget (it isn't a native fieldset/radio DOM pattern with implicit semantics beyond the `<input type="radio">` itself), keyboard navigation and focus management for the repeating-section add/remove flow, focus handling when the validation panel or search panel opens/closes, and color-only R/G/Y completeness signaling (§9) needing a non-color-dependent cue (e.g. an icon or text label) for colorblind users and screen readers.

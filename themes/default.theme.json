@@ -1,0 +1,22 @@
+{
+  "name": "Default",
+  "colors": {
+    "windowBackground":       "#F5F5F5",
+    "panelBackground":        "#FFFFFF",
+    "controlBackground":      "#FFFFFF",
+    "controlBorder":          "#DDDDDD",
+    "primaryText":            "#333333",
+    "secondaryText":          "#666666",
+    "accentColor":            "#3A7BD5",
+    "buttonBackground":       "#FFFFFF",
+    "buttonText":             "#333333",
+    "selectionBackground":    "#3A7BD5",
+    "selectionText":          "#FFFFFF",
+    "coloringIncomplete":     "#D32F2F",
+    "coloringComplete":       "#2E7D32",
+    "coloringOptional":       "#F9A825",
+    "lineNumberText":         "#888888",
+    "addButtonBackground":    "#4A8C6F",
+    "removeButtonBackground": "#A34A5A"
+  }
+}
