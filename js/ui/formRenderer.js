@@ -17,6 +17,7 @@
 
 import * as controlFactory from './controlFactory.js';
 import * as coloring from './coloring.js';
+import { validateField } from './validation.js';
 import { FieldValueChangeAction, RadioBranchSwapAction, RepeatingInstanceAddAction, RepeatingInstanceRemoveAction } from '../core/undoService.js';
 
 // ---------------------------------------------------------------------------
@@ -407,6 +408,22 @@ function buildLeafControl(element, formEngine, depth, undoService) {
 
   const input = controlFactory.create(element);
 
+  // §16 "Field-Level Validation": error text below the input, input border
+  // set to the incomplete color — a distinct visual concern from the
+  // color-border strip above, which reflects overall R/G/Y completeness
+  // rather than this field's own format validity (§22 invariant 4).
+  const errorText = document.createElement('span');
+  errorText.classList.add('field-error');
+  errorText.hidden = true;
+
+  function runFieldValidation() {
+    const result = validateField(controlFactory.getControlValue(input, element), element);
+    input.classList.toggle('invalid', !result.valid);
+    errorText.textContent = result.valid ? '' : result.message;
+    errorText.hidden = result.valid;
+    return result;
+  }
+
   // §14 "FieldValueChangeAction": Checkbox/Dropdown commit-and-record immediately
   // on `change` (no intermediate typing state to debounce). Text/Numeric/Decimal/
   // DatePicker instead stash the pre-edit value on `focus` and only record on
@@ -436,12 +453,14 @@ function buildLeafControl(element, formEngine, depth, undoService) {
     });
     input.addEventListener('blur', () => {
       recordValueChange(stashedValue, controlFactory.getControlValue(input, element));
+      runFieldValidation(); // §16: run on blur for text/numeric/decimal/date fields
     });
   }
 
   input.addEventListener('change', () => {
     if (isImmediateKind) {
       recordValueChange(formEngine.getValue(wrapper.dataset.path), controlFactory.getControlValue(input, element));
+      runFieldValidation(); // §16: run immediately for select/checkbox
     }
     // Read the CURRENT dataset.path, not a value captured at creation time — if
     // this control later becomes part of a repeating instance whose path gets
@@ -450,7 +469,7 @@ function buildLeafControl(element, formEngine, depth, undoService) {
     formEngine.setValue(wrapper.dataset.path, controlFactory.getControlValue(input, element));
   });
 
-  wrapper.append(label, colorBorder, input);
+  wrapper.append(label, colorBorder, input, errorText);
 
   if (element.documentation) {
     const tooltip = document.createElement('span');
@@ -470,7 +489,7 @@ function buildLeafControl(element, formEngine, depth, undoService) {
   wrapper._controlRef = {
     getValue: () => controlFactory.getControlValue(input, element),
     setValue: (v) => controlFactory.setControlValue(input, element, v),
-    validate: () => ({ valid: true }), // Phase 5 TODO: real field-level validation (§16)
+    validate: runFieldValidation,
   };
 
   return wrapper;

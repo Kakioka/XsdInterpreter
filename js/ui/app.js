@@ -18,6 +18,7 @@ import * as toolbar from './toolbar.js';
 import * as sidebar from './sidebar.js';
 import * as coloringUi from './coloring.js';
 import * as undoUi from './undo.js';
+import * as validationUi from './validation.js';
 
 const appState = {
   manifest: null,
@@ -183,7 +184,8 @@ function switchToForm(instanceKey, mutateState) {
   coloringUi.rebuildColorableIndex(formEl);
   coloringUi.applyAllColors();
 
-  // Phase 5/6 TODO: wireContextMenus, refreshSearchContext, closeValidationPanel.
+  validationUi.closeValidationPanel(); // stale results from the PREVIOUS form shouldn't linger after navigating away
+  // Phase 6 TODO: wireContextMenus, refreshSearchContext.
 
   appState.currentInstanceKey = instanceKey;
   sidebar.updateNavTreeActiveState(document.getElementById('nav-tree'), instanceKey);
@@ -277,6 +279,7 @@ function init() {
   appState.formEngine.addEventListener('controlValueChanged', () => coloringUi.scheduleColorRecompute());
 
   undoUi.wireUndo(appState.undoService, { appState, switchToForm, rebuildNavTree });
+  validationUi.wireValidation({ appState, switchToForm });
 }
 
 init();

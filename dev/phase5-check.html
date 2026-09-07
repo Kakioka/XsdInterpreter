@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phase 5 check</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 14px; padding: 16px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; margin-top: 24px; }
+    .row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-family: monospace; font-size: 12.5px; }
+    .pass { color: #2e7d32; }
+    .fail { color: #d32f2f; font-weight: bold; }
+    .badge { display: inline-block; width: 3.5em; }
+    #summary { font-size: 16px; font-weight: bold; margin: 12px 0; }
+    #form-content-host { border: 2px dashed #ccc; margin-top: 20px; max-height: 300px; overflow: auto; }
+  </style>
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+  <h1>Phase 5 check — validateField + validateSchema + Validation Panel</h1>
+  <p>Open via a local server. Drives the real <code>js/ui/validation.js</code> module —
+  its pure validators directly, and its panel wiring (<code>wireValidation</code>) against
+  real toolbar/panel markup below — plus real forms rendered through
+  <code>formRenderer.renderForm</code> so field-level blur validation is exercised end to end,
+  not reimplemented.</p>
+
+  <div id="summary">running…</div>
+  <div id="results"></div>
+
+  <h2>Live render stage (mirrors index.html's toolbar + validation panel ids)</h2>
+  <button id="validate-btn" type="button">Validate</button>
+  <div id="validation-panel">
+    <div id="validation-header">
+      <span id="validation-summary"></span>
+      <button id="close-validation-btn" type="button">&#10005;</button>
+    </div>
+    <ul id="validation-error-list"></ul>
+  </div>
+  <div id="form-content-host"></div>
+
+  <script type="module">
+    import { findRootFileCandidates, flattenFromRoot } from '../js/core/flattener.js';
+    import { SchemaParser, findRootElementCandidates, analyzePacket } from '../js/core/parser.js';
+    import { FormEngine, FormInstanceKey, keyOf } from '../js/core/formEngine.js';
+    import { readPacket } from '../js/core/xmlReader.js';
+    import * as formRenderer from '../js/ui/formRenderer.js';
+    import * as coloring from '../js/ui/coloring.js';
+    import { validateField, validateSchema, wireValidation, closeValidationPanel } from '../js/ui/validation.js';
+
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+    const stageEl = document.getElementById('form-content-host');
+
+    let pass = 0, fail = 0;
+    function check(label, condition, detail = '') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const ok = !!condition;
+      ok ? pass++ : fail++;
+      row.innerHTML = `<span class="badge ${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'}</span><span>${label}${detail ? ' — ' + detail : ''}</span>`;
+      resultsEl.appendChild(row);
+      if (!ok) console.error('FAIL:', label, detail);
+    }
+
+    function typeAndBlur(inputEl, value) {
+      inputEl.dispatchEvent(new Event('focus', { bubbles: true }));
+      inputEl.value = value;
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+      inputEl.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+    function setInputAndFireChange(inputEl, value) {
+      if (inputEl.type === 'checkbox') inputEl.checked = value;
+      else inputEl.value = value;
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    function fieldWrapper(root, path) {
+      return root.querySelector(`.field-wrapper[data-path="${path}"]`);
+    }
+    function inputOf(root, path) {
+      const w = fieldWrapper(root, path);
+      return w ? w.querySelector('input, select') : null;
+    }
+
+    async function main() {
+      const filenames = ['SamplePacket.xsd', 'SampleCommonTypes.xsd', 'SampleGroups.xsd'];
+      const fileTextMap = new Map();
+      for (const name of filenames) fileTextMap.set(name, await (await fetch(`../sample-schemas/${name}`)).text());
+      const [rootFile] = findRootFileCandidates(fileTextMap);
+      const { doc: flatDoc } = flattenFromRoot(fileTextMap, rootFile);
+      const [rootElementName] = findRootElementCandidates(flatDoc);
+      const parser = new SchemaParser(flatDoc, rootElementName);
+      const manifest = analyzePacket(flatDoc, rootElementName);
+
+      const formEngine = new FormEngine();
+      const fakeAppState = { manifest, schemaParser: parser, formEngine, instanceKeys: [], currentInstanceKey: null };
+
+      function switchToForm(instanceKey) {
+        formEngine.setActiveForm(instanceKey);
+        const schemaElement = parser.parseGlobalElement(instanceKey.formName);
+        const formEl = formRenderer.renderForm(schemaElement, formEngine, 0);
+        formRenderer.inflateRepeatingSections(formEl, formEngine);
+        stageEl.innerHTML = '';
+        stageEl.appendChild(formEl);
+        formRenderer.registerControlsUnder(formEl, formEngine);
+        formEngine.restoreActiveForm();
+        formRenderer.selectRadioGroupBranches(formEl, formEngine.getFormState(instanceKey));
+        coloring.setActiveContext(schemaElement, formEngine, instanceKey);
+        coloring.rebuildColorableIndex(formEl);
+        coloring.applyAllColors();
+        fakeAppState.currentInstanceKey = instanceKey;
+        return formEl;
+      }
+      wireValidation({ appState: fakeAppState, switchToForm });
+
+      // ==================================================================
+      // A. validateField — pure function checks, no DOM (§16 Field-Level
+      //    Validation), including the two fixed-up quirks in the spec's
+      //    literal code block (missing `break`s, empty+required short-circuit).
+      // ==================================================================
+      {
+        const minMax = { isRequired: true, validationRules: [{ kind: 'minLength', value: '3' }, { kind: 'maxLength', value: '6' }] };
+        check('minLength violation caught', !validateField('ab', minMax).valid);
+        check('maxLength violation caught', !validateField('abcdefg', minMax).valid);
+        check('in-range value passes both rules', validateField('abcd', minMax).valid);
+        check(
+          'Fall-through fix: a value satisfying minLength(3) but violating maxLength(6) is judged ONLY on maxLength, not corrupted by minLength\'s own threshold leaking through a missing `break`',
+          !validateField('abcdefg', minMax).valid && validateField('abcdefg', minMax).message.includes('6')
+        );
+
+        const patternEl = { isRequired: true, validationRules: [{ kind: 'pattern', value: '[A-Z]{2}[0-9]{4}' }] };
+        check('Pattern-invalid value (WALKTHROUGH #3, lowercase PacketId) fails', !validateField('ab1234', patternEl).valid);
+        check('Pattern-valid value passes', validateField('AB1234', patternEl).valid);
+
+        const percentEl = { isRequired: true, validationRules: [{ kind: 'minInclusive', value: '0.00' }, { kind: 'maxInclusive', value: '100.00' }, { kind: 'fractionDigits', value: '2' }] };
+        check('minInclusive violation (WALKTHROUGH #18, PercentType)', !validateField('-1', percentEl).valid);
+        check('maxInclusive violation', !validateField('150', percentEl).valid);
+        check('fractionDigits violation (3 decimal places > 2)', !validateField('8.255', percentEl).valid);
+        check('TaxRate=8.25 (WALKTHROUGH #18 sample value) is valid', validateField('8.25', percentEl).valid);
+
+        const amountEl = { isRequired: true, validationRules: [{ kind: 'minInclusive', value: '0' }, { kind: 'totalDigits', value: '12' }, { kind: 'fractionDigits', value: '2' }] };
+        check('totalDigits violation (14 significant digits > 12)', !validateField('123456789012.34', amountEl).valid);
+        check('totalDigits: within-range value passes', validateField('1234567890.12', amountEl).valid);
+
+        const dateEl = { isRequired: true, kind: 'DatePicker', validationRules: [] };
+        check('Invalid date string caught', !validateField('not-a-date', dateEl).valid);
+        check('Valid date string passes', validateField('2024-01-01', dateEl).valid);
+
+        check(
+          'Empty value on a REQUIRED field with a minLength rule does NOT produce a spurious format error — completeness is a separate concern (§22 invariant 4), left to validateNode/coloringService',
+          validateField('', minMax).valid && validateField(undefined, minMax).valid
+        );
+        check('Empty value on an optional field is still valid', validateField('', { isRequired: false, validationRules: [{ kind: 'minLength', value: '3' }] }).valid);
+      }
+
+      // ==================================================================
+      // B. Field-level validation wired into a real rendered control (blur
+      //    triggers it; error text + `.invalid` class reflect the result).
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleHeader');
+        const formEl = switchToForm(key);
+        const input = inputOf(formEl, 'SampleHeader.PacketId');
+        const wrapper = fieldWrapper(formEl, 'SampleHeader.PacketId');
+
+        typeAndBlur(input, 'bad');
+        check('Pattern-invalid PacketId shows an error message below the input on blur', !wrapper.querySelector('.field-error').hidden && wrapper.querySelector('.field-error').textContent.length > 0);
+        check('...and marks the input itself .invalid', input.classList.contains('invalid'));
+
+        typeAndBlur(input, 'HI2025');
+        check('Fixing the value on a subsequent blur clears the error text', wrapper.querySelector('.field-error').hidden);
+        check('...and removes the .invalid class', !input.classList.contains('invalid'));
+      }
+
+      // ==================================================================
+      // C. validateSchema — completeness (WALKTHROUGH-style empty required
+      //    field on a freshly blank SampleEntityForm).
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        switchToForm(key);
+        const errors = validateSchema([key], formEngine.getAllFormStates(), parser);
+        const addr = errors.find((e) => e.path === 'SampleEntityForm.RegisteredAddress.StreetLine1');
+        check('Blank required leaf (RegisteredAddress.StreetLine1) surfaces a completeness error', addr?.kind === 'completeness');
+      }
+
+      // ==================================================================
+      // D. validateSchema — choice enforcement: zero branches populated (still
+      //    completeness, since EntityTypeChoiceChoice is required), then TWO
+      //    branches populated (the 'choice' kind — WALKTHROUGH acceptance
+      //    criteria's "two populated choice branches").
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        const formEl = switchToForm(key);
+        const choicePath = 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice';
+
+        let errors = validateSchema([key], formEngine.getAllFormStates(), parser);
+        let choiceErr = errors.find((e) => e.path === choicePath);
+        check('Required, unselected choice surfaces as a completeness error', choiceErr?.kind === 'completeness');
+
+        // Select Option2 (Organization) through the real radio control, fill its
+        // required fields so THAT branch alone would be clean...
+        const org = formEl.querySelector(`input[data-option-path="${choicePath}.EntityTypeChoiceChoiceOption2"]`);
+        setInputAndFireChange(org, true);
+        typeAndBlur(inputOf(formEl, `${choicePath}.EntityTypeChoiceChoiceOption2.OrgLegalName`), 'Acme Test Co');
+        setInputAndFireChange(inputOf(formEl, `${choicePath}.EntityTypeChoiceChoiceOption2.OrgType`), 'Corporation');
+
+        // ...then silently populate the HIDDEN Option1 branch too (bypassing the
+        // UI, the way stale/hand-edited state could) — an explicit selection
+        // exists (Option2), but BOTH branches now have data.
+        formEngine.setValueSilently(`${choicePath}.EntityTypeChoiceChoiceOption1.IndividualFirstName`, 'Jane');
+
+        errors = validateSchema([key], formEngine.getAllFormStates(), parser);
+        choiceErr = errors.find((e) => e.path === choicePath);
+        check('Two populated branches surface a "choice" error even though one is explicitly selected', choiceErr?.kind === 'choice');
+      }
+
+      // ==================================================================
+      // E. validateSchema — occurrence bounds + unmatched fields, both from
+      //    loading the REAL sample-schemas/SamplePacket.xml fixture (which
+      //    intentionally contains 2 <PriorNameList> entries — exceeding the
+      //    outer element's own maxOccurs=1 — and an <UnknownLegacyField>,
+      //    per WALKTHROUGH.md items 16/21).
+      // ==================================================================
+      {
+        const xmlText = await (await fetch('../sample-schemas/SamplePacket.xml')).text();
+        const stateMap = readPacket(xmlText, manifest, parser); // key.toString() → FormState
+        const allFormStates = new Map();
+        const orderedKeys = [];
+        for (const [keyStr, state] of stateMap) {
+          const ik = FormInstanceKey.parse(keyStr);
+          orderedKeys.push(ik);
+          allFormStates.set(keyOf(ik), state);
+        }
+
+        const errors = validateSchema(orderedKeys, allFormStates, parser);
+        const occ = errors.find((e) => e.kind === 'occurrence' && e.path === 'SampleEntityForm.PriorNameList');
+        check(
+          'PriorNameList (2 entries in the fixture, outer maxOccurs=1) surfaces an occurrence error',
+          occ && occ.message.includes('2')
+        );
+
+        // SampleHeader.unmatchedFields actually has 5 entries in this fixture,
+        // not 1 — see dev/phase2-check.html's own established finding: the 4
+        // Audit* fields (AuditCreatedBy etc.) belong to SampleEntityForm's
+        // schema (via its own xs:group ref="AuditStampGroup"), not SampleHeader's,
+        // even though the fixture XML happens to place them under
+        // <SampleHeader> too. So UnknownLegacyField is genuinely unmatched but
+        // not the FIRST unmatched entry in document order — search for it
+        // specifically rather than taking whichever 'unmatched' error comes first.
+        const unmatched = errors.find((e) => e.kind === 'unmatched' && e.path.toLowerCase().includes('unknownlegacyfield'));
+        check(
+          'UnknownLegacyField (present in the fixture, absent from the schema) surfaces as unmatched',
+          !!unmatched
+        );
+      }
+
+      // ==================================================================
+      // F. Validation Panel — real DOM wiring: click Validate, inspect the
+      //    rendered list, click an error row, confirm navigation + highlight.
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        fakeAppState.instanceKeys = [new FormInstanceKey('SampleHeader'), key];
+        switchToForm(new FormInstanceKey('SampleHeader')); // navigate away first
+
+        document.getElementById('validate-btn').click();
+        const listEl = document.getElementById('validation-error-list');
+        check('Clicking Validate populates the error list', listEl.children.length > 0);
+        check('Validation panel is expanded (not .collapsed)', !document.getElementById('validation-panel').classList.contains('collapsed'));
+
+        const entityRow = [...listEl.querySelectorAll('.validation-error')].find((li) => li.querySelector('.validation-path')?.textContent === 'SampleEntityForm.RegisteredAddress.StreetLine1');
+        check('The known completeness error for RegisteredAddress.StreetLine1 is listed', !!entityRow);
+
+        entityRow.click();
+        check('Clicking the error row navigates to SampleEntityForm', stageEl.querySelector('.field-wrapper[data-path^="SampleEntityForm"]') !== null);
+        const targetWrapper = fieldWrapper(stageEl, 'SampleEntityForm.RegisteredAddress.StreetLine1');
+        check('...and flashes/focuses the target field', targetWrapper.classList.contains('validation-flash') && document.activeElement === targetWrapper.querySelector('input'));
+
+        closeValidationPanel();
+        check('closeValidationPanel collapses the panel', document.getElementById('validation-panel').classList.contains('collapsed'));
+      }
+
+      summaryEl.textContent = `${pass} passed, ${fail} failed`;
+      summaryEl.style.color = fail === 0 ? '#2e7d32' : '#d32f2f';
+      console.log(`Phase 5 check: ${pass} passed, ${fail} failed`);
+    }
+
+    main().catch((err) => {
+      summaryEl.textContent = 'ERROR — see console';
+      summaryEl.style.color = '#d32f2f';
+      console.error(err);
+      const pre = document.createElement('pre');
+      pre.textContent = String(err.stack || err);
+      resultsEl.appendChild(pre);
+    });
+  </script>
+</body>
+</html>

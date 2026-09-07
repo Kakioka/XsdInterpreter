@@ -235,6 +235,7 @@ fieldset.group-container legend {
 
 .field-wrapper {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 4px 0;
@@ -261,6 +262,21 @@ fieldset.group-container legend {
 
 .field-wrapper input[type="checkbox"] {
   flex: none;
+}
+
+/* §16 Field-Level Validation: a format error on the input itself (distinct
+ * from the color-border strip's overall completeness color — §22 invariant 4). */
+.field-wrapper input.invalid,
+.field-wrapper select.invalid {
+  border-color: var(--coloring-incomplete);
+  outline: none;
+}
+
+.field-wrapper .field-error {
+  flex: 1 0 100%;
+  margin-left: 11px; /* roughly under the input, after the color-border strip */
+  color: var(--coloring-incomplete);
+  font-size: 12px;
 }
 
 .color-border {
@@ -409,6 +425,79 @@ fieldset.group-container.color-yellow,
   margin: 0;
   padding: 4px 0;
   list-style: none;
+}
+
+.validation-group-header {
+  padding: 6px 10px 2px;
+  font-weight: bold;
+  font-size: 12px;
+  color: #555555;
+  background: #fafafa;
+}
+
+.validation-error {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.validation-error:hover {
+  background: #f0f6ff;
+}
+
+/* §22 invariant 4: completeness/occurrence/choice (a field is missing/
+ * miscounted/unresolved) and format (a field has data but it's invalid) are
+ * different concerns — distinct badge colors keep that visible in the panel. */
+.validation-kind-badge {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.validation-kind-completeness,
+.validation-kind-occurrence,
+.validation-kind-choice {
+  background: var(--coloring-incomplete);
+}
+
+.validation-kind-format {
+  background: #8e44ad;
+}
+
+.validation-kind-unmatched {
+  background: #757575;
+}
+
+.validation-message {
+  flex: 1;
+}
+
+.validation-path {
+  color: #888888;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.validation-clean {
+  padding: 10px;
+  color: var(--coloring-complete);
+  font-weight: bold;
+}
+
+@keyframes validation-flash-pulse {
+  0% { background-color: #fff59d; }
+  100% { background-color: transparent; }
+}
+
+.validation-flash {
+  animation: validation-flash-pulse 1.2s ease-out;
 }
 
 #status-bar {
