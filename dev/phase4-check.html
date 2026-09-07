@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phase 4 check</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 14px; padding: 16px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; margin-top: 24px; }
+    .row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-family: monospace; font-size: 12.5px; }
+    .pass { color: #2e7d32; }
+    .fail { color: #d32f2f; font-weight: bold; }
+    .badge { display: inline-block; width: 3.5em; }
+    #summary { font-size: 16px; font-weight: bold; margin: 12px 0; }
+    #stage { border: 2px dashed #ccc; margin-top: 20px; max-height: 400px; overflow: auto; }
+    /* Pull in the real coloring CSS so the visual classes actually mean something here too. */
+  </style>
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+  <h1>Phase 4 check — coloringService + undoService</h1>
+  <p>Open via a local server. Renders real forms into a live (visible, below) DOM
+  container, drives coloring computation and undo/redo through the exact same
+  entry points app.js uses (formRenderer.renderForm with a real undoService,
+  coloring.js's index/applyAllColors, and undoService.undo/redo against a
+  switchToForm-shaped ctx) — not reimplementations of the logic under test.</p>
+
+  <div id="summary">running…</div>
+  <div id="results"></div>
+
+  <h2>Live render stage (for visual sanity-checking)</h2>
+  <div id="stage"></div>
+
+  <script type="module">
+    import { findRootFileCandidates, flattenFromRoot } from '../js/core/flattener.js';
+    import { SchemaParser, findRootElementCandidates, analyzePacket } from '../js/core/parser.js';
+    import { FormEngine, FormInstanceKey } from '../js/core/formEngine.js';
+    import { UndoService, FormAddAction } from '../js/core/undoService.js';
+    import { computeAllColors } from '../js/core/coloringService.js';
+    import * as formRenderer from '../js/ui/formRenderer.js';
+    import * as coloring from '../js/ui/coloring.js';
+
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+    const stageEl = document.getElementById('stage');
+
+    let pass = 0, fail = 0;
+    function check(label, condition, detail = '') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const ok = !!condition;
+      ok ? pass++ : fail++;
+      row.innerHTML = `<span class="badge ${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'}</span><span>${label}${detail ? ' — ' + detail : ''}</span>`;
+      resultsEl.appendChild(row);
+      if (!ok) console.error('FAIL:', label, detail);
+    }
+
+    function setInputAndFireChange(inputEl, value) {
+      if (inputEl.type === 'checkbox') inputEl.checked = value;
+      else inputEl.value = value;
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function typeAndBlur(inputEl, value) {
+      inputEl.dispatchEvent(new Event('focus', { bubbles: true }));
+      inputEl.value = value;
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+      inputEl.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+
+    function fieldWrapper(root, path) {
+      return root.querySelector(`.field-wrapper[data-path="${cssEscape(path)}"]`);
+    }
+    function inputOf(root, path) {
+      const w = fieldWrapper(root, path);
+      return w ? w.querySelector('input, select') : null;
+    }
+    function cssEscape(s) {
+      return window.CSS && CSS.escape ? CSS.escape(s) : s.replace(/([.[\]#:])/g, '\\$1');
+    }
+
+    async function main() {
+      const filenames = ['SamplePacket.xsd', 'SampleCommonTypes.xsd', 'SampleGroups.xsd'];
+      const fileTextMap = new Map();
+      for (const name of filenames) fileTextMap.set(name, await (await fetch(`../sample-schemas/${name}`)).text());
+      const [rootFile] = findRootFileCandidates(fileTextMap);
+      const { doc: flatDoc } = flattenFromRoot(fileTextMap, rootFile);
+      const [rootElementName] = findRootElementCandidates(flatDoc);
+      const parser = new SchemaParser(flatDoc, rootElementName);
+      const manifest = analyzePacket(flatDoc, rootElementName);
+
+      // ------------------------------------------------------------------
+      // Shared harness: a switchToForm exactly shaped like app.js's real one
+      // (same order of operations, same coloring wiring, same mutateState
+      // hook), reused both for plain navigation and as undoService's ctx.
+      // ------------------------------------------------------------------
+      const formEngine = new FormEngine();
+      const undoService = new UndoService();
+      const fakeAppState = { formEngine, instanceKeys: [], currentInstanceKey: null };
+
+      function switchToForm(instanceKey, mutateState) {
+        formEngine.setActiveForm(instanceKey);
+        if (mutateState) mutateState(formEngine);
+        const schemaElement = parser.parseGlobalElement(instanceKey.formName);
+        const formEl = formRenderer.renderForm(schemaElement, formEngine, 0, undoService);
+        formRenderer.inflateRepeatingSections(formEl, formEngine);
+        stageEl.innerHTML = '';
+        stageEl.appendChild(formEl);
+        formRenderer.registerControlsUnder(formEl, formEngine);
+        formEngine.restoreActiveForm();
+        formRenderer.selectRadioGroupBranches(formEl, formEngine.getFormState(instanceKey));
+        coloring.setActiveContext(schemaElement, formEngine, instanceKey);
+        coloring.rebuildColorableIndex(formEl);
+        coloring.applyAllColors();
+        fakeAppState.currentInstanceKey = instanceKey;
+        return formEl;
+      }
+      const ctx = { appState: fakeAppState, switchToForm, rebuildNavTree: () => {} };
+
+      // ==================================================================
+      // A. coloringService — pure function checks against a synthetic state
+      //    (no DOM at all — this is the "console/script" half of Phase 4.1)
+      // ==================================================================
+      {
+        const schemaElement = parser.parseGlobalElement('SampleHeader');
+        const emptyState = { fieldValues: {}, radioSelections: {}, repeatingInstanceCounts: {} };
+        let colors = computeAllColors(schemaElement, emptyState);
+        check('Required empty PacketId colors Red', colors.get('sampleheader.packetid') === 'Red');
+
+        const invalidState = { fieldValues: { 'sampleheader.packetid': 'ab1234' }, radioSelections: {}, repeatingInstanceCounts: {} };
+        colors = computeAllColors(schemaElement, invalidState);
+        check('Required PacketId with a pattern-invalid value colors Red', colors.get('sampleheader.packetid') === 'Red');
+
+        const validState = { fieldValues: { 'sampleheader.packetid': 'AB1234' }, radioSelections: {}, repeatingInstanceCounts: {} };
+        colors = computeAllColors(schemaElement, validState);
+        check('Required PacketId with a valid value colors Green', colors.get('sampleheader.packetid') === 'Green');
+      }
+
+      // ==================================================================
+      // B. Rendered coloring — leaf + container rules on SampleEntityForm's
+      //    RegisteredAddress (required container, 4 required leaf children +
+      //    1 optional leaf + 1 optional attribute) — §9, §22 invariants 6/7.
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        const formEl = switchToForm(key);
+        const addrPrefix = 'SampleEntityForm.RegisteredAddress';
+        const addrFieldset = formEl.querySelector(`fieldset.group-container[data-path="${addrPrefix}"]`);
+        check('RegisteredAddress fieldset renders', !!addrFieldset);
+
+        check('Blank required RegisteredAddress colors Red (required leaf children empty)', addrFieldset.classList.contains('color-red'));
+
+        typeAndBlur(inputOf(formEl, `${addrPrefix}.StreetLine1`), '123 Main St');
+        typeAndBlur(inputOf(formEl, `${addrPrefix}.City`), 'Honolulu');
+        typeAndBlur(inputOf(formEl, `${addrPrefix}.StateCode`), 'HI0000');
+        coloring.applyAllColors();
+        check(
+          '3-of-4 required fields filled, PostalCode still empty → still Red',
+          addrFieldset.classList.contains('color-red')
+        );
+
+        typeAndBlur(inputOf(formEl, `${addrPrefix}.PostalCode`), '96814');
+        coloring.applyAllColors();
+        check('All 4 required fields valid, optional StreetLine2 untouched → Green', addrFieldset.classList.contains('color-green'));
+
+        const streetLine2Wrapper = fieldWrapper(formEl, `${addrPrefix}.StreetLine2`);
+        check('Untouched optional StreetLine2 has no color class', !streetLine2Wrapper.querySelector('.color-border').classList.contains('color-red') && !streetLine2Wrapper.querySelector('.color-border').classList.contains('color-green') && !streetLine2Wrapper.querySelector('.color-border').classList.contains('color-yellow'));
+
+        typeAndBlur(inputOf(formEl, `${addrPrefix}.StreetLine2`), 'Suite 100');
+        coloring.applyAllColors();
+        check('Optional StreetLine2 filled with valid data colors Yellow (never Green, even though valid — §9)', streetLine2Wrapper.querySelector('.color-border').classList.contains('color-yellow'));
+        // §9's container rule is strict: "all children Green" — a Yellow child (this
+        // valid-but-optional StreetLine2) caps the container at Yellow too, even
+        // though nothing is actually incomplete or invalid.
+        check('A valid, activated optional child still caps its (otherwise all-Green) container at Yellow', addrFieldset.classList.contains('color-yellow'));
+
+        typeAndBlur(inputOf(formEl, `${addrPrefix}.PostalCode`), 'not-digits');
+        coloring.applyAllColors();
+        check('Breaking one required field\'s format flips the container back to Red', addrFieldset.classList.contains('color-red'));
+        typeAndBlur(inputOf(formEl, `${addrPrefix}.PostalCode`), '96814'); // restore for later sections
+        coloring.applyAllColors();
+      }
+
+      // ==================================================================
+      // C. Radio branch coloring — §9 "Radio branch coloring", WALKTHROUGH §7:
+      //    only the selected branch counts; hidden branches are ignored.
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        const formEl = switchToForm(key); // fresh blank instance
+        const choicePath = 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice';
+        const radioGroupEl = formEl.querySelector(`.radio-group[data-choice-path="${choicePath}"]`);
+        check('Required, unselected EntityTypeChoiceChoice colors Red', radioGroupEl.classList.contains('color-red'));
+
+        const org = radioGroupEl.querySelector(`input[data-option-path="${choicePath}.EntityTypeChoiceChoiceOption2"]`);
+        setInputAndFireChange(org, true);
+        coloring.applyAllColors();
+        check(
+          'Selected Option2 with both its required fields still empty → Red',
+          radioGroupEl.classList.contains('color-red')
+        );
+
+        typeAndBlur(inputOf(formEl, `${choicePath}.EntityTypeChoiceChoiceOption2.OrgLegalName`), 'Acme Test Co');
+        setInputAndFireChange(inputOf(formEl, `${choicePath}.EntityTypeChoiceChoiceOption2.OrgType`), 'Corporation');
+        coloring.applyAllColors();
+        check(
+          'Option2 required fields filled, optional OrgFoundedYear untouched → Green',
+          radioGroupEl.classList.contains('color-green')
+        );
+
+        // Populate the HIDDEN Option1 branch with a value, leaving Option1's OTHER
+        // required fields (IndividualLastName, IndividualBirthDate) empty — if
+        // coloring wrongly aggregated both branches, this empty-required field
+        // would flip the result to Red. It must NOT affect the outer radio group's
+        // color at all, since only the selected branch (Option2) is evaluated.
+        formEngine.setValueSilently(`${choicePath}.EntityTypeChoiceChoiceOption1.IndividualFirstName`, 'Jane');
+        coloring.applyAllColors();
+        check('Hidden Option1 branch data is ignored by coloring — still Green from Option2 alone', radioGroupEl.classList.contains('color-green'));
+      }
+
+      // ==================================================================
+      // D. Undo/redo — FieldValueChangeAction (text input, blur-triggered)
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleHeader');
+        const formEl = switchToForm(key);
+        const input = inputOf(formEl, 'SampleHeader.PacketTitle');
+        typeAndBlur(input, 'Original Title');
+        check('Typing + blur commits the value to FormEngine', formEngine.getValue('SampleHeader.PacketTitle') === 'Original Title');
+        check('...and records an undoable action', undoService.canUndo);
+
+        typeAndBlur(input, 'Changed Title');
+        check('Second edit committed', formEngine.getValue('SampleHeader.PacketTitle') === 'Changed Title');
+
+        undoService.undo(ctx);
+        check(
+          'Undo reverts FormEngine value AND the re-rendered input',
+          formEngine.getValue('SampleHeader.PacketTitle') === 'Original Title' &&
+            inputOf(stageEl, 'SampleHeader.PacketTitle').value === 'Original Title'
+        );
+
+        undoService.redo(ctx);
+        check(
+          'Redo reapplies the change',
+          formEngine.getValue('SampleHeader.PacketTitle') === 'Changed Title' &&
+            inputOf(stageEl, 'SampleHeader.PacketTitle').value === 'Changed Title'
+        );
+
+        undoService.undo(ctx); // back to 'Original Title'
+        undoService.undo(ctx); // back to blank (first edit undone too)
+        check('Undoing past the first edit clears the field', !formEngine.getValue('SampleHeader.PacketTitle'));
+        undoService.redo(ctx);
+        undoService.redo(ctx); // replay both edits so later sections start from a known state
+      }
+
+      // ==================================================================
+      // E. Undo/redo — checkbox commits AND records immediately on `change`
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleHeader');
+        const formEl = switchToForm(key);
+        const checkbox = inputOf(formEl, 'SampleHeader.IsAmended');
+        check('IsAmended checkbox starts unchecked', checkbox.checked === false);
+
+        setInputAndFireChange(checkbox, true);
+        check('Checking the box commits true immediately', formEngine.getValue('SampleHeader.IsAmended') === true);
+
+        undoService.undo(ctx);
+        // The pre-toggle FormEngine value is `undefined` (never explicitly committed
+        // before this first interaction) rather than `false` — both render as an
+        // unchecked box, so check falsiness, not strict equality to `false`.
+        check(
+          'Undo reverts the checkbox to its untouched (unchecked) state, both in FormEngine and the DOM',
+          !formEngine.getValue('SampleHeader.IsAmended') &&
+            inputOf(stageEl, 'SampleHeader.IsAmended').checked === false
+        );
+        undoService.redo(ctx);
+      }
+
+      // ==================================================================
+      // F. Undo/redo — RadioBranchSwapAction, including a KEYBOARD-ONLY swap
+      //    (§14 fix: change fires with no preceding mousedown for arrow-key
+      //    navigation — oldBranch must still be read correctly).
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        const formEl = switchToForm(key);
+        const choicePath = 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice';
+        const option1 = formEl.querySelector(`input[data-option-path="${choicePath}.EntityTypeChoiceChoiceOption1"]`);
+        const option2 = formEl.querySelector(`input[data-option-path="${choicePath}.EntityTypeChoiceChoiceOption2"]`);
+
+        // Mouse-style selection first (a real 'change' event, same as a click would fire).
+        setInputAndFireChange(option2, true);
+        check('Selecting Option2 stores the selection', formEngine.getRadioSelections()[choicePath.toLowerCase()] === `${choicePath}.EntityTypeChoiceChoiceOption2`);
+
+        // Now a KEYBOARD-ONLY swap: fire `change` on the other radio directly,
+        // with no `mousedown` ever dispatched — this is exactly what arrow-key
+        // navigation between radios in a group produces.
+        option2.checked = false;
+        option1.checked = true;
+        option1.dispatchEvent(new Event('change', { bubbles: true }));
+        check(
+          'Keyboard-only swap to Option1 stores the new selection',
+          formEngine.getRadioSelections()[choicePath.toLowerCase()] === `${choicePath}.EntityTypeChoiceChoiceOption1`
+        );
+
+        undoService.undo(ctx);
+        check(
+          'Undoing the keyboard-only swap correctly restores Option2 (not corrupted/missing oldBranch)',
+          formEngine.getRadioSelections()[choicePath.toLowerCase()] === `${choicePath}.EntityTypeChoiceChoiceOption2`
+        );
+        const reShownOption2Content = stageEl.querySelector(`.branch-content[data-path="${choicePath}.EntityTypeChoiceChoiceOption2"]`);
+        check('...and the DOM shows Option2\'s branch content again', reShownOption2Content.style.display !== 'none');
+
+        undoService.redo(ctx);
+        check('Redo reapplies the keyboard swap to Option1', formEngine.getRadioSelections()[choicePath.toLowerCase()] === `${choicePath}.EntityTypeChoiceChoiceOption1`);
+      }
+
+      // ==================================================================
+      // G. Undo/redo — RepeatingInstanceAddAction / RepeatingInstanceRemoveAction
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        const formEl = switchToForm(key);
+        const sectionEl = formEl.querySelector('.repeating-section[data-path="SampleEntityForm.PriorNameList.PriorNameListEntry"]');
+        const addBtn = sectionEl.querySelector('.add-btn');
+
+        addBtn.click();
+        addBtn.click();
+        check('Two Add clicks produce two instances', sectionEl.querySelectorAll('.repeating-instance').length === 2);
+
+        let instanceDivs = sectionEl.querySelectorAll('.repeating-instance');
+        typeAndBlur(instanceDivs[0].querySelector('.field-wrapper[data-path$="FormerName"] input'), 'First Name');
+        typeAndBlur(instanceDivs[1].querySelector('.field-wrapper[data-path$="FormerName"] input'), 'Second Name');
+
+        undoService.undo(ctx); // undo the second FormerName edit
+        undoService.undo(ctx); // undo the first FormerName edit
+        check(
+          'Undoing the field edits leaves two blank instances (values back to unset)',
+          !formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName') &&
+            !formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[1].FormerName')
+        );
+
+        undoService.undo(ctx); // undo the second Add
+        check('Undoing the second Add removes instance [1]', formEngine.getRepeatingInstanceCount('PriorNameListEntry') === 1);
+        undoService.redo(ctx); // redo the second Add
+        check('Redo re-adds a blank instance [1]', formEngine.getRepeatingInstanceCount('PriorNameListEntry') === 2);
+
+        // Refill both instances the normal way, then test Remove's own undo.
+        const rerenderedFormEl = stageEl.firstElementChild;
+        const rerenderedSection = rerenderedFormEl.querySelector('.repeating-section[data-path="SampleEntityForm.PriorNameList.PriorNameListEntry"]');
+        instanceDivs = rerenderedSection.querySelectorAll('.repeating-instance');
+        typeAndBlur(instanceDivs[0].querySelector('.field-wrapper[data-path$="FormerName"] input'), 'First Name');
+        typeAndBlur(instanceDivs[1].querySelector('.field-wrapper[data-path$="FormerName"] input'), 'Second Name');
+        check(
+          'Both instances refilled',
+          formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName') === 'First Name' &&
+            formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[1].FormerName') === 'Second Name'
+        );
+
+        instanceDivs[0].querySelector('.remove-btn').click();
+        check(
+          'Removing instance [0] re-indexes the remaining one down to [0]',
+          formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName') === 'Second Name' &&
+            formEngine.getRepeatingInstanceCount('PriorNameListEntry') === 1
+        );
+
+        undoService.undo(ctx);
+        check(
+          'Undoing the Remove restores BOTH instances at their original indices with original data',
+          formEngine.getRepeatingInstanceCount('PriorNameListEntry') === 2 &&
+            formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName') === 'First Name' &&
+            formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[1].FormerName') === 'Second Name'
+        );
+        const restoredFormEl = stageEl.firstElementChild;
+        check(
+          '...and the DOM actually shows two instances with the right values',
+          restoredFormEl.querySelectorAll('.repeating-instance').length === 2 &&
+            inputOf(restoredFormEl, 'SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName').value === 'First Name' &&
+            inputOf(restoredFormEl, 'SampleEntityForm.PriorNameList.PriorNameListEntry[1].FormerName').value === 'Second Name'
+        );
+
+        undoService.redo(ctx);
+        check(
+          'Redo removes instance [0] again, re-indexing back down to one',
+          formEngine.getRepeatingInstanceCount('PriorNameListEntry') === 1 &&
+            formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName') === 'Second Name'
+        );
+      }
+
+      // ==================================================================
+      // H. Undo across a form switch (WALKTHROUGH.md item 26)
+      // ==================================================================
+      {
+        fakeAppState.instanceKeys = [new FormInstanceKey('SampleHeader'), new FormInstanceKey('SampleEntityForm')];
+        const headerKey = new FormInstanceKey('SampleHeader');
+        const entityKey = new FormInstanceKey('SampleEntityForm');
+
+        let formEl = switchToForm(headerKey);
+        typeAndBlur(inputOf(formEl, 'SampleHeader.PacketTitle'), 'Switched-Away Edit');
+        check('Edit on SampleHeader committed', formEngine.getValue('SampleHeader.PacketTitle') === 'Switched-Away Edit');
+
+        switchToForm(entityKey); // navigate away, same as clicking another nav-tree entry
+        check('Now viewing SampleEntityForm', stageEl.querySelector('.field-wrapper[data-path^="SampleEntityForm"]') !== null);
+
+        undoService.undo(ctx);
+        check(
+          'Undo (invoked while SampleEntityForm is active) navigates back to SampleHeader',
+          stageEl.querySelector('.field-wrapper[data-path^="SampleHeader"]') !== null
+        );
+        check(
+          'and shows the field reverted to its pre-edit value',
+          inputOf(stageEl, 'SampleHeader.PacketTitle').value !== 'Switched-Away Edit'
+        );
+      }
+
+      // ==================================================================
+      // I. Undo/redo — FormAddAction (the "+ Add" flow)
+      // ==================================================================
+      {
+        fakeAppState.instanceKeys = [new FormInstanceKey('SampleHeader')];
+        const priorInstanceKey = new FormInstanceKey('SampleHeader');
+        switchToForm(priorInstanceKey);
+
+        const newKey = new FormInstanceKey('SampleEventLog', 'EVT-TEST');
+        fakeAppState.instanceKeys.push(newKey);
+        const insertPosition = fakeAppState.instanceKeys.length - 1;
+        switchToForm(newKey);
+        undoService.recordAction(new FormAddAction({ instanceKey: newKey, priorInstanceKey, insertPosition, oldDirty: false, newDirty: true }));
+        check('New instance key tracked after Add', fakeAppState.instanceKeys.some((k) => k.equals(newKey)));
+
+        undoService.undo(ctx);
+        check(
+          'Undoing FormAdd removes the instance key and its state, and navigates back to the prior form',
+          !fakeAppState.instanceKeys.some((k) => k.equals(newKey)) &&
+            !formEngine.getFormState(newKey) &&
+            stageEl.querySelector('.field-wrapper[data-path^="SampleHeader"]') !== null
+        );
+
+        undoService.redo(ctx);
+        check(
+          'Redoing FormAdd re-inserts the instance key at its original position and switches to it',
+          fakeAppState.instanceKeys[insertPosition]?.equals(newKey) &&
+            stageEl.querySelector('.field-wrapper[data-path^="SampleEventLog"]') !== null
+        );
+      }
+
+      summaryEl.textContent = `${pass} passed, ${fail} failed`;
+      summaryEl.style.color = fail === 0 ? '#2e7d32' : '#d32f2f';
+      console.log(`Phase 4 check: ${pass} passed, ${fail} failed`);
+    }
+
+    main().catch((err) => {
+      summaryEl.textContent = 'ERROR — see console';
+      summaryEl.style.color = '#d32f2f';
+      console.error(err);
+      const pre = document.createElement('pre');
+      pre.textContent = String(err.stack || err);
+      resultsEl.appendChild(pre);
+    });
+  </script>
+</body>
+</html>

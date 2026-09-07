@@ -1,24 +1,23 @@
 // js/ui/app.js — Bootstrap, wiring, global event bus.
 //
 // See web-implementation-spec.md §20 (Application Bootstrap, Schema Load Flow,
-// Form Switch Flow, Radio Selection Fixed-Point Loop) and §13 (Loading Overlay).
-// IMPLEMENTATION_PLAN.md Phase 3.3.
+// Form Switch Flow, Radio Selection Fixed-Point Loop), §13 (Loading Overlay),
+// §9 (Coloring Service), §14 (Undo/Redo). IMPLEMENTATION_PLAN.md Phase 3.3
+// (schema/XML load, form switch, add instance) and Phase 4 (coloring, undo).
 //
-// Undo/redo, coloring, validation, search, context menus, and theming are all
-// later phases — this wires exactly what Phase 3 covers: load a schema, render
-// a form, edit it, add/remove repeating instances, pick radio branches, switch
-// between forms/instances without state bleed, and load/save XML end to end
-// (built on Phase 2's xmlReader/xmlWriter) so that last property is actually
-// exercisable with real varied data, not just blank forms.
+// Validation, search, context menus, and theming are still later phases.
 
 import { scanForBom, stripBom, findRootFileCandidates, flattenFromRoot } from '../core/flattener.js';
 import { SchemaParser, findRootElementCandidates, analyzePacket } from '../core/parser.js';
 import { FormEngine, FormInstanceKey } from '../core/formEngine.js';
 import { readPacket } from '../core/xmlReader.js';
 import { buildPacketXml } from '../core/xmlWriter.js';
+import { UndoService, FormAddAction } from '../core/undoService.js';
 import * as formRenderer from './formRenderer.js';
 import * as toolbar from './toolbar.js';
 import * as sidebar from './sidebar.js';
+import * as coloringUi from './coloring.js';
+import * as undoUi from './undo.js';
 
 const appState = {
   manifest: null,
@@ -27,8 +26,8 @@ const appState = {
   targetNamespace: null, // from flattener.flattenFromRoot (§3); threaded into buildPacketXml (§10) on Save XML
   schemaParser: null,
   formEngine: new FormEngine(),
+  undoService: new UndoService(),
   instanceKeys: [], // ordered FormInstanceKey[] — the nav tree's source of truth
-  // undoService: new UndoService(), // wired in once js/core/undoService.js has a real implementation (Phase 4.2)
 };
 
 // ---------------------------------------------------------------------------
@@ -96,6 +95,7 @@ async function loadSchema(fileTextMap) {
     appState.manifest = analyzePacket(flatDoc, rootElementName);
 
     appState.formEngine.reset();
+    appState.undoService.clearHistory(); // §22 invariant 23
     appState.instanceKeys = buildInitialInstanceKeys(appState.manifest);
     appState.currentInstanceKey = null;
 
@@ -139,12 +139,24 @@ async function chooseOne(candidates, emptyMessage, multipleMessage) {
 // Form Switch Flow (§20)
 // ---------------------------------------------------------------------------
 
-function switchToForm(instanceKey) {
+/**
+ * @param {FormInstanceKey} instanceKey
+ * @param {(formEngine: FormEngine) => void} [mutateState] — undoService's ONLY
+ *   hook into the render pipeline (§14): called right after `instanceKey`
+ *   becomes FormEngine's active form (so getRepeatingInstanceCount/
+ *   renamePathPrefix/etc. all resolve against it) and right before the schema
+ *   is parsed and the DOM is rebuilt from scratch — every undo/redo Action
+ *   mutates state through this same single hook rather than patching the live
+ *   DOM directly, which is what makes undo work correctly across a form
+ *   switch "for free" (see undoService.js's file-level comment).
+ */
+function switchToForm(instanceKey, mutateState) {
   // captureRadioSelectionsIntoFormEngine() from the spec's flow is a no-op here:
   // radio selections are written to formEngine immediately on `change` (see
   // formRenderer's buildRadioGroup), unlike field values, which is why
   // FormEngine.setActiveForm below only needs to flush field values, not radios.
   appState.formEngine.setActiveForm(instanceKey);
+  if (mutateState) mutateState(appState.formEngine);
 
   const schemaElement = appState.schemaParser.parseGlobalElement(instanceKey.formName);
   if (!schemaElement) {
@@ -152,7 +164,7 @@ function switchToForm(instanceKey) {
     return;
   }
 
-  const formEl = formRenderer.renderForm(schemaElement, appState.formEngine);
+  const formEl = formRenderer.renderForm(schemaElement, appState.formEngine, 0, appState.undoService);
   formRenderer.inflateRepeatingSections(formEl, appState.formEngine);
 
   const host = document.getElementById('form-content-host');
@@ -167,8 +179,11 @@ function switchToForm(instanceKey) {
   appState.formEngine.restoreActiveForm();
   formRenderer.selectRadioGroupBranches(formEl, appState.formEngine.getFormState(instanceKey));
 
-  // Phase 4/5/6 TODO: wireUndoTracking, wireContextMenus, rebuildColorableIndex,
-  // applyAllColors, refreshSearchContext, closeValidationPanel (§20 steps 10-16).
+  coloringUi.setActiveContext(schemaElement, appState.formEngine, instanceKey);
+  coloringUi.rebuildColorableIndex(formEl);
+  coloringUi.applyAllColors();
+
+  // Phase 5/6 TODO: wireContextMenus, refreshSearchContext, closeValidationPanel.
 
   appState.currentInstanceKey = instanceKey;
   sidebar.updateNavTreeActiveState(document.getElementById('nav-tree'), instanceKey);
@@ -181,10 +196,12 @@ function rebuildNavTree() {
 function addFormInstance(sectionName) {
   const instanceId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `new-${Date.now()}`;
   const key = new FormInstanceKey(sectionName, instanceId);
+  const priorInstanceKey = appState.currentInstanceKey;
   appState.instanceKeys.push(key);
+  const insertPosition = appState.instanceKeys.length - 1;
   rebuildNavTree();
   switchToForm(key);
-  // Phase 4 TODO: record a FormAddAction via undoService (§14).
+  appState.undoService.recordAction(new FormAddAction({ instanceKey: key, priorInstanceKey, insertPosition, oldDirty: false, newDirty: true }));
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +213,7 @@ async function loadXmlText(xmlText) {
   await withBusyOverlay('Reading XML…', async () => {
     const stateMap = readPacket(xmlText, appState.manifest, appState.schemaParser); // key.toString() (natural case) → FormState — see xmlReader.js
     appState.formEngine.reset();
+    appState.undoService.clearHistory(); // §22 invariant 23
 
     const orderedKeys = [];
     const walkSections = (sections) => {
@@ -253,6 +271,12 @@ function init() {
     onSaveXmlRequested: saveXml,
   });
   sidebar.wireAddFormButton(document.getElementById('add-form-btn'), () => appState.manifest, addFormInstance);
+
+  // §9 coloring: debounced on typing (invariant 19), immediate elsewhere (radio
+  // swap / add / remove already call coloringUi directly from formRenderer.js).
+  appState.formEngine.addEventListener('controlValueChanged', () => coloringUi.scheduleColorRecompute());
+
+  undoUi.wireUndo(appState.undoService, { appState, switchToForm, rebuildNavTree });
 }
 
 init();

@@ -16,22 +16,27 @@
 // Centralizing registration after rewriting avoids that entirely.
 
 import * as controlFactory from './controlFactory.js';
+import * as coloring from './coloring.js';
+import { FieldValueChangeAction, RadioBranchSwapAction, RepeatingInstanceAddAction, RepeatingInstanceRemoveAction } from '../core/undoService.js';
 
 // ---------------------------------------------------------------------------
 // Entry point / dispatch (§7)
 // ---------------------------------------------------------------------------
 
-export function renderForm(schemaElement, formEngine, depth = 0) {
+/** @param {import('../core/undoService.js').UndoService} [undoService] — optional;
+ *  omitted entirely by callers that don't need undo recording (e.g. dev/*-check.html
+ *  test harnesses), which is why every recording site below guards with `?.`. */
+export function renderForm(schemaElement, formEngine, depth = 0, undoService = null) {
   switch (schemaElement.kind) {
     case 'GroupContainer':
-      return buildGroupContainer(schemaElement, formEngine, depth);
+      return buildGroupContainer(schemaElement, formEngine, depth, undoService);
     case 'SequenceContainer':
-      return buildSequenceContainer(schemaElement, formEngine, depth);
+      return buildSequenceContainer(schemaElement, formEngine, depth, undoService);
     case 'RadioGroup':
-      return buildRadioGroup(schemaElement, formEngine, depth);
+      return buildRadioGroup(schemaElement, formEngine, depth, undoService);
     default:
-      if (schemaElement.isRepeating) return buildRepeatingSection(schemaElement, formEngine, depth);
-      return buildLeafControl(schemaElement, formEngine, depth);
+      if (schemaElement.isRepeating) return buildRepeatingSection(schemaElement, formEngine, depth, undoService);
+      return buildLeafControl(schemaElement, formEngine, depth, undoService);
   }
 }
 
@@ -39,7 +44,7 @@ export function renderForm(schemaElement, formEngine, depth = 0) {
 // Container rendering (§7 "Container Rendering")
 // ---------------------------------------------------------------------------
 
-function buildGroupContainer(element, formEngine, depth) {
+function buildGroupContainer(element, formEngine, depth, undoService) {
   const fieldset = document.createElement('fieldset');
   fieldset.classList.add('group-container', `depth-${Math.min(depth, 4)}`);
   fieldset.dataset.path = element.elementPath;
@@ -51,14 +56,14 @@ function buildGroupContainer(element, formEngine, depth) {
   fieldset.appendChild(legend);
 
   for (const child of element.children) {
-    fieldset.appendChild(renderForm(child, formEngine, depth + 1));
+    fieldset.appendChild(renderForm(child, formEngine, depth + 1, undoService));
   }
 
   return fieldset;
 }
 
-function buildSequenceContainer(element, formEngine, depth) {
-  if (element.isRepeating) return buildRepeatingSection(element, formEngine, depth);
+function buildSequenceContainer(element, formEngine, depth, undoService) {
+  if (element.isRepeating) return buildRepeatingSection(element, formEngine, depth, undoService);
 
   // Non-repeating SequenceContainer: the shape a choice OPTION wrapper takes
   // (isGeneratedWrapper=true, isRepeating=false) — a plain, unlabeled grouping div.
@@ -66,7 +71,7 @@ function buildSequenceContainer(element, formEngine, depth) {
   div.classList.add('sequence-container');
   div.dataset.path = element.elementPath;
   for (const child of element.children) {
-    div.appendChild(renderForm(child, formEngine, depth + 1));
+    div.appendChild(renderForm(child, formEngine, depth + 1, undoService));
   }
   return div;
 }
@@ -75,7 +80,7 @@ function buildSequenceContainer(element, formEngine, depth) {
 // Repeating Section (§7 "Repeating Section", "Path Rewriting", "Inflation")
 // ---------------------------------------------------------------------------
 
-function buildRepeatingSection(element, formEngine, depth) {
+function buildRepeatingSection(element, formEngine, depth, undoService) {
   const wrapper = document.createElement('div');
   wrapper.classList.add('repeating-section');
   wrapper.dataset.path = element.elementPath;
@@ -99,11 +104,22 @@ function buildRepeatingSection(element, formEngine, depth) {
   addBtn.classList.add('add-btn');
   addBtn.textContent = `Add ${element.resolvedLabel}`;
   addBtn.addEventListener('click', () => {
-    const { instanceDiv, removeBtn } = appendRepeatingInstance(element, formEngine, instancesContainer, depth);
+    if (undoService?.isReplaying) return; // §22 invariant 13 — defensive; Add is only ever user-clicked
+    const { instanceDiv, removeBtn } = appendRepeatingInstance(element, formEngine, instancesContainer, depth, undoService);
     registerControlsUnder(instanceDiv, formEngine);
-    wireRemoveButton(removeBtn, element, formEngine, instancesContainer, instanceDiv);
+    wireRemoveButton(removeBtn, element, formEngine, instancesContainer, instanceDiv, undoService);
+    const addedIndex = instancesContainer.children.length - 1;
     formEngine.setRepeatingInstanceCount(element.elementName, instancesContainer.children.length);
-    // Phase 4 TODO: record a RepeatingInstanceAddAction via undoService (§14).
+    const oldDirty = formEngine.isDirty;
+    formEngine.setDirty(true);
+    undoService?.recordAction(new RepeatingInstanceAddAction({
+      instanceKey: formEngine.activeInstanceKey,
+      elementPathBase: element.elementPath,
+      addedIndex,
+      oldDirty,
+      newDirty: true,
+    }));
+    coloring.refreshAfterStructuralChange();
   });
   wrapper.appendChild(addBtn);
 
@@ -111,21 +127,21 @@ function buildRepeatingSection(element, formEngine, depth) {
   // going through the interactive click handler above — the FormState's count
   // is already correct on restore, so nothing here should bump it again.
   wrapper._appendInstanceForInflation = () => {
-    const { instanceDiv, removeBtn } = appendRepeatingInstance(element, formEngine, instancesContainer, depth);
-    wireRemoveButton(removeBtn, element, formEngine, instancesContainer, instanceDiv);
+    const { instanceDiv, removeBtn } = appendRepeatingInstance(element, formEngine, instancesContainer, depth, undoService);
+    wireRemoveButton(removeBtn, element, formEngine, instancesContainer, instanceDiv, undoService);
     return instanceDiv;
   };
 
   return wrapper;
 }
 
-function appendRepeatingInstance(element, formEngine, instancesContainer, depth) {
+function appendRepeatingInstance(element, formEngine, instancesContainer, depth, undoService) {
   const index = instancesContainer.children.length;
   const instanceDiv = document.createElement('div');
   instanceDiv.classList.add('repeating-instance');
 
   for (const child of element.children) {
-    instanceDiv.appendChild(renderForm(child, formEngine, depth + 1));
+    instanceDiv.appendChild(renderForm(child, formEngine, depth + 1, undoService));
   }
 
   const removeBtn = document.createElement('button');
@@ -141,16 +157,31 @@ function appendRepeatingInstance(element, formEngine, instancesContainer, depth)
   return { instanceDiv, removeBtn };
 }
 
-function wireRemoveButton(removeBtn, element, formEngine, instancesContainer, instanceDiv) {
+function wireRemoveButton(removeBtn, element, formEngine, instancesContainer, instanceDiv, undoService) {
   removeBtn.addEventListener('click', () => {
+    if (undoService?.isReplaying) return; // §22 invariant 13
     const instancePath = instanceDiv.dataset.instancePath;
-    // §22 invariant 10/15: purge stored state BEFORE removing the DOM element —
-    // Phase 4 TODO: snapshot values here first, for RepeatingInstanceRemoveAction (§14).
+    const removedIndex = Number(instancePath.slice(instancePath.lastIndexOf('[') + 1, -1));
+    // §22 invariant 15: snapshot BEFORE purgeValuesUnderPathPrefix destroys the data.
+    const snapshot = formEngine.snapshotUnderPathPrefix(instancePath);
+    const oldDirty = formEngine.isDirty;
+    // §22 invariant 10: purge stored state BEFORE removing the DOM element.
     formEngine.unregisterControlsUnderPath(instancePath);
     formEngine.purgeValuesUnderPathPrefix(instancePath);
     instanceDiv.remove();
     reindexInstances(element, formEngine, instancesContainer);
     formEngine.setRepeatingInstanceCount(element.elementName, instancesContainer.children.length);
+    formEngine.setDirty(true);
+    undoService?.recordAction(new RepeatingInstanceRemoveAction({
+      instanceKey: formEngine.activeInstanceKey,
+      elementPathBase: element.elementPath,
+      removedIndex,
+      fieldValueSnapshot: snapshot.fieldValues,
+      radioBranchSelections: snapshot.radioSelections,
+      oldDirty,
+      newDirty: true,
+    }));
+    coloring.refreshAfterStructuralChange();
   });
 }
 
@@ -228,7 +259,7 @@ function lastPathSegment(path) {
 // RadioGroup (§7 "RadioGroup")
 // ---------------------------------------------------------------------------
 
-function buildRadioGroup(element, formEngine, depth) {
+function buildRadioGroup(element, formEngine, depth, undoService) {
   const wrapper = document.createElement('div');
   wrapper.classList.add('radio-group');
   wrapper.dataset.choicePath = element.elementPath;
@@ -255,7 +286,7 @@ function buildRadioGroup(element, formEngine, depth) {
     contentDiv.style.display = 'none';
     contentDiv.dataset.path = option.elementPath;
     for (const child of option.children) {
-      contentDiv.appendChild(renderForm(child, formEngine, depth + 1));
+      contentDiv.appendChild(renderForm(child, formEngine, depth + 1, undoService));
     }
     wrapper.appendChild(contentDiv);
 
@@ -272,15 +303,33 @@ function buildRadioGroup(element, formEngine, depth) {
     wrapper.dataset.selectedBranch = optionPath;
   }
 
+  function recordSwap(oldBranch, newBranch) {
+    if (!undoService?.isReplaying && oldBranch !== newBranch) {
+      const oldDirty = formEngine.isDirty;
+      formEngine.setDirty(true);
+      undoService?.recordAction(new RadioBranchSwapAction({
+        instanceKey: formEngine.activeInstanceKey,
+        radioGroupPath: wrapper.dataset.choicePath,
+        oldBranch,
+        newBranch,
+        oldDirty,
+        newDirty: true,
+      }));
+    }
+    coloring.applyAllColors(); // immediate — the branch toggle already happened synchronously
+  }
+
   for (const b of branches) {
     b.radioInput.addEventListener('change', () => {
+      // §14 fix: read the PREVIOUS selection from the group's own current-selection
+      // state before mutating it — NOT from a separate `mousedown` snapshot, which
+      // misses every keyboard-driven swap (arrow keys fire `change` with no
+      // preceding `mousedown`). `change` itself already fires uniformly for mouse
+      // clicks, Space/Enter, and arrow-key navigation.
+      const oldBranch = wrapper.dataset.selectedBranch ?? null;
       showBranch(b.option.elementPath);
       formEngine.setRadioSelection(wrapper.dataset.choicePath, b.option.elementPath);
-      // Phase 4 TODO: record a RadioBranchSwapAction (§14) — read oldBranch from
-      // wrapper.dataset.selectedBranch BEFORE calling showBranch() above (the
-      // spec's fixed keyboard-selection approach: change fires uniformly for
-      // mouse, Space/Enter, and arrow-key navigation, so no separate mousedown
-      // snapshot is needed).
+      recordSwap(oldBranch, b.option.elementPath);
     });
   }
 
@@ -290,12 +339,14 @@ function buildRadioGroup(element, formEngine, depth) {
     clearBtn.classList.add('clear-selection-btn');
     clearBtn.textContent = 'Clear selection';
     clearBtn.addEventListener('click', () => {
+      const oldBranch = wrapper.dataset.selectedBranch ?? null;
       for (const b of branches) {
         b.radioInput.checked = false;
         b.contentDiv.style.display = 'none';
       }
       delete wrapper.dataset.selectedBranch;
       formEngine.setRadioSelection(wrapper.dataset.choicePath, null);
+      recordSwap(oldBranch, null);
     });
     wrapper.appendChild(clearBtn);
   }
@@ -342,7 +393,7 @@ function selectRadioGroupBranchesPass(rootEl, formState) {
 // Leaf Control Rendering (§7 "Leaf Control Rendering")
 // ---------------------------------------------------------------------------
 
-function buildLeafControl(element, formEngine, depth) {
+function buildLeafControl(element, formEngine, depth, undoService) {
   const wrapper = document.createElement('div');
   wrapper.classList.add('field-wrapper');
   wrapper.dataset.path = element.elementPath;
@@ -352,10 +403,46 @@ function buildLeafControl(element, formEngine, depth) {
   if (element.isRequired) label.classList.add('required');
 
   const colorBorder = document.createElement('div');
-  colorBorder.classList.add('color-border'); // Phase 4 (§9) paints R/G/Y here
+  colorBorder.classList.add('color-border'); // js/ui/coloring.js paints R/G/Y here (§9)
 
   const input = controlFactory.create(element);
+
+  // §14 "FieldValueChangeAction": Checkbox/Dropdown commit-and-record immediately
+  // on `change` (no intermediate typing state to debounce). Text/Numeric/Decimal/
+  // DatePicker instead stash the pre-edit value on `focus` and only record on
+  // `blur` if it actually changed — the commit to FormEngine itself still rides
+  // the existing `change` listener below (which already fires at blur-time for
+  // these input types), this just adds the undo bookkeeping around it.
+  const isImmediateKind = element.kind === 'Checkbox' || element.kind === 'Dropdown';
+  function recordValueChange(oldValue, newValue) {
+    if (undoService?.isReplaying) return; // §22 invariant 13
+    if (oldValue === newValue) return;
+    const oldDirty = formEngine.isDirty;
+    formEngine.setDirty(true);
+    undoService?.recordAction(new FieldValueChangeAction({
+      instanceKey: formEngine.activeInstanceKey,
+      path: wrapper.dataset.path,
+      oldValue,
+      newValue,
+      oldDirty,
+      newDirty: true,
+    }));
+  }
+
+  if (!isImmediateKind) {
+    let stashedValue = null;
+    input.addEventListener('focus', () => {
+      stashedValue = controlFactory.getControlValue(input, element);
+    });
+    input.addEventListener('blur', () => {
+      recordValueChange(stashedValue, controlFactory.getControlValue(input, element));
+    });
+  }
+
   input.addEventListener('change', () => {
+    if (isImmediateKind) {
+      recordValueChange(formEngine.getValue(wrapper.dataset.path), controlFactory.getControlValue(input, element));
+    }
     // Read the CURRENT dataset.path, not a value captured at creation time — if
     // this control later becomes part of a repeating instance whose path gets
     // rewritten (or re-indexed after a sibling removal), edits after that point
@@ -384,7 +471,6 @@ function buildLeafControl(element, formEngine, depth) {
     getValue: () => controlFactory.getControlValue(input, element),
     setValue: (v) => controlFactory.setControlValue(input, element, v),
     validate: () => ({ valid: true }), // Phase 5 TODO: real field-level validation (§16)
-    setColorState: () => {}, // Phase 4 TODO: coloring.js wires this in (§9)
   };
 
   return wrapper;

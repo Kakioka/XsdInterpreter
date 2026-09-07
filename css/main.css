@@ -5,6 +5,15 @@
  * Phase 4/7. This file's job for now is just "usable and legible," not "on-brand."
  */
 
+/* §9/§12: the coloring palette is CSS custom properties from the start, even
+ * though full theme.js JSON loading is Phase 7 — this way Phase 7 only has to
+ * overwrite these three variables' values on :root, never touch selectors. */
+:root {
+  --coloring-incomplete: #d32f2f;
+  --coloring-complete: #2e7d32;
+  --coloring-optional: #f9a825;
+}
+
 *,
 *::before,
 *::after {
@@ -259,7 +268,38 @@ fieldset.group-container legend {
   align-self: stretch;
   flex-shrink: 0;
   border-radius: 2px;
-  background: transparent; /* Phase 4 paints R/G/Y here */
+  background: transparent;
+}
+
+.color-border.color-red    { background: var(--coloring-incomplete); }
+.color-border.color-green  { background: var(--coloring-complete); }
+.color-border.color-yellow { background: var(--coloring-optional); }
+
+/* Containers/instances/radio groups don't have a dedicated color-border
+ * element of their own (§9 "Container Coloring") — the color class lands
+ * directly on the container and is painted as a left border instead. */
+fieldset.group-container.color-red,
+.sequence-container.color-red,
+.repeating-instance.color-red,
+.radio-group.color-red,
+.branch-content.color-red {
+  border-left: 4px solid var(--coloring-incomplete);
+}
+
+fieldset.group-container.color-green,
+.sequence-container.color-green,
+.repeating-instance.color-green,
+.radio-group.color-green,
+.branch-content.color-green {
+  border-left: 4px solid var(--coloring-complete);
+}
+
+fieldset.group-container.color-yellow,
+.sequence-container.color-yellow,
+.repeating-instance.color-yellow,
+.radio-group.color-yellow,
+.branch-content.color-yellow {
+  border-left: 4px solid var(--coloring-optional);
 }
 
 .field-wrapper .tooltip {

@@ -64,7 +64,7 @@ export class FormEngine extends EventTarget {
     super();
     /** @type {Map<string, object>} keyOf(instanceKey) → FormState */
     this.storedStates = new Map();
-    /** @type {Map<string, {getValue:Function,setValue:Function,validate?:Function,setColorState?:Function,elementPath:string}>} path.toLowerCase() → ControlRef */
+    /** @type {Map<string, {getValue:Function,setValue:Function,validate?:Function,elementPath:string}>} path.toLowerCase() → ControlRef */
     this.registeredControls = new Map();
     /** @type {FormInstanceKey|null} */
     this.activeInstanceKey = null;
@@ -175,6 +175,25 @@ export class FormEngine extends EventTarget {
   }
 
   // --- purge (repeating-instance removal — §22 invariant 10, 15) -----------
+
+  /**
+   * Read-only snapshot of fieldValues/radioSelections under `prefix` (exact
+   * match, or continuing with '.' or '['), for the ACTIVE form. Used by
+   * undoService's RepeatingInstanceRemoveAction (§14) — snapshot BEFORE
+   * purgeValuesUnderPathPrefix destroys the data (§22 invariant 15).
+   */
+  snapshotUnderPathPrefix(prefix) {
+    const state = this._getOrCreateActiveState();
+    const p = prefix.toLowerCase();
+    const pick = (dict) => {
+      const out = {};
+      for (const [k, v] of Object.entries(dict)) {
+        if (hasPathPrefix(k, p)) out[k] = v;
+      }
+      return out;
+    };
+    return { fieldValues: pick(state.fieldValues), radioSelections: pick(state.radioSelections) };
+  }
 
   purgeValuesUnderPathPrefix(prefix) {
     const state = this._getOrCreateActiveState();
