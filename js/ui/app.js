@@ -25,6 +25,7 @@ import * as searchUi from './search.js';
 import * as contextMenuUi from './contextMenu.js';
 import * as themeUi from './theme.js';
 import * as debugUi from './debug.js';
+import * as packagingUi from './packaging.js';
 
 const appState = {
   manifest: null,
@@ -116,6 +117,7 @@ async function loadSchema(fileTextMap) {
     sidebar.setCurrentRootLabel(document.getElementById('current-root-label'), appState.manifest.packetName);
     rebuildNavTree();
     toolbar.setSchemaDependentButtonsEnabled(true);
+    packagingUi.refreshCreatePackageButton(appState); // formEngine.reset() above doesn't fire dirtyChanged/controlValueChanged
     toolbar.setStatus(`Loaded ${appState.manifest.packetName}`);
 
     if (appState.instanceKeys.length > 0) switchToForm(appState.instanceKeys[0]);
@@ -251,6 +253,7 @@ async function loadXmlText(xmlText) {
     appState.currentInstanceKey = null;
 
     rebuildNavTree();
+    packagingUi.refreshCreatePackageButton(appState); // formEngine.reset() above doesn't fire dirtyChanged/controlValueChanged
     toolbar.setStatus(`Loaded XML (${stateMap.size} form instance${stateMap.size === 1 ? '' : 's'})`);
 
     const allUnmatched = [...stateMap.values()].flatMap((s) => s.unmatchedFields);
@@ -267,12 +270,34 @@ async function loadXmlText(xmlText) {
   });
 }
 
+/** Shared by Save XML and packaging.js's "Create Submission Package" (§19) —
+ *  both need the exact same flush-then-serialize sequence to get the
+ *  packet's current, in-progress-edit-included state as an XML string. */
+function buildCurrentPacketXml() {
+  appState.formEngine.flushRegisteredControls(); // capture an in-progress edit that hasn't fired `change` yet
+  const allFormStates = appState.formEngine.getAllFormStates();
+  return buildPacketXml(appState.manifest, allFormStates, appState.instanceKeys, appState.schemaParser, appState.targetNamespace);
+}
+
 async function saveXml() {
   if (!appState.manifest) return;
+
+  // Warn about remaining validation issues (§16) but don't block the save —
+  // same "warn, allow anyway" pattern as packaging.js's Create Submission
+  // Package confirm, since a save can legitimately capture in-progress,
+  // intentionally-incomplete work.
+  appState.formEngine.flushRegisteredControls();
+  const schemaErrors = validationUi.validateSchema(appState.instanceKeys, appState.formEngine.getAllFormStates(), appState.schemaParser);
+  if (schemaErrors.length > 0) {
+    const proceed = window.confirm(
+      `This packet has ${schemaErrors.length} validation issue(s) (missing/invalid fields, unresolved choices, etc.). Save anyway?`
+    );
+    if (!proceed) return;
+  }
+
   await withBusyOverlay('Building XML…', async () => {
-    appState.formEngine.flushRegisteredControls(); // capture an in-progress edit that hasn't fired `change` yet
+    const xmlString = buildCurrentPacketXml();
     const allFormStates = appState.formEngine.getAllFormStates();
-    const xmlString = buildPacketXml(appState.manifest, allFormStates, appState.instanceKeys, appState.schemaParser, appState.targetNamespace);
     toolbar.downloadXmlString(xmlString, `${appState.manifest.packetName}.xml`);
     toolbar.setStatus('Saved');
     // §13 status bar: a completed Save XML writes EVERY stored form's state to
@@ -428,6 +453,7 @@ function init() {
   searchUi.wireSearch({ appState, switchToForm });
   contextMenuUi.wireContextMenu({ appState, fillActiveForm, clearActiveFormSection });
   debugUi.wireDebug({ appState });
+  packagingUi.wirePackaging({ appState, buildPacketXml: buildCurrentPacketXml, withBusyOverlay });
   themeUi.wireTheme();
   toolbar.wireSplitter();
   toolbar.wireZoom();

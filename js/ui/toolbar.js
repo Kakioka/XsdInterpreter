@@ -62,7 +62,12 @@ export function pickXmlFileText(xmlInputEl) {
 /** Blob + temporary <a download> — works in every target browser (§24),
  *  unlike showSaveFilePicker which is Chrome/Edge-only. */
 export function downloadXmlString(xmlString, filename) {
-  const blob = new Blob([xmlString], { type: 'application/xml' });
+  downloadBlob(new Blob([xmlString], { type: 'application/xml' }), filename);
+}
+
+/** Same download mechanism as downloadXmlString, generalized to any Blob —
+ *  used by packaging.js for the submission ZIP (§19). */
+export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

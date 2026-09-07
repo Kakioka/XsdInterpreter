@@ -16,7 +16,7 @@
 // that's enforced rather than assumed.
 
 import { joinPath, isTransparent, isAttribute, isLeaf, isRepeatingContentContainer } from '../core/parser.js';
-import { FormInstanceKey, keyOf } from '../core/formEngine.js';
+import { FormInstanceKey, keyOf, createEmptyFormState } from '../core/formEngine.js';
 
 // ---------------------------------------------------------------------------
 // Field-Level Validation (§16 "Field-Level Validation")
@@ -113,8 +113,15 @@ function hasDataUnder(pathPrefix, fieldValues) {
 export function validateSchema(orderedInstanceKeys, allFormStates, schemaParser) {
   const errors = [];
   for (const instanceKey of orderedInstanceKeys) {
-    const state = allFormStates.get(keyOf(instanceKey)) ?? allFormStates.get(instanceKey.toString());
-    if (!state) continue;
+    // A form the user never switched into has no entry in allFormStates at all
+    // (FormEngine only creates a FormState lazily, in setActiveForm — see
+    // formEngine.js) — that must NOT be treated as "nothing to check". It's
+    // exactly as unfilled as a form that WAS visited and left blank, so an
+    // empty FormState stands in for it here rather than skipping the
+    // instanceKey outright, which used to silently drop every never-rendered
+    // form's required-field completeness errors from Validate/Save/Package
+    // alike (all three share this one function).
+    const state = allFormStates.get(keyOf(instanceKey)) ?? allFormStates.get(instanceKey.toString()) ?? createEmptyFormState();
     const schemaElement = schemaParser.parseGlobalElement(instanceKey.formName);
     if (!schemaElement) continue;
     validateNode(schemaElement, state, '', errors, instanceKey.formName, instanceKey.toString());

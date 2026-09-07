@@ -184,6 +184,21 @@
       }
 
       // ==================================================================
+      // C2. validateSchema — a form with NO stored FormState at all (never
+      //    switched into, so FormEngine never lazily created one) must still
+      //    surface its required fields as missing, not be silently skipped —
+      //    it's exactly as unfilled as a form that WAS rendered and left
+      //    blank. Regression test for a bug where Validate/Save/Package all
+      //    silently dropped every never-rendered form from validation.
+      // ==================================================================
+      {
+        const neverVisitedKey = new FormInstanceKey('SampleEntityForm');
+        const errors = validateSchema([neverVisitedKey], new Map(), parser);
+        const addr = errors.find((e) => e.path === 'SampleEntityForm.RegisteredAddress.StreetLine1');
+        check('A form absent from allFormStates entirely still surfaces its required-field completeness errors', addr?.kind === 'completeness');
+      }
+
+      // ==================================================================
       // D. validateSchema — choice enforcement: zero branches populated (still
       //    completeness, since EntityTypeChoiceChoice is required), then TWO
       //    branches populated (the 'choice' kind — WALKTHROUGH acceptance

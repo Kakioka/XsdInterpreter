@@ -73,7 +73,38 @@ export function buildPacketXml(manifest, allFormStates, orderedInstanceKeys, sch
     buildNodes(root, schemaElement, state);
   }
 
-  return new XMLSerializer().serializeToString(root);
+  return prettyPrintXml(new XMLSerializer().serializeToString(root));
+}
+
+/**
+ * Reformats a compact, single-line XML string (as XMLSerializer produces it)
+ * into one element per line, indented by nesting depth — readability only, no
+ * semantic change. Safe to do as a pure string/token pass, no re-parse
+ * needed: XML well-formedness requires a literal `<` inside attribute/text
+ * content to be escaped as `&lt;`, so a `<...>` token match can never
+ * straddle real content by accident. This app's tree has no mixed content
+ * (§22 scope), so every leaf's open tag, text, and close tag tokenize as ONE
+ * unit (`<PacketId>AA0000</PacketId>`, matched whole by the first
+ * alternative below, INCLUDING when empty — `<Foo></Foo>`) and land on a
+ * single line — no whitespace is ever introduced INSIDE a value, only
+ * BETWEEN sibling container elements (insignificant whitespace a reader's
+ * `textContent`/`.children` walk already ignores — see xmlReader.js).
+ */
+export function prettyPrintXml(xmlString) {
+  const tokenPattern = /<([\w.:-]+)(?:\s[^>]*)?>[^<]*<\/\1>|<[^>]+>/g;
+  const tokens = xmlString.match(tokenPattern) ?? [];
+  let depth = 0;
+  const out = [];
+  for (const token of tokens) {
+    const isLeafPair = /^<([\w.:-]+)(?:\s[^>]*)?>[^<]*<\/\1>$/.test(token);
+    const isClosing = !isLeafPair && /^<\//.test(token);
+    const isSelfClosing = !isLeafPair && /\/>$/.test(token);
+    const isDeclaration = /^<\?/.test(token);
+    if (isClosing) depth = Math.max(0, depth - 1);
+    out.push(depth > 0 ? '  '.repeat(depth) + token : token);
+    if (!isLeafPair && !isClosing && !isSelfClosing && !isDeclaration) depth++;
+  }
+  return out.join('\n');
 }
 
 /**

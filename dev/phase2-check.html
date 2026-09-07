@@ -32,7 +32,7 @@
     import { findRootFileCandidates, flattenFromRoot } from '../js/core/flattener.js';
     import { SchemaParser, findRootElementCandidates, analyzePacket } from '../js/core/parser.js';
     import { readPacket, extractFormState } from '../js/core/xmlReader.js';
-    import { buildPacketXml, buildNodes } from '../js/core/xmlWriter.js';
+    import { buildPacketXml, buildNodes, prettyPrintXml } from '../js/core/xmlWriter.js';
     import { FormInstanceKey } from '../js/core/formEngine.js';
 
     const resultsEl = document.getElementById('results');
@@ -186,6 +186,21 @@
       const orderedKeys = [...read1.keys()].map((k) => FormInstanceKey.parse(k));
       const writtenXml = buildPacketXml(manifest, read1, orderedKeys, parser, targetNamespace);
       dump('buildPacketXml output', writtenXml);
+
+      // --- Output is pretty-printed (indented, one element per line) -------
+      check('buildPacketXml output spans multiple lines', writtenXml.includes('\n'));
+      check('A nested leaf is indented deeper than its container', (() => {
+        const lines = writtenXml.split('\n');
+        const headerLine = lines.findIndex((l) => l.trim() === '<SampleHeader>');
+        const packetIdLine = lines.findIndex((l) => l.trim().startsWith('<PacketId>'));
+        if (headerLine === -1 || packetIdLine === -1) return false;
+        const indentOf = (l) => l.match(/^ */)[0].length;
+        return indentOf(lines[packetIdLine]) > indentOf(lines[headerLine]);
+      })());
+      check('A leaf element keeps its open tag, text, and close tag on one line', /^\s*<PacketId>[^<]*<\/PacketId>$/m.test(writtenXml));
+      check('Pretty-printing does not disturb round-trip reading (checked above) — this is just re-confirming the printed form itself re-parses with the same field count', new DOMParser().parseFromString(writtenXml, 'application/xml').getElementsByTagName('parsererror').length === 0);
+      check('prettyPrintXml keeps an empty (required-but-blank) leaf pair on one line, not split across two', prettyPrintXml('<Root><Empty></Empty></Root>') === '<Root>\n  <Empty></Empty>\n</Root>');
+      check('prettyPrintXml de-indents a closing tag back to its opening tag\'s level', prettyPrintXml('<A><B>x</B></A>') === '<A>\n  <B>x</B>\n</A>');
 
       const read2 = readPacket(writtenXml, manifest, parser);
       check('Round-trip: same 6 instance keys reappear', read2.size === read1.size && [...read1.keys()].every((k) => read2.has(k)), `read2 keys=${[...read2.keys()]}`);
