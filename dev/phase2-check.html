@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phase 2 check</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 14px; padding: 16px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; margin-top: 28px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+    .row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-family: monospace; font-size: 12.5px; }
+    .pass { color: #2e7d32; }
+    .fail { color: #d32f2f; font-weight: bold; }
+    .badge { display: inline-block; width: 3.5em; }
+    #summary { font-size: 16px; font-weight: bold; margin: 12px 0; }
+    pre { background: #f5f5f5; border: 1px solid #ddd; padding: 8px; overflow: auto; font-size: 11.5px; max-height: 400px; }
+    details summary { cursor: pointer; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>Phase 2 check — FormEngine + xmlReader/xmlWriter round-trip</h1>
+  <p>Open via a local server (Live Server, etc.) — <code>fetch()</code> needs http(s), not <code>file://</code>.
+  Reads <code>sample-schemas/SamplePacket.xml</code>, checks specific field values against what's
+  documented in <code>WALKTHROUGH.md</code> / the XML's own comments, then does a full
+  read → write → read round-trip and diffs the two reads.</p>
+
+  <div id="summary">running…</div>
+  <div id="results"></div>
+  <h2>Written XML (for manual inspection)</h2>
+  <div id="dumps"></div>
+
+  <script type="module">
+    import { findRootFileCandidates, flattenFromRoot } from '../js/core/flattener.js';
+    import { SchemaParser, findRootElementCandidates, analyzePacket } from '../js/core/parser.js';
+    import { readPacket, extractFormState } from '../js/core/xmlReader.js';
+    import { buildPacketXml, buildNodes } from '../js/core/xmlWriter.js';
+    import { FormInstanceKey } from '../js/core/formEngine.js';
+
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+    const dumpsEl = document.getElementById('dumps');
+
+    let pass = 0, fail = 0;
+
+    function check(label, condition, detail = '') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const ok = !!condition;
+      ok ? pass++ : fail++;
+      row.innerHTML = `<span class="badge ${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'}</span><span>${label}${detail ? ' — ' + detail : ''}</span>`;
+      resultsEl.appendChild(row);
+      if (!ok) console.error('FAIL:', label, detail);
+    }
+
+    function field(state, path) {
+      return state.fieldValues[path.toLowerCase()];
+    }
+
+    function radio(state, path) {
+      return state.radioSelections[path.toLowerCase()];
+    }
+
+    function dictEqual(a, b) {
+      const ak = Object.keys(a).sort();
+      const bk = Object.keys(b).sort();
+      if (ak.length !== bk.length) return false;
+      return ak.every((k, i) => k === bk[i] && a[k] === b[k]);
+    }
+
+    function dump(label, text) {
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      summary.textContent = label;
+      const pre = document.createElement('pre');
+      pre.textContent = text;
+      details.append(summary, pre);
+      dumpsEl.appendChild(details);
+    }
+
+    async function main() {
+      const filenames = ['SamplePacket.xsd', 'SampleCommonTypes.xsd', 'SampleGroups.xsd'];
+      const fileTextMap = new Map();
+      for (const name of filenames) {
+        const res = await fetch(`../sample-schemas/${name}`);
+        fileTextMap.set(name, await res.text());
+      }
+      const [rootFile] = findRootFileCandidates(fileTextMap);
+      const { doc: flatDoc, targetNamespace } = flattenFromRoot(fileTextMap, rootFile);
+      const [rootElementName] = findRootElementCandidates(flatDoc);
+      const parser = new SchemaParser(flatDoc, rootElementName);
+      const manifest = analyzePacket(flatDoc, rootElementName);
+
+      const xmlText = await (await fetch('../sample-schemas/SamplePacket.xml')).text();
+
+      // --- Read ---------------------------------------------------------
+      const read1 = readPacket(xmlText, manifest, parser);
+      check('readPacket found 6 form instances', read1.size === 6, `size=${read1.size}, keys=${[...read1.keys()]}`);
+
+      const header = read1.get('SampleHeader');
+      check('SampleHeader.PacketId', field(header, 'SampleHeader.PacketId') === 'HI2025');
+      check('SampleHeader.EffectiveDateTime', field(header, 'SampleHeader.EffectiveDateTime') === '2024-03-15T09:00:00');
+      check('SampleHeader.ExpiryDate', field(header, 'SampleHeader.ExpiryDate') === '2025-12-31');
+      check('SampleHeader.IsAmended is boolean false', field(header, 'SampleHeader.IsAmended') === false);
+      check(
+        'MailingAddress.addressKind read as an attribute-derived field',
+        field(header, 'SampleHeader.PrimaryContact.MailingAddress.addressKind') === 'Mailing'
+      );
+      check('PrimaryContact.EmailAddress omitted (optional, absent in XML)', field(header, 'SampleHeader.PrimaryContact.EmailAddress') === undefined);
+      check(
+        'xs:all fields read regardless of XML order (ReviewerCode before InternalNotes in the file)',
+        field(header, 'SampleHeader.ReviewerCode') === 'AB1234' && field(header, 'SampleHeader.InternalNotes') === 'Initial test submission created for developer verification.'
+      );
+      // NOTE: SampleHeader's own <xs:element> definition in SamplePacket.xsd does NOT
+      // reference xs:group ref="AuditStampGroup" (only SampleEntityForm, SampleSummary,
+      // and — via NestedRefGroup — SampleFinancialForm do). SamplePacket.xml's comments
+      // claim otherwise, but against the actual schema the 4 Audit* fields under
+      // <SampleHeader> are genuinely unmatched, same as UnknownLegacyField — a
+      // pre-existing inconsistency between the fixture's XML and its XSD, not a
+      // reader bug. So SampleHeader.unmatchedFields has 5 entries, not 1.
+      check(
+        'Unmatched fields under SampleHeader: UnknownLegacyField + 4 Audit* fields not actually referenced by SampleHeader\'s schema',
+        header.unmatchedFields.length === 5 && header.unmatchedFields.some((u) => u.xmlPath === 'SampleHeader.UnknownLegacyField' && u.value === 'some_legacy_value'),
+        JSON.stringify(header.unmatchedFields)
+      );
+
+      const entity = read1.get('SampleEntityForm');
+      check(
+        'EntityTypeChoice: Organization branch (Option2) selected',
+        radio(entity, 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice') === 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2'
+      );
+      check(
+        'Selected branch fields present',
+        field(entity, 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2.OrgLegalName') === 'Acme Sample Corporation' &&
+          field(entity, 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2.OrgFoundedYear') === '1998'
+      );
+      check(
+        'Unselected branch (Individual) fields absent, nested choice selection absent — not merely null',
+        field(entity, 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption1.IndividualFirstName') === undefined &&
+          radio(entity, 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption1.IdTypeChoice.IdTypeChoiceChoice') === undefined
+      );
+      check('RegisteredAddress.addressKind attribute', field(entity, 'SampleEntityForm.RegisteredAddress.addressKind') === 'Physical');
+      check('PriorNameList repeating count = 2', entity.repeatingInstanceCounts['priornamelistentry'] === 2);
+      check(
+        'PriorNameList instance paths and optional omission',
+        field(entity, 'SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName') === 'Acme Sample Industries' &&
+          field(entity, 'SampleEntityForm.PriorNameList.PriorNameListEntry[1].FormerName') === 'Acme Widgets LLC' &&
+          field(entity, 'SampleEntityForm.PriorNameList.PriorNameListEntry[1].NameChangeReason') === undefined
+      );
+      check('Nested AuditStampGroup fields, optional AuditModifiedBy omitted', field(entity, 'SampleEntityForm.AuditCreatedBy') === 'dataentry1' && field(entity, 'SampleEntityForm.AuditModifiedBy') === undefined);
+
+      const financial = read1.get('SampleFinancialForm');
+      check(
+        'PaymentMethodChoice: Electronic branch (Option1) selected',
+        radio(financial, 'SampleFinancialForm.PaymentMethodChoice.PaymentMethodChoiceChoice') === 'SampleFinancialForm.PaymentMethodChoice.PaymentMethodChoiceChoice.PaymentMethodChoiceChoiceOption1'
+      );
+      check('LineItems repeating count = 2', financial.repeatingInstanceCounts['lineitemsentry'] === 2);
+      check(
+        'LineItems optional omission on instance [1]',
+        field(financial, 'SampleFinancialForm.LineItems.LineItemsEntry[0].LineCategory') === 'A' &&
+          field(financial, 'SampleFinancialForm.LineItems.LineItemsEntry[1].LineCategory') === undefined
+      );
+      check(
+        'NestedRefGroup: all 7 audit+flag fields inlined, IsActive/IsVerified booleans',
+        field(financial, 'SampleFinancialForm.AuditModifiedBy') === 'manager1' && field(financial, 'SampleFinancialForm.IsActive') === true && field(financial, 'SampleFinancialForm.IsConfidential') === false
+      );
+
+      const evt1 = read1.get('SampleEventLog#EVT-001');
+      const evt2 = read1.get('SampleEventLog#EVT-002');
+      check('Both SampleEventLog instances found as distinct FormInstanceKeys', !!evt1 && !!evt2);
+      check(
+        'documentId attribute both identifies the instance AND is a readable field',
+        field(evt1, 'SampleEventLog.documentId') === 'EVT-001' && field(evt2, 'SampleEventLog.documentId') === 'EVT-002'
+      );
+      check(
+        'Instance state is independent (no bleed between EVT-001 and EVT-002)',
+        field(evt1, 'SampleEventLog.EventTitle') === 'Initial Submission Received' &&
+          field(evt2, 'SampleEventLog.EventTitle') === 'Amendment Filed' &&
+          field(evt1, 'SampleEventLog.IsConfidential') === undefined &&
+          field(evt2, 'SampleEventLog.IsConfidential') === true
+      );
+
+      const summary = read1.get('SampleSummary');
+      check('SampleSummary loaded via inline-element fallback', !!summary);
+      check('SampleSummary fields incl. group expansion', field(summary, 'SampleSummary.TotalAmount') === '125000.00' && field(summary, 'SampleSummary.AuditCreatedBy') === 'system');
+
+      // --- Round-trip: write everything back out, re-read, diff -----------
+      const orderedKeys = [...read1.keys()].map((k) => FormInstanceKey.parse(k));
+      const writtenXml = buildPacketXml(manifest, read1, orderedKeys, parser, targetNamespace);
+      dump('buildPacketXml output', writtenXml);
+
+      const read2 = readPacket(writtenXml, manifest, parser);
+      check('Round-trip: same 6 instance keys reappear', read2.size === read1.size && [...read1.keys()].every((k) => read2.has(k)), `read2 keys=${[...read2.keys()]}`);
+
+      let allFieldsMatch = true;
+      let allRadiosMatch = true;
+      let allCountsMatch = true;
+      const mismatches = [];
+      for (const key of read1.keys()) {
+        const s1 = read1.get(key);
+        const s2 = read2.get(key);
+        if (!s2) { allFieldsMatch = false; mismatches.push(`${key}: missing from read2`); continue; }
+        if (!dictEqual(s1.fieldValues, s2.fieldValues)) { allFieldsMatch = false; mismatches.push(`${key}: fieldValues differ`); }
+        if (!dictEqual(s1.radioSelections, s2.radioSelections)) { allRadiosMatch = false; mismatches.push(`${key}: radioSelections differ`); }
+        if (!dictEqual(s1.repeatingInstanceCounts, s2.repeatingInstanceCounts)) { allCountsMatch = false; mismatches.push(`${key}: repeatingInstanceCounts differ`); }
+      }
+      check('Round-trip: fieldValues identical for every form', allFieldsMatch, mismatches.join('; '));
+      check('Round-trip: radioSelections identical for every form', allRadiosMatch, mismatches.join('; '));
+      check('Round-trip: repeatingInstanceCounts identical for every form', allCountsMatch, mismatches.join('; '));
+      check(
+        'Round-trip asymmetry is the expected one: 5 fields unmatched on read1 but 0 on read2 (none of them are part of the schema, so none get written back)',
+        read1.get('SampleHeader').unmatchedFields.length === 5 && read2.get('SampleHeader').unmatchedFields.length === 0
+      );
+
+      // --- Targeted checks not exercised by the fixture itself -------------
+      // WALKTHROUGH item 25: a required field left empty must still be emitted (not omitted).
+      {
+        const headerSchema = parser.parseGlobalElement('SampleHeader');
+        const state = { fieldValues: { 'sampleheader.packetid': '' }, repeatingInstanceCounts: {}, radioSelections: {}, unmatchedFields: [], isDirty: false };
+        const scratchDoc = document.implementation.createDocument(null, 'Scratch', null);
+        buildNodes(scratchDoc.documentElement, headerSchema, state);
+        const emitted = scratchDoc.documentElement.querySelector('PacketId');
+        check('Required-but-empty field is still emitted as an empty element (not omitted)', emitted !== null && emitted.textContent === '');
+      }
+
+      // documentId backfill: instanceKey.instanceId used when the field itself was never set.
+      {
+        const eventLogSchema = parser.parseGlobalElement('SampleEventLog');
+        const state = { fieldValues: { 'sampleeventlog.eventtitle': 'x' }, repeatingInstanceCounts: {}, radioSelections: {}, unmatchedFields: [], isDirty: false };
+        const key = new FormInstanceKey('SampleEventLog', 'EVT-999');
+        const writtenSingle = buildPacketXml(manifest, new Map([[key.toString(), state]]), [key], { parseGlobalElement: () => eventLogSchema }, targetNamespace);
+        const doc = new DOMParser().parseFromString(writtenSingle, 'application/xml');
+        const el = doc.querySelector('SampleEventLog');
+        check('documentId backfilled from FormInstanceKey.instanceId when the field was never touched', el?.getAttribute('documentId') === 'EVT-999');
+      }
+
+      summaryEl.textContent = `${pass} passed, ${fail} failed`;
+      summaryEl.style.color = fail === 0 ? '#2e7d32' : '#d32f2f';
+      console.log(`Phase 2 check: ${pass} passed, ${fail} failed`);
+    }
+
+    main().catch((err) => {
+      summaryEl.textContent = 'ERROR — see console';
+      summaryEl.style.color = '#d32f2f';
+      console.error(err);
+      const pre = document.createElement('pre');
+      pre.textContent = String(err.stack || err);
+      resultsEl.appendChild(pre);
+    });
+  </script>
+</body>
+</html>

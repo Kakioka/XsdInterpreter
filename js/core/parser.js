@@ -53,13 +53,42 @@ export function isLeaf(el) {
   return el.children.length === 0;
 }
 
+/** The non-attribute children of a SchemaElement — attributes don't participate
+ *  in "is this container's entire structural content just one special child"
+ *  checks below (a hypothetical attribute alongside the special child is not
+ *  exercised by the sample schema, but there's no reason to let its mere
+ *  presence break detection). */
+function structuralChildren(el) {
+  return el.children.filter((c) => !isAttribute(c));
+}
+
 /**
  * True for the "anonymous repeating sequence" idiom (spec §4 Synthetic Nodes):
  * a named, non-repeating container whose entire content model is a single
  * synthetic, transparent, repeating Entry wrapper (e.g. PriorNameList → PriorNameListEntry).
  */
 export function isRepeatingContentContainer(el) {
-  return el.children.length === 1 && el.children[0].isRepeating && el.children[0].isGeneratedWrapper;
+  const kids = structuralChildren(el);
+  return kids.length === 1 && kids[0].isRepeating && kids[0].isGeneratedWrapper;
+}
+
+/**
+ * The choice-analogue of isRepeatingContentContainer: a named element whose
+ * entire content model is a single bare xs:choice (e.g. EntityTypeChoice,
+ * PaymentMethodChoice — named only to host the choice, no sibling fields of
+ * its own). Confirmed against sample-schemas/SamplePacket.xml: OrgLegalName /
+ * BankRoutingNumber etc. appear directly under the GRANDPARENT element with no
+ * <EntityTypeChoice>/<PaymentMethodChoice> wrapper tag in the actual XML at all
+ * — only WALKTHROUGH.md's illustrative snippet shows the wrapper, which this
+ * fixture-driven behavior overrides as the authoritative contract (Phase 2).
+ * The outer element's name still contributes a path segment for FormEngine/UI
+ * purposes (e.g. "SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice...")
+ * — it just never becomes an XML tag, exactly like isRepeatingContentContainer's
+ * Entry wrapper never becomes one.
+ */
+export function isChoiceOnlyContainer(el) {
+  const kids = structuralChildren(el);
+  return kids.length === 1 && kids[0].kind === 'RadioGroup';
 }
 
 // ---------------------------------------------------------------------------

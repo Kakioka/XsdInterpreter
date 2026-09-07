@@ -675,6 +675,12 @@ function isTransparent(el)  { return el.isGeneratedWrapper || el.kind === 'Radio
 function isAttribute(el)    { return el.isAttribute === true; }
 function isLeaf(el)         { return el.children.length === 0; }
 
+// The non-attribute children of a node — attributes don't participate in the
+// "is this container's entire structural content just one special child" checks
+// below (a hypothetical attribute alongside the special child shouldn't break
+// detection, even though the sample schema never exercises that combination).
+function structuralChildren(el) { return el.children.filter(c => !isAttribute(c)); }
+
 // True for the common "anonymous repeating sequence" idiom (§4 Synthetic Nodes):
 // a named, non-repeating container whose entire content model is a single
 // synthetic, transparent, repeating Entry wrapper (e.g. PriorNameList → PriorNameListEntry).
@@ -682,7 +688,23 @@ function isLeaf(el)         { return el.children.length === 0; }
 // document — the Entry wrapper itself never emits a tag and exists only so that
 // FormEngine paths have somewhere to attach the `[i]` index.
 function isRepeatingContentContainer(el) {
-  return el.children.length === 1 && el.children[0].isRepeating && el.children[0].isGeneratedWrapper;
+  const kids = structuralChildren(el);
+  return kids.length === 1 && kids[0].isRepeating && kids[0].isGeneratedWrapper;
+}
+
+// The choice-analogue of isRepeatingContentContainer: a named element whose
+// entire content model is a single bare xs:choice (e.g. EntityTypeChoice,
+// PaymentMethodChoice — declared only to host the choice, no sibling fields of
+// its own). Confirmed against sample-schemas/SamplePacket.xml: OrgLegalName,
+// BankRoutingNumber, etc. appear directly under the GRANDPARENT element — there
+// is no <EntityTypeChoice>/<PaymentMethodChoice> wrapper tag anywhere in that
+// file. The outer element's name still contributes a path segment for
+// FormEngine/UI purposes (its elementPath is computed the same as any other
+// node — see §4), exactly like isRepeatingContentContainer's Entry wrapper
+// contributes a path segment while never becoming an XML tag itself.
+function isChoiceOnlyContainer(el) {
+  const kids = structuralChildren(el);
+  return kids.length === 1 && kids[0].kind === 'RadioGroup';
 }
 
 function joinPath(prefix, name) { return prefix ? prefix + '.' + name : name; }  // see §8
@@ -735,7 +757,7 @@ function buildNodes(parentEl, schemaElement, state, path = ''):
     return
 
   if (isRepeatingContentContainer(schemaElement)):
-    const entryWrapper = schemaElement.children[0]
+    const entryWrapper = schemaElement.children.find(c => !isAttribute(c))
     const entryPath = joinPath(joinPath(path, schemaElement.elementName), entryWrapper.elementName)
     const count = state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] ?? 0
     for i in 0..count-1:
@@ -745,7 +767,16 @@ function buildNodes(parentEl, schemaElement, state, path = ''):
       parentEl.appendChild(el)
     return
 
-  if (isTransparent(schemaElement)):   // generated wrappers with no special handling above (e.g. choice options)
+  if (isChoiceOnlyContainer(schemaElement)):
+    // A named element whose entire content model is a bare xs:choice (e.g.
+    // EntityTypeChoice) never emits its own tag either — confirmed against
+    // SamplePacket.xml, which has no <EntityTypeChoice> wrapper anywhere.
+    // Its name still becomes a path segment for the RadioGroup child.
+    const radioGroup = schemaElement.children.find(c => !isAttribute(c))
+    buildChoiceNodes(parentEl, radioGroup, state, joinPath(path, schemaElement.elementName))
+    return
+
+  if (isTransparent(schemaElement)):   // generated wrappers with no special handling above
     for each child in schemaElement.children:
       buildNodes(parentEl, child, state, path)
     return
@@ -789,8 +820,17 @@ function buildChoiceNodes(parentEl, choiceElement, state, path):
   if (!selectedBranch): return
   const selectedOption = choiceElement.children.find(c => pathsMatch(joinPath(choicePath, c.elementName), selectedBranch))
   if (!selectedOption): return
+  // The option wrapper emits no XML tag of its own (still transparent — see
+  // isTransparent), but its NAME still contributes a path segment for field
+  // lookups, matching the SchemaElement tree's own elementPath (§8: "Synthetic
+  // segments ARE included in paths" explicitly lists OptionN as an example).
+  // Skipping it here — an earlier draft of this spec did — silently breaks
+  // every field inside a selected radio branch, since parser.js builds each
+  // leaf's elementPath through the option and formRenderer registers controls
+  // at elementPath; xmlReader/xmlWriter must key fieldValues the same way.
+  const optionPath = joinPath(choicePath, selectedOption.elementName)
   for each child in selectedOption.children:
-    buildNodes(parentEl, child, state, choicePath)   // option wrapper is transparent: contributes no path segment
+    buildNodes(parentEl, child, state, optionPath)
 ```
 
 ### Value Formatting
@@ -847,9 +887,7 @@ function walkContainerBody(xmlEl, schemaElement, currentPath, state):
     if (raw !== null):
       state.fieldValues[joinPath(currentPath, attr.elementName).toLowerCase()] = parseValue(raw, attr)
 
-  const knownChildNames = new Set(
-    schemaElement.children.filter(c => !isAttribute(c)).map(c => c.elementName.toLowerCase())
-  )
+  const knownChildNames = possibleDirectChildTagNames(schemaElement.children)
   for each domChild of xmlEl.children:      // direct element children only
     if (!knownChildNames.has(domChild.tagName.toLowerCase())):
       state.unmatchedFields.push({
@@ -861,6 +899,31 @@ function walkContainerBody(xmlEl, schemaElement, currentPath, state):
   for each child of schemaElement.children.filter(c => !isAttribute(c)):
     walkElement(xmlEl, child, currentPath, state)
 
+// The set of XML tag names that could legitimately appear as a DIRECT child for
+// a list of schema children. NOT simply each child's own elementName: a bare
+// RadioGroup, or an isChoiceOnlyContainer wrapping one (e.g. EntityTypeChoice),
+// never appears as a tag itself — every one of ITS options' descendant leaf
+// names is a possible direct child instead, recursively (a branch can itself
+// contain a nested choice-only container, e.g. IdTypeChoice inside
+// EntityTypeChoice's Individual branch). Without this, a flat name comparison
+// would falsely flag OrgLegalName/OrgType/etc. as unmatched fields, since
+// EntityTypeChoice's own name is the only one actually listed among
+// SampleEntityForm's schema children, and it never appears as a tag.
+function possibleDirectChildTagNames(children):
+  const names = new Set()
+  for each child of children:
+    if (isAttribute(child)): continue
+    const radioGroup = child.kind === 'RadioGroup' ? child
+      : isChoiceOnlyContainer(child) ? child.children.find(c => !isAttribute(c))
+      : null
+    if (radioGroup):
+      for each option of radioGroup.children:
+        for each name of possibleDirectChildTagNames(option.children):
+          names.add(name)
+    else:
+      names.add(child.elementName.toLowerCase())
+  return names
+
 // `xmlEl` is the PARENT DOM element (schemaElement's tag, if any, is a *child*
 // of xmlEl). `path` is that parent's own full path — the prefix schemaElement's
 // name gets joined onto. This mirrors buildNodes' path contract exactly (§10).
@@ -870,20 +933,34 @@ function walkElement(xmlEl, schemaElement, path, state):
     for each option of schemaElement.children:
       const firstRealChild = option.children.find(c => !isAttribute(c))
       if (firstRealChild && xmlEl.querySelector(':scope > ' + firstRealChild.elementName)):
-        state.radioSelections[choicePath.toLowerCase()] = joinPath(choicePath, option.elementName)
+        const optionPath = joinPath(choicePath, option.elementName)
+        state.radioSelections[choicePath.toLowerCase()] = optionPath
+        // Option wrapper emits no XML tag (still transparent), but its name
+        // still contributes a path segment for field keys — see the matching
+        // note in xmlWriter.js's buildChoiceNodes; must mirror it exactly so
+        // reads and writes (and rendered controls, keyed by elementPath) agree.
         for each grandchild of option.children:
-          walkElement(xmlEl, grandchild, choicePath, state)  // option wrapper is transparent: no extra segment
+          walkElement(xmlEl, grandchild, optionPath, state)
         break
     return
 
   if (isRepeatingContentContainer(schemaElement)):
-    const entryWrapper = schemaElement.children[0]
+    const entryWrapper = schemaElement.children.find(c => !isAttribute(c))
     const instances = xmlEl.querySelectorAll(':scope > ' + schemaElement.elementName)
     const entryPath = joinPath(joinPath(path, schemaElement.elementName), entryWrapper.elementName)
     state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] = instances.length
     for (i, inst) of instances.entries():
       for each grandchild of entryWrapper.children:
         walkElement(inst, grandchild, entryPath + '[' + i + ']', state)
+    return
+
+  if (isChoiceOnlyContainer(schemaElement)):
+    // A named element whose entire content model is a bare xs:choice (e.g.
+    // EntityTypeChoice) never appears as an XML tag either. xmlEl stays the
+    // same (its RadioGroup child's branch fields are direct children of xmlEl,
+    // not of a wrapper); only the path gains this element's name as a segment.
+    const radioGroup = schemaElement.children.find(c => !isAttribute(c))
+    walkElement(xmlEl, radioGroup, joinPath(path, schemaElement.elementName), state)
     return
 
   if (isTransparent(schemaElement)):   // defensive fallback; no current construct reaches this
@@ -910,7 +987,7 @@ function walkElement(xmlEl, schemaElement, path, state):
 
 ### Unmatched Fields
 
-`walkContainerBody` compares each XML element's actual DOM children against the schema's known (non-attribute) child names and pushes anything it can't match onto `state.unmatchedFields` (see the `UnmatchedXmlField` typedef in §2) — for example `<UnknownLegacyField>` inside `<SampleHeader>` with no corresponding schema child. Loading continues; nothing aborts on an unmatched element. After load completes, collect `unmatchedFields` across all loaded forms and report them to the user via a modal or panel.
+`walkContainerBody` compares each XML element's actual DOM children against `possibleDirectChildTagNames` (not a flat name list — see above, needed because choice-only containers contribute their branches' leaf names instead of their own) and pushes anything it can't match onto `state.unmatchedFields` (see the `UnmatchedXmlField` typedef in §2) — for example `<UnknownLegacyField>` inside `<SampleHeader>` with no corresponding schema child. Loading continues; nothing aborts on an unmatched element. After load completes, collect `unmatchedFields` across all loaded forms and report them to the user via a modal or panel.
 
 ---
 
@@ -1774,6 +1851,10 @@ These rules are critical for correctness. Violating them produces incorrect XML 
 26. **`isAttribute` nodes are read/written via `getAttribute`/`setAttribute` on their parent's element, never visited as ordinary element children.** Their `fieldValues` key is still `parentPath.attributeName`, same as any other child.
 
 27. **`radioSelections` keys carry whatever indices are already in scope at the point they're recorded — there is no separate "bare" form and no index-stripping step.** A radio group nested inside `SomeList[1]` is keyed `SomeList[1].SomeChoice`; the writer, reader, and renderer all compare selections using this same fully-resolved path (§8).
+
+28. **A named element whose entire content model is a bare `xs:choice` never emits its own XML tag either** (`isChoiceOnlyContainer`, §10) — confirmed against `sample-schemas/SamplePacket.xml`, which has no `<EntityTypeChoice>` or `<PaymentMethodChoice>` wrapper anywhere despite both being real, non-generated elements in the schema. Its name still contributes a path segment (its `elementPath` is computed the same as any other node), exactly like the repeating Entry wrapper (invariant 25) contributes a path segment without ever becoming a tag.
+
+29. **A choice option wrapper's name still contributes a path segment to its children's field keys, even though it emits no XML tag.** `buildChoiceNodes`/`walkElement`'s RadioGroup branch must recurse with `joinPath(choicePath, selectedOption.elementName)`, not `choicePath` alone — the latter was a bug in an earlier draft of this spec that silently broke every field inside any selected radio branch, since `parser.js` builds each such leaf's `elementPath` through the option and `formRenderer` registers controls at `elementPath` (§8 already said as much: "Synthetic segments ARE included in paths" explicitly lists `OptionN`).
 
 ---
 
