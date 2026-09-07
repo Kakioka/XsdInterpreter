@@ -165,8 +165,19 @@ block on manifest accuracy yet.
 
 ## Phase 9 — Real MeF Schema Hardening (gated on external input)
 
-Not schedulable work — it starts the moment a real state or IRS MeF schema is obtained. Work
-through the checklist in §25 of the spec against it:
+Not schedulable work — it starts the moment a real state or IRS MeF schema is obtained. No such
+schema has been provided yet.
+
+**Dry run completed** (2026-09-07): since no real schema was available, the §25 checklist
+constructs were exercised as synthetic XSD/XML fixtures against the real parser/reader/writer/
+validator modules instead of guessed at from reading the source. See
+[`dev/PHASE9_DRYRUN_FINDINGS.md`](dev/PHASE9_DRYRUN_FINDINGS.md) for the write-up and
+[`dev/phase9-check.html`](dev/phase9-check.html) for the runnable evidence (open via a local
+server). Nothing was fixed — the right shape for several of these depends on how a real schema
+actually uses the construct, so this is a punch list backed by evidence, not a substitute for
+the real gated work below.
+
+Work through the checklist in §25 of the spec against the real schema once it's in hand:
 
 - Confirm `attributeFormDefault`, whether `xsi:schemaLocation` is expected on output, whether
   a packet ever mixes multiple namespaces.

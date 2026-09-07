@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phase 9 dry run — MeF readiness gap audit</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 14px; padding: 16px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; margin-top: 28px; border-top: 1px solid #ddd; padding-top: 10px; }
+    p.intro { background: #fff8e1; border: 1px solid #ffe082; padding: 10px 14px; border-radius: 4px; }
+    .row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-family: monospace; font-size: 12.5px; }
+    .gap { color: #b26a00; font-weight: bold; }       /* confirmed gap behaves as documented below */
+    .unexpected { color: #d32f2f; font-weight: bold; } /* behavior differs from what was predicted — investigate */
+    .badge { display: inline-block; width: 6em; }
+    #summary { font-size: 16px; font-weight: bold; margin: 12px 0; }
+  </style>
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+  <h1>Phase 9 dry run — MeF readiness gap audit</h1>
+  <p class="intro">
+    <strong>This is not Phase 9 itself.</strong> Real Phase 9 (per <code>IMPLEMENTATION_PLAN.md</code>) is
+    gated on an actual IRS/state MeF schema, which is not available yet. This harness runs the
+    §25 "MeF Real-World Readiness Checklist" constructs — plus one extra construct found while
+    building these fixtures — as <strong>synthetic</strong> XSD/XML test cases through the real
+    <code>flattener.js</code> / <code>parser.js</code> / <code>xmlReader.js</code> / <code>xmlWriter.js</code>
+    / <code>validation.js</code> modules, so each gap is demonstrated empirically rather than
+    asserted from reading the source. Every <span class="gap">GAP</span> row below is an
+    <em>expected failure</em> — it PASSES because it confirms the documented current behavior;
+    if a future change to the parser fixes one of these, its row will start failing and needs
+    updating (and the corresponding line in <code>PHASE9_DRYRUN_FINDINGS.md</code> resolved). A
+    <span class="unexpected">row that fails</span> means actual behavior diverged from what this
+    audit predicted and should be investigated before trusting the finding.
+  </p>
+
+  <div id="summary">running…</div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { flattenFromRoot } from '../js/core/flattener.js';
+    import { SchemaParser } from '../js/core/parser.js';
+    import { FormInstanceKey, createEmptyFormState } from '../js/core/formEngine.js';
+    import { extractFormState } from '../js/core/xmlReader.js';
+    import { buildPacketXml } from '../js/core/xmlWriter.js';
+    import { validateSchema } from '../js/ui/validation.js';
+
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+
+    let pass = 0, fail = 0;
+    function check(label, condition, detail = '') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const ok = !!condition;
+      ok ? pass++ : fail++;
+      const badgeClass = ok ? 'gap' : 'unexpected';
+      const badgeText = ok ? 'GAP' : 'UNEXPECTED';
+      row.innerHTML = `<span class="badge ${badgeClass}">${badgeText}</span><span>${label}${detail ? ' — ' + detail : ''}</span>`;
+      resultsEl.appendChild(row);
+      if (!ok) console.error('UNEXPECTED:', label, detail);
+    }
+    function heading(text) {
+      const h = document.createElement('h2');
+      h.textContent = text;
+      resultsEl.appendChild(h);
+    }
+
+    /** Build a one-file fileTextMap and parse it through the real flattener + SchemaParser. */
+    function parseSingleFileSchema(schemaText, rootElementName, filename = 'Root9.xsd') {
+      const fileTextMap = new Map([[filename, schemaText]]);
+      const { doc } = flattenFromRoot(fileTextMap, filename);
+      const parser = new SchemaParser(doc, rootElementName);
+      return { doc, parser, schemaElement: parser.parseGlobalElement(rootElementName) };
+    }
+
+    const XSD_OPEN = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">`;
+
+    async function main() {
+      // ======================================================================
+      // 0. Directly-repeating element (maxOccurs>1 with NO synthetic-sequence
+      //    wrapper) — found while building these fixtures, not itself a §25
+      //    line item, but squarely "a construct the parser doesn't model": the
+      //    app's only modeled repetition idiom is the anonymous-sequence-entry
+      //    pattern (§4). A schema that repeats a leaf or complex element
+      //    directly (`<xs:element name="Item" maxOccurs="unbounded">`, with no
+      //    wrapping <xs:sequence maxOccurs="unbounded">) — an extremely common,
+      //    arguably MORE common, real-world XSD idiom — is silently treated as
+      //    non-repeating.
+      // ======================================================================
+      heading('0. Directly-repeating element (no sequence wrapper) — extra finding beyond §25');
+      {
+        const schema = `${XSD_OPEN}
+          <xs:element name="Test0Root">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="Item" type="xs:string" maxOccurs="unbounded"/>
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>`;
+        const { schemaElement } = parseSingleFileSchema(schema, 'Test0Root');
+        const item = schemaElement.children.find((c) => c.elementName === 'Item');
+        check('Item (maxOccurs="unbounded", no sequence wrapper) parses with isRepeating=false', item.isRepeating === false);
+        check('...but maxOccurs is still correctly recorded as unbounded (null)', item.maxOccurs === null);
+
+        // Round-trip proof: 3 <Item> siblings in real XML → only the first
+        // survives a read, and a subsequent write only ever emits one.
+        const xml = new DOMParser().parseFromString('<Test0Root><Item>A</Item><Item>B</Item><Item>C</Item></Test0Root>', 'application/xml');
+        const state = extractFormState(xml.documentElement, schemaElement);
+        check('Read: only the FIRST <Item> ("A") is captured', state.fieldValues['test0root.item'] === 'a' || state.fieldValues['test0root.item'] === 'A');
+        check('Read: "B" and "C" are silently dropped — not in fieldValues, not flagged unmatched either', state.unmatchedFields.length === 0);
+
+        const written = buildPacketXml({ packetName: 'Wrapper0' }, new Map([['Test0Root', state]]), [new FormInstanceKey('Test0Root')], { parseGlobalElement: () => schemaElement });
+        const itemCount = (written.match(/<Item>/g) || []).length;
+        check('Write-back: exactly 1 <Item> element is emitted (B and C are permanently gone)', itemCount === 1, written);
+      }
+
+      // ======================================================================
+      // 1. attributeFormDefault="qualified" (§25 bullet 1)
+      // ======================================================================
+      heading('1. attributeFormDefault="qualified"');
+      {
+        const schema = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test9"
+            xmlns:t="urn:test9" elementFormDefault="qualified" attributeFormDefault="qualified">
+          <xs:element name="Test1Root">
+            <xs:complexType>
+              <xs:attribute name="Code" type="xs:string" use="required"/>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>`;
+        const { schemaElement } = parseSingleFileSchema(schema, 'Test1Root');
+        const attr = schemaElement.children.find((c) => c.elementName === 'Code');
+        check('Attribute is parsed at all (schema-shape is fine)', !!attr && attr.isAttribute === true);
+
+        const xmlText = '<t:Test1Root xmlns:t="urn:test9" t:Code="ABC"/>';
+        const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+        const state = extractFormState(xml.documentElement, schemaElement);
+        check(
+          'Reading a namespace-qualified attribute (t:Code, as attributeFormDefault="qualified" requires) yields NOTHING — xmlReader.getAttribute("Code") only finds an unprefixed attribute',
+          state.fieldValues['test1root.code'] === undefined
+        );
+
+        const writeState = createEmptyFormState();
+        writeState.fieldValues['test1root.code'] = 'ABC';
+        const written = buildPacketXml({ packetName: 'Wrapper1' }, new Map([['Test1Root', writeState]]), [new FormInstanceKey('Test1Root')], { parseGlobalElement: () => schemaElement }, 'urn:test9');
+        check(
+          'Writing never qualifies the attribute either, regardless of attributeFormDefault (always plain setAttribute)',
+          /[^:]Code="ABC"/.test(written) && !/t:Code=|xsi:Code=/.test(written),
+          written
+        );
+      }
+
+      // ======================================================================
+      // 2. xsi:schemaLocation on output (§25 bullet 1)
+      // ======================================================================
+      heading('2. xsi:schemaLocation on output');
+      {
+        const manifest = { packetName: 'Test2Packet' };
+        const parserStub = { parseGlobalElement: () => null }; // no forms to write — just inspect the root tag
+        const xml = buildPacketXml(manifest, new Map(), [], parserStub, 'urn:test9');
+        check('buildPacketXml never emits xsi:schemaLocation on the root, and never declares the xsi namespace', !xml.includes('schemaLocation') && !xml.includes('xsi:'), xml);
+      }
+
+      // ======================================================================
+      // 3. Multiple namespaces mixed in one packet (§25 bullet 1)
+      // ======================================================================
+      heading('3. Multiple namespaces in one packet');
+      {
+        const rootSchema = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:federal9" elementFormDefault="qualified">
+          <xs:import schemaLocation="Other9.xsd"/>
+          <xs:element name="Test3Root">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="Local" type="xs:string"/>
+                <xs:element ref="StateBar"/>
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>`;
+        const otherSchema = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:state9" elementFormDefault="qualified">
+          <xs:element name="StateBar" type="xs:string"/>
+        </xs:schema>`;
+        const fileTextMap = new Map([['Root9.xsd', rootSchema], ['Other9.xsd', otherSchema]]);
+        const { doc, targetNamespace } = flattenFromRoot(fileTextMap, 'Root9.xsd');
+        check('Flattening reports only the ROOT file\'s targetNamespace ("urn:federal9")', targetNamespace === 'urn:federal9');
+        check('...the imported file\'s own targetNamespace ("urn:state9") is discarded — nothing in the flat doc records it', doc.documentElement.getAttribute('targetNamespace') === 'urn:federal9');
+
+        const parser = new SchemaParser(doc, 'Test3Root');
+        const schemaElement = parser.parseGlobalElement('Test3Root');
+        check('StateBar (from the imported, differently-namespaced file) still merges into the tree structurally', !!schemaElement.children.find((c) => c.elementName === 'StateBar'));
+
+        const state = createEmptyFormState();
+        state.fieldValues['test3root.local'] = 'L';
+        state.fieldValues['test3root.statebar'] = 'S';
+        const built = buildPacketXml({ packetName: 'Test3Packet' }, new Map([['test3root', state]]), [new FormInstanceKey('Test3Root')], { parseGlobalElement: () => schemaElement }, 'urn:federal9');
+        const reparsed = new DOMParser().parseFromString(built, 'application/xml');
+        const stateBarEl = reparsed.getElementsByTagName('StateBar')[0];
+        check(
+          'Writing places StateBar under the SINGLE packet namespace ("urn:federal9") even though it schema-belongs to "urn:state9" — real MeF cross-namespace packets would come out mis-namespaced',
+          stateBarEl && stateBarEl.namespaceURI === 'urn:federal9',
+          `StateBar namespaceURI = ${stateBarEl?.namespaceURI}`
+        );
+      }
+
+      // ======================================================================
+      // 4. xs:union / xs:list (§25 bullet 2)
+      // ======================================================================
+      heading('4. xs:union / xs:list simple types');
+      {
+        const schema = `${XSD_OPEN}
+          <xs:simpleType name="FlexType">
+            <xs:union memberTypes="xs:string xs:integer"/>
+          </xs:simpleType>
+          <xs:element name="Test4Root">
+            <xs:complexType>
+              <xs:sequence><xs:element name="Flex" type="FlexType"/></xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>`;
+        const { schemaElement } = parseSingleFileSchema(schema, 'Test4Root');
+        const flex = schemaElement.children.find((c) => c.elementName === 'Flex');
+        check('xs:union member has no xs:restriction, so it silently degrades to an unlabeled, unvalidated field', flex.kind === 'TextInput' && flex.validationRules.length === 0 && flex.enumerationValues.length === 0);
+        check('xsdDataType leaks the raw union type name instead of a normalized xs: primitive (breaks the "xsdDataType is always xs:*" assumption elsewhere)', flex.xsdDataType === 'FlexType');
+      }
+
+      // ======================================================================
+      // 5. Identity constraints: xs:key / xs:unique / xs:keyref (§25 bullet 2)
+      // ======================================================================
+      heading('5. xs:key / xs:unique / xs:keyref');
+      {
+        const schema = `${XSD_OPEN}
+          <xs:element name="Test5Root">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="ItemList" minOccurs="0">
+                  <xs:complexType>
+                    <xs:sequence maxOccurs="unbounded">
+                      <xs:element name="Id" type="xs:string"/>
+                    </xs:sequence>
+                  </xs:complexType>
+                </xs:element>
+              </xs:sequence>
+            </xs:complexType>
+            <xs:key name="IdKey">
+              <xs:selector xpath="ItemList/Id"/>
+              <xs:field xpath="."/>
+            </xs:key>
+          </xs:element>
+        </xs:schema>`;
+        const { parser, schemaElement } = parseSingleFileSchema(schema, 'Test5Root');
+        check('Parsing an element with a sibling xs:key does not crash (silently ignored)', !!schemaElement);
+        check('...and contributes nothing to the tree (only ItemList shows up, no trace of IdKey anywhere)', schemaElement.children.length === 1 && schemaElement.children[0].elementName === 'ItemList');
+
+        const key = new FormInstanceKey('Test5Root');
+        const state = createEmptyFormState();
+        state.repeatingInstanceCounts['itemlistentry'] = 2;
+        state.fieldValues['test5root.itemlist.itemlistentry[0].id'] = 'DUPLICATE';
+        state.fieldValues['test5root.itemlist.itemlistentry[1].id'] = 'DUPLICATE'; // violates the key's implied uniqueness
+        const errors = validateSchema([key], new Map([['test5root', state]]), parser);
+        check(
+          'validateSchema has no concept of key/unique/keyref at all — two Id entries with the SAME value pass with zero errors',
+          errors.length === 0,
+          JSON.stringify(errors)
+        );
+      }
+
+      // ======================================================================
+      // 6. Substitution groups (§25 bullet 2)
+      // ======================================================================
+      heading('6. substitutionGroup');
+      {
+        const schema = `${XSD_OPEN}
+          <xs:element name="Test6Root">
+            <xs:complexType>
+              <xs:sequence><xs:element ref="Payment"/></xs:sequence>
+            </xs:complexType>
+          </xs:element>
+          <xs:element name="Payment" abstract="true"/>
+          <xs:element name="CheckPayment" substitutionGroup="Payment" type="xs:string"/>
+        </xs:schema>`;
+        const { schemaElement } = parseSingleFileSchema(schema, 'Test6Root');
+        const payment = schemaElement.children.find((c) => c.elementName === 'Payment');
+        check(
+          'ref="Payment" resolves only to the abstract head itself (no type/children) — it is rendered as a plain free-text field, with zero awareness that "CheckPayment" (and any other substitutionGroup member) is what can actually appear',
+          payment.kind === 'TextInput' && payment.children.length === 0
+        );
+
+        const xml = new DOMParser().parseFromString('<Test6Root><CheckPayment>12345</CheckPayment></Test6Root>', 'application/xml');
+        const state = extractFormState(xml.documentElement, schemaElement);
+        check(
+          'Real, schema-valid XML using the substitution member tag <CheckPayment> is flagged as an UNMATCHED (unrecognized) field — a false positive',
+          state.unmatchedFields.some((u) => u.xmlPath.toLowerCase().includes('checkpayment'))
+        );
+      }
+
+      // ======================================================================
+      // 7. Wildcards: xs:any / xs:anyAttribute (§25 bullet 2)
+      // ======================================================================
+      heading('7. xs:any / xs:anyAttribute');
+      {
+        const schema = `${XSD_OPEN}
+          <xs:element name="Test7Root">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="Known" type="xs:string"/>
+                <xs:any minOccurs="0" maxOccurs="unbounded" processContents="lax"/>
+              </xs:sequence>
+              <xs:anyAttribute processContents="lax"/>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>`;
+        const { schemaElement } = parseSingleFileSchema(schema, 'Test7Root');
+        check('xs:any contributes no placeholder at all — only "Known" shows up', schemaElement.children.length === 1 && schemaElement.children[0].elementName === 'Known');
+
+        const xml = new DOMParser().parseFromString('<Test7Root extra="attrVal"><Known>K</Known><WildChild>stuff</WildChild></Test7Root>', 'application/xml');
+        const state = extractFormState(xml.documentElement, schemaElement);
+        check('An attribute legally permitted by xs:anyAttribute is silently ignored (not read into fieldValues, not flagged)', Object.keys(state.fieldValues).every((k) => !k.includes('extra')));
+        check('An element legally permitted by xs:any (<WildChild>) is flagged UNMATCHED — another false positive', state.unmatchedFields.some((u) => u.xmlPath.toLowerCase().includes('wildchild')));
+      }
+
+      // ======================================================================
+      // 8. Mixed content (§25 bullet 2)
+      // ======================================================================
+      heading('8. Mixed content models');
+      {
+        const schema = `${XSD_OPEN}
+          <xs:complexType name="Test8Type" mixed="true">
+            <xs:sequence><xs:element name="B" type="xs:string" minOccurs="0"/></xs:sequence>
+          </xs:complexType>
+          <xs:element name="Test8Root" type="Test8Type"/>
+        </xs:schema>`;
+        const { schemaElement } = parseSingleFileSchema(schema, 'Test8Root');
+        const xml = new DOMParser().parseFromString('<Test8Root>Before text <B>bold</B> after text</Test8Root>', 'application/xml');
+        const state = extractFormState(xml.documentElement, schemaElement);
+        check('The interspersed text nodes ("Before text " / " after text") are read nowhere — only the <B> child element is captured', state.fieldValues['test8root.b'] === 'bold' && Object.keys(state.fieldValues).length === 1);
+
+        const rebuilt = buildPacketXml({ packetName: 'Wrapper8' }, new Map([['Test8Root', state]]), [new FormInstanceKey('Test8Root')], { parseGlobalElement: () => schemaElement });
+        check('Round-tripping loses the mixed text permanently — the write-back has only <B>bold</B>, no surrounding text at all', rebuilt.includes('<B>bold</B>') && !rebuilt.includes('Before text') && !rebuilt.includes('after text'), rebuilt);
+      }
+
+      // ======================================================================
+      // 9. xsi:nil (§25 bullet 2)
+      // ======================================================================
+      heading('9. xsi:nil');
+      {
+        const schema = `${XSD_OPEN}
+          <xs:element name="Test9Root">
+            <xs:complexType>
+              <xs:sequence><xs:element name="Foo" type="xs:string" nillable="true" minOccurs="0"/></xs:sequence>
+            </xs:complexType>
+          </xs:element>
+        </xs:schema>`;
+        const { schemaElement } = parseSingleFileSchema(schema, 'Test9Root');
+
+        const nilXml = new DOMParser().parseFromString('<Test9Root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><Foo xsi:nil="true"/></Test9Root>', 'application/xml');
+        const emptyXml = new DOMParser().parseFromString('<Test9Root><Foo></Foo></Test9Root>', 'application/xml');
+        const nilState = extractFormState(nilXml.documentElement, schemaElement);
+        const emptyState = extractFormState(emptyXml.documentElement, schemaElement);
+        check(
+          'An explicitly xsi:nil="true" element and a plain empty element read into IDENTICAL FormState — the nil signal is completely lost, not even inspected',
+          nilState.fieldValues['test9root.foo'] === emptyState.fieldValues['test9root.foo']
+        );
+      }
+
+      // ======================================================================
+      // 10. xs:redefine (§25 bullet 2)
+      // ======================================================================
+      heading('10. xs:redefine');
+      {
+        const rootSchema = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+          <xs:redefine schemaLocation="Base9.xsd">
+            <xs:complexType name="BaseType">
+              <xs:complexContent>
+                <xs:extension base="BaseType">
+                  <xs:sequence><xs:element name="Extra" type="xs:string"/></xs:sequence>
+                </xs:extension>
+              </xs:complexContent>
+            </xs:complexType>
+          </xs:redefine>
+          <xs:element name="Test10Root" type="BaseType"/>
+        </xs:schema>`;
+        const baseSchema = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+          <xs:complexType name="BaseType">
+            <xs:sequence><xs:element name="Original" type="xs:string"/></xs:sequence>
+          </xs:complexType>
+        </xs:schema>`;
+        const fileTextMap = new Map([['Root9b.xsd', rootSchema], ['Base9.xsd', baseSchema]]);
+        const { doc } = flattenFromRoot(fileTextMap, 'Root9b.xsd');
+        check(
+          'flattenFromRoot only resolves xs:include/xs:import — xs:redefine is left completely untouched, so Base9.xsd never gets merged in at all',
+          doc.getElementsByTagName('xs:redefine').length === 1 || Array.from(doc.documentElement.children).some((c) => c.localName === 'redefine')
+        );
+
+        const parser = new SchemaParser(doc, 'Test10Root');
+        const schemaElement = parser.parseGlobalElement('Test10Root');
+        check(
+          'The redefined BaseType (nested inside xs:redefine, not a direct <xs:schema> child) is invisible to TypeLookupTable, so the type-lookup fails entirely and the whole element silently degrades to an unlabeled TextInput — losing "Original", "Extra", and the redefine relationship altogether',
+          schemaElement.kind === 'TextInput' && schemaElement.children.length === 0,
+          `kind=${schemaElement.kind} children=${schemaElement.children.length}`
+        );
+      }
+
+      // ======================================================================
+      // 11. complexContent xs:extension chains (§25 bullet 2)
+      // ======================================================================
+      heading('11. complexType inheritance via xs:complexContent/xs:extension');
+      {
+        const schema = `${XSD_OPEN}
+          <xs:complexType name="Test11Base">
+            <xs:sequence><xs:element name="BaseField" type="xs:string"/></xs:sequence>
+            <xs:attribute name="baseAttr" type="xs:string"/>
+          </xs:complexType>
+          <xs:complexType name="Test11Derived">
+            <xs:complexContent>
+              <xs:extension base="Test11Base">
+                <xs:sequence><xs:element name="DerivedField" type="xs:string"/></xs:sequence>
+              </xs:extension>
+            </xs:complexContent>
+          </xs:complexType>
+          <xs:element name="Test11Root" type="Test11Derived"/>
+        </xs:schema>`;
+        const { schemaElement } = parseSingleFileSchema(schema, 'Test11Root');
+        check(
+          'Only the extension\'s OWN new particles/attributes are collected — the base type\'s own field (BaseField) and attribute (baseAttr) are silently dropped entirely',
+          schemaElement.children.length === 1 &&
+          schemaElement.children[0].elementName === 'DerivedField' &&
+          !schemaElement.children.some((c) => c.elementName === 'BaseField' || c.elementName === 'baseAttr')
+        );
+      }
+
+      summaryEl.textContent = `${pass} confirmed / ${fail} unexpected (of ${pass + fail} checks)`;
+      summaryEl.style.color = fail === 0 ? '#b26a00' : '#d32f2f';
+      console.log(`Phase 9 dry run: ${pass} confirmed gaps, ${fail} unexpected results`);
+    }
+
+    main().catch((err) => {
+      summaryEl.textContent = 'ERROR — see console';
+      summaryEl.style.color = '#d32f2f';
+      console.error(err);
+      const pre = document.createElement('pre');
+      pre.textContent = String(err.stack || err);
+      resultsEl.appendChild(pre);
+    });
+  </script>
+</body>
+</html>
