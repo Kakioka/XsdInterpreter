@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phase 1 check</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 14px; padding: 16px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; margin-top: 28px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+    .row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-family: monospace; font-size: 12.5px; }
+    .pass { color: #2e7d32; }
+    .fail { color: #d32f2f; font-weight: bold; }
+    .badge { display: inline-block; width: 3.5em; }
+    #summary { font-size: 16px; font-weight: bold; margin: 12px 0; }
+    pre { background: #f5f5f5; border: 1px solid #ddd; padding: 8px; overflow: auto; font-size: 11.5px; max-height: 400px; }
+    details summary { cursor: pointer; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>Phase 1 check — flatten / parse / analyze the sample schema</h1>
+  <p>Open this page via a local server (Live Server, etc.) — <code>fetch()</code> of sibling
+  files does not work over <code>file://</code>. Compares actual parser output against the
+  facts documented in <code>sample-schemas/WALKTHROUGH.md</code>.</p>
+
+  <div id="summary">running…</div>
+  <div id="results"></div>
+  <h2>Full parsed trees (for manual spot-checking)</h2>
+  <div id="dumps"></div>
+
+  <script type="module">
+    import { scanForBom, findRootFileCandidates, flattenFromRoot } from '../js/core/flattener.js';
+    import { SchemaParser, findRootElementCandidates, analyzePacket } from '../js/core/parser.js';
+
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+    const dumpsEl = document.getElementById('dumps');
+
+    let pass = 0, fail = 0;
+
+    function check(label, condition, detail = '') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const ok = !!condition;
+      ok ? pass++ : fail++;
+      row.innerHTML = `<span class="badge ${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'}</span><span>${label}${detail ? ' — ' + detail : ''}</span>`;
+      resultsEl.appendChild(row);
+      if (!ok) console.error('FAIL:', label, detail);
+    }
+
+    function findByName(root, name) {
+      if (!root) return null;
+      if (root.elementName === name) return root;
+      for (const c of root.children) {
+        const found = findByName(c, name);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function dump(label, obj) {
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      summary.textContent = label;
+      const pre = document.createElement('pre');
+      pre.textContent = JSON.stringify(obj, null, 2);
+      details.append(summary, pre);
+      dumpsEl.appendChild(details);
+    }
+
+    async function main() {
+      const filenames = ['SamplePacket.xsd', 'SampleCommonTypes.xsd', 'SampleGroups.xsd'];
+      const fileTextMap = new Map();
+      for (const name of filenames) {
+        const res = await fetch(`../sample-schemas/${name}`);
+        if (!res.ok) throw new Error(`Failed to fetch ${name}: ${res.status}`);
+        fileTextMap.set(name, await res.text());
+      }
+
+      // --- BOM scan (expect clean) --------------------------------------
+      const bomHits = scanForBom(fileTextMap);
+      check('No BOM in sample schema files', bomHits.length === 0, JSON.stringify(bomHits));
+
+      // --- Root file detection -------------------------------------------
+      const rootFileCandidates = findRootFileCandidates(fileTextMap);
+      check(
+        'Root file candidates = [SamplePacket.xsd]',
+        rootFileCandidates.length === 1 && rootFileCandidates[0] === 'SamplePacket.xsd',
+        JSON.stringify(rootFileCandidates)
+      );
+
+      // --- Flatten ---------------------------------------------------------
+      const { doc: flatDoc, targetNamespace } = flattenFromRoot(fileTextMap, 'SamplePacket.xsd');
+      check('Flatten succeeds and produces a Document', flatDoc instanceof Document);
+      check('targetNamespace is null (sample schema declares none)', targetNamespace === null, String(targetNamespace));
+      check(
+        'AddressType is visible after flattening (xs:include worked)',
+        flatDoc.querySelector('complexType[name="AddressType"]') != null
+      );
+
+      // --- Root element detection -------------------------------------------
+      const rootElementCandidates = findRootElementCandidates(flatDoc);
+      check(
+        'Root element candidates = [SamplePacket]',
+        rootElementCandidates.length === 1 && rootElementCandidates[0] === 'SamplePacket',
+        JSON.stringify(rootElementCandidates)
+      );
+
+      const parser = new SchemaParser(flatDoc, 'SamplePacket');
+
+      // --- Packet analysis (§5) --------------------------------------------
+      const manifest = analyzePacket(flatDoc, 'SamplePacket');
+      dump('PacketManifest', manifest);
+      check('manifest.packetName === "SamplePacket"', manifest.packetName === 'SamplePacket');
+      check(
+        'manifest.allForms lists all 5 forms in order',
+        JSON.stringify(manifest.allForms) === JSON.stringify(['SampleHeader', 'SampleEntityForm', 'SampleFinancialForm', 'SampleEventLog', 'SampleSummary']),
+        JSON.stringify(manifest.allForms)
+      );
+      const eventLogSection = manifest.sections.find((s) => s.elementName === 'SampleEventLog');
+      check('SampleEventLog section isRepeatable=true, maxOccurs=-1', eventLogSection?.isRepeatable === true && eventLogSection?.maxOccurs === -1);
+      const headerSection = manifest.sections.find((s) => s.elementName === 'SampleHeader');
+      check('SampleHeader section isRequired=true, isRepeatable=false', headerSection?.isRequired === true && headerSection?.isRepeatable === false);
+
+      // --- SampleHeader (§4 walkthrough items 2,3,4,6,9,12) -----------------
+      const header = parser.parseGlobalElement('SampleHeader');
+      dump('SampleHeader', header);
+      check('SampleHeader.elementPath === "SampleHeader"', header.elementPath === 'SampleHeader');
+
+      const packetId = findByName(header, 'PacketId');
+      check(
+        'PacketId: TextInput, pattern then maxLength (source order)',
+        packetId?.kind === 'TextInput' &&
+          packetId.validationRules.map((r) => r.kind).join(',') === 'pattern,maxLength' &&
+          packetId.validationRules[1].value === '6'
+      );
+
+      const packetStatus = findByName(header, 'PacketStatus');
+      check(
+        'PacketStatus: Dropdown with 4 enum options',
+        packetStatus?.kind === 'Dropdown' && packetStatus.enumerationValues.length === 4 && packetStatus.enumerationValues[0].value === 'Active'
+      );
+
+      const expiryDate = findByName(header, 'ExpiryDate');
+      check(
+        'ExpiryDate: DatePicker via 2-level type chain (SampleDateType → xs:date)',
+        expiryDate?.kind === 'DatePicker' && expiryDate.xsdDataType === 'xs:date'
+      );
+
+      const isAmended = findByName(header, 'IsAmended');
+      check('IsAmended: Checkbox', isAmended?.kind === 'Checkbox');
+
+      const internalNotes = findByName(header, 'InternalNotes');
+      const reviewerCode = findByName(header, 'ReviewerCode');
+      check(
+        'xs:all transparency: InternalNotes & ReviewerCode are direct children of SampleHeader',
+        header.children.includes(internalNotes) && header.children.includes(reviewerCode)
+      );
+
+      const primaryContact = findByName(header, 'PrimaryContact');
+      const mailingAddress = findByName(primaryContact, 'MailingAddress');
+      check(
+        'PrimaryContact (ContactInfoType) → MailingAddress (AddressType) nested GroupContainers',
+        primaryContact?.kind === 'GroupContainer' && mailingAddress?.kind === 'GroupContainer'
+      );
+
+      // --- SampleEntityForm (§4 walkthrough items 7,8,9,10,11,13) -----------
+      const entityForm = parser.parseGlobalElement('SampleEntityForm');
+      dump('SampleEntityForm', entityForm);
+
+      const entityTypeChoice = findByName(entityForm, 'EntityTypeChoice');
+      const entityChoiceGroup = findByName(entityForm, 'EntityTypeChoiceChoice');
+      check(
+        'EntityTypeChoice: GroupContainer wrapping a synthetic RadioGroup',
+        entityTypeChoice?.kind === 'GroupContainer' && entityChoiceGroup?.kind === 'RadioGroup' && entityChoiceGroup?.isGeneratedWrapper === false
+      );
+      const option1 = findByName(entityForm, 'EntityTypeChoiceChoiceOption1');
+      const option2 = findByName(entityForm, 'EntityTypeChoiceChoiceOption2');
+      check(
+        'Choice options: SequenceContainer, isGeneratedWrapper=true',
+        option1?.kind === 'SequenceContainer' && option1?.isGeneratedWrapper === true && option2?.kind === 'SequenceContainer'
+      );
+
+      const idTypeChoiceGroup = findByName(entityForm, 'IdTypeChoiceChoice');
+      check(
+        'Nested choice: IdTypeChoiceChoice found inside Individual branch, path chain intact',
+        idTypeChoiceGroup?.kind === 'RadioGroup' &&
+          idTypeChoiceGroup.elementPath === 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption1.IdTypeChoice.IdTypeChoiceChoice',
+        idTypeChoiceGroup?.elementPath
+      );
+
+      const registeredAddress = findByName(entityForm, 'RegisteredAddress');
+      check(
+        'RegisteredAddress (AddressType): GroupContainer, 1 attribute + 5 elements = 6 children',
+        registeredAddress?.kind === 'GroupContainer' && registeredAddress.children.length === 6 && registeredAddress.children[0].isAttribute === true,
+        `children=${registeredAddress?.children.length}`
+      );
+
+      const priorNameListEntry = findByName(entityForm, 'PriorNameListEntry');
+      check(
+        'PriorNameList → PriorNameListEntry: SequenceContainer, isRepeating, 3 children',
+        priorNameListEntry?.kind === 'SequenceContainer' &&
+          priorNameListEntry.isRepeating === true &&
+          priorNameListEntry.isGeneratedWrapper === true &&
+          priorNameListEntry.children.length === 3 &&
+          priorNameListEntry.elementPath === 'SampleEntityForm.PriorNameList.PriorNameListEntry'
+      );
+
+      check(
+        'xs:group ref="AuditStampGroup": 4 audit fields inlined directly into SampleEntityForm',
+        ['AuditCreatedBy', 'AuditCreatedDate', 'AuditModifiedBy', 'AuditModifiedDate'].every((n) => entityForm.children.some((c) => c.elementName === n))
+      );
+
+      // --- SampleFinancialForm (§4 walkthrough items 3,9,11,12,15,16,18) ----
+      const financialForm = parser.parseGlobalElement('SampleFinancialForm');
+      dump('SampleFinancialForm', financialForm);
+
+      const taxRate = findByName(financialForm, 'TaxRate');
+      check(
+        'TaxRate (PercentType): DecimalInput, minInclusive/maxInclusive/fractionDigits',
+        taxRate?.kind === 'DecimalInput' && taxRate.validationRules.map((r) => r.kind).sort().join(',') === 'fractionDigits,maxInclusive,minInclusive'
+      );
+      const itemCount = findByName(financialForm, 'ItemCount');
+      check('ItemCount (CountType): NumericInput', itemCount?.kind === 'NumericInput');
+
+      const paymentChoice = findByName(financialForm, 'PaymentMethodChoiceChoice');
+      check('PaymentMethodChoice: RadioGroup with 3 branches', paymentChoice?.kind === 'RadioGroup' && paymentChoice.children.length === 3);
+
+      const lineItemsEntry = findByName(financialForm, 'LineItemsEntry');
+      check(
+        'LineItems → LineItemsEntry: repeating, 4 children',
+        lineItemsEntry?.isRepeating === true && lineItemsEntry.children.length === 4
+      );
+
+      check(
+        'Nested xs:group ref="NestedRefGroup": all 7 audit+flag fields inlined directly',
+        ['AuditCreatedBy', 'AuditCreatedDate', 'AuditModifiedBy', 'AuditModifiedDate', 'IsActive', 'IsVerified', 'IsConfidential'].every((n) =>
+          financialForm.children.some((c) => c.elementName === n)
+        )
+      );
+
+      // --- SampleEventLog (§4 walkthrough items 6,11,16,18) -----------------
+      const eventLog = parser.parseGlobalElement('SampleEventLog');
+      dump('SampleEventLog', eventLog);
+
+      const documentIdAttr = eventLog.children.find((c) => c.elementName === 'documentId');
+      check(
+        'documentId: isAttribute + isInstanceIdSource',
+        documentIdAttr?.isAttribute === true && documentIdAttr?.isInstanceIdSource === true
+      );
+      check(
+        'FlagsGroup (group + xs:all double transparency): 3 booleans inlined directly',
+        ['IsActive', 'IsVerified', 'IsConfidential'].every((n) => eventLog.children.some((c) => c.elementName === n && c.kind === 'Checkbox'))
+      );
+      const eventType = findByName(eventLog, 'EventType');
+      check('EventType: Dropdown with 4 options', eventType?.kind === 'Dropdown' && eventType.enumerationValues.length === 4);
+
+      // --- SampleSummary (§4 "Inline Element Fallback") ---------------------
+      const summary = parser.parseGlobalElement('SampleSummary');
+      dump('SampleSummary', summary);
+      check('SampleSummary found via inline fallback (not a global element)', summary != null);
+      check('SampleSummary.elementPath === "SampleSummary" (root, no dot)', summary?.elementPath === 'SampleSummary');
+      check(
+        'SampleSummary: 3 own fields + 4 AuditStampGroup fields = 7 children',
+        summary?.children.length === 7,
+        `children=${summary?.children.length}`
+      );
+      check('SampleSummary.TotalRecordCount: NumericInput', findByName(summary, 'TotalRecordCount')?.kind === 'NumericInput');
+      check('SampleSummary.TotalAmount: DecimalInput', findByName(summary, 'TotalAmount')?.kind === 'DecimalInput');
+
+      summaryEl.textContent = `${pass} passed, ${fail} failed`;
+      summaryEl.style.color = fail === 0 ? '#2e7d32' : '#d32f2f';
+      console.log(`Phase 1 check: ${pass} passed, ${fail} failed`);
+    }
+
+    main().catch((err) => {
+      summaryEl.textContent = 'ERROR — see console';
+      summaryEl.style.color = '#d32f2f';
+      console.error(err);
+      const pre = document.createElement('pre');
+      pre.textContent = String(err.stack || err);
+      resultsEl.appendChild(pre);
+    });
+  </script>
+</body>
+</html>
