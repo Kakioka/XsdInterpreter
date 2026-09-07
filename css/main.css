@@ -460,6 +460,44 @@ fieldset.group-container.color-yellow,
   margin-top: 6px;
 }
 
+/* ---------------------------------------------------- Layout: Wrap mode */
+/* Toggled by #layout-toggle-btn (js/ui/toolbar.js wireLayoutToggle, §13).
+ * "Stack" (no `body.layout-wrap`) is every field-wrapper and nested container
+ * simply stacking one per line via normal block flow — no CSS needed for
+ * that mode, it's what these containers already do unstyled. "Wrap" lets
+ * sibling FIELDS flow into a multi-column grid to use horizontal space;
+ * nested containers (subgroups/sequences/repeating instances/choice
+ * branches) still always take a full row of their own so the nesting
+ * hierarchy stays legible — only .field-wrapper items actually wrap. */
+body.layout-wrap fieldset.group-container,
+body.layout-wrap .sequence-container,
+body.layout-wrap .repeating-instance,
+body.layout-wrap .branch-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  column-gap: 24px;
+}
+
+body.layout-wrap fieldset.group-container > .field-wrapper,
+body.layout-wrap .sequence-container > .field-wrapper,
+body.layout-wrap .repeating-instance > .field-wrapper,
+body.layout-wrap .branch-content > .field-wrapper {
+  flex: 1 1 320px;
+}
+
+/* Every non-field child (nested fieldset/sequence/repeating-section/radio-
+ * group, plus the remove-btn a repeating-instance ends with) forces a line
+ * break before and after itself by claiming the whole row. `legend` is
+ * excluded since fieldset already gives it special outside-the-flow
+ * rendering regardless of the fieldset's own display mode. */
+body.layout-wrap fieldset.group-container > *:not(.field-wrapper):not(legend),
+body.layout-wrap .sequence-container > *:not(.field-wrapper),
+body.layout-wrap .repeating-instance > *:not(.field-wrapper),
+body.layout-wrap .branch-content > *:not(.field-wrapper) {
+  flex-basis: 100%;
+}
+
 /* --------------------------------------------------------------- Panels */
 
 #validation-panel {

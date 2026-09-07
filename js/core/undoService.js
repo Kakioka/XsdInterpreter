@@ -243,10 +243,11 @@ export class RepeatingInstanceRemoveAction {
 // (testDataFiller.js / contextMenu.js). FillTestDataAction (toolbar Fill All/
 // Required) and ContainerFillAction/ContainerClearAction (context menu's
 // scoped fill/clear) are wired in app.js's fillActiveForm/
-// clearActiveFormSection. ClearAllAction has no UI trigger yet — the
-// toolbar's "Clear All" button (#clear-all-btn) stays disabled/unwired, same
-// as FormRemoveAction below (no "remove form instance" button exists either)
-// — both implemented per spec ahead of the UI that will eventually call them.
+// clearActiveFormSection. ClearAllAction is wired in app.js's
+// clearActiveForm(), triggered by the toolbar's "Clear All" button
+// (#clear-all-btn). FormRemoveAction below still has no UI trigger (no
+// "remove form instance" button exists yet) — implemented per spec ahead of
+// the UI that will eventually call it.
 // ---------------------------------------------------------------------------
 
 export class FillTestDataAction {

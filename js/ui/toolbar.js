@@ -116,7 +116,7 @@ export function wireToolbar({ onSchemaFilesSelected, onXmlTextSelected, onSaveXm
 
 /** Buttons that only make sense once a schema is loaded. */
 export function setSchemaDependentButtonsEnabled(enabled) {
-  for (const id of ['save-xml-btn', 'load-xml-btn', 'add-form-btn', 'validate-btn', 'fill-all-btn', 'fill-required-btn']) {
+  for (const id of ['save-xml-btn', 'load-xml-btn', 'add-form-btn', 'validate-btn', 'fill-all-btn', 'fill-required-btn', 'clear-all-btn']) {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
   }
@@ -238,6 +238,50 @@ export function wireZoom() {
     },
     { passive: false }
   );
+}
+
+// ---------------------------------------------------------------------------
+// Layout: Wrap vs. Stack (§13 toolbar — #layout-toggle-btn)
+// ---------------------------------------------------------------------------
+//
+// Schema-independent, same as theme (index.html's own comment on the Theme
+// toolbar group) — enabled here at bootstrap rather than through
+// setSchemaDependentButtonsEnabled. "Wrap" lets sibling fields in a
+// container flow into a multi-column grid; "Stack" is the plain one-
+// field-per-row layout every container renders as unstyled (see the
+// "Layout: Wrap mode" block in css/main.css for exactly what the
+// `body.layout-wrap` class changes). The button's label always names the
+// CURRENTLY active mode, matching the zoom indicator / save-status
+// conventions just above.
+
+const LAYOUT_MODE_KEY = 'xmlEditor.layoutMode';
+
+function applyLayoutMode(mode) {
+  document.body.classList.toggle('layout-wrap', mode === 'wrap');
+  const btn = document.getElementById('layout-toggle-btn');
+  if (btn) btn.textContent = mode === 'wrap' ? 'Layout: Wrap' : 'Layout: Stack';
+  try {
+    localStorage.setItem(LAYOUT_MODE_KEY, mode);
+  } catch {
+    // ignore — toggle still works for this session
+  }
+  return mode;
+}
+
+export function wireLayoutToggle() {
+  const btn = document.getElementById('layout-toggle-btn');
+  if (!btn) return;
+  let saved;
+  try {
+    saved = localStorage.getItem(LAYOUT_MODE_KEY);
+  } catch {
+    saved = null;
+  }
+  let current = applyLayoutMode(saved === 'stack' ? 'stack' : 'wrap'); // defaults to Wrap, matching the button's static HTML label
+  btn.disabled = false;
+  btn.addEventListener('click', () => {
+    current = applyLayoutMode(current === 'wrap' ? 'stack' : 'wrap');
+  });
 }
 
 // ---------------------------------------------------------------------------

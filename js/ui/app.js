@@ -13,7 +13,7 @@ import { SchemaParser, findRootElementCandidates, analyzePacket, joinPath } from
 import { FormEngine, FormInstanceKey } from '../core/formEngine.js';
 import { readPacket } from '../core/xmlReader.js';
 import { buildPacketXml } from '../core/xmlWriter.js';
-import { UndoService, FormAddAction, FillTestDataAction, ContainerFillAction, ContainerClearAction } from '../core/undoService.js';
+import { UndoService, FormAddAction, FillTestDataAction, ContainerFillAction, ContainerClearAction, ClearAllAction } from '../core/undoService.js';
 import { generateValues } from '../core/testDataFiller.js';
 import * as formRenderer from './formRenderer.js';
 import * as toolbar from './toolbar.js';
@@ -432,6 +432,60 @@ function clearActiveFormSection(containerPath, containerEl) {
   coloringUi.applyAllColors();
 }
 
+/**
+ * Toolbar "Clear All" (§14 ClearAllAction) — clearActiveFormSection's
+ * whole-form counterpart: blanks every field value and radio selection in
+ * the ACTIVE form, everywhere (not just one container subtree). Repeating
+ * instance COUNTS are left alone on purpose, same "clear the content, keep
+ * the rows" rule as clearActiveFormSection — ClearAllAction.redo() mirrors
+ * this by only ever resetting fieldValues/radioSelections, never counts.
+ */
+function clearActiveForm() {
+  if (appState.undoService.isReplaying) return; // §22 invariant 13
+  if (!appState.currentInstanceKey) return;
+  const instanceKey = appState.currentInstanceKey;
+  const state = appState.formEngine.getFormState(instanceKey);
+  if (!state) return;
+  if (Object.keys(state.fieldValues).length === 0 && Object.keys(state.radioSelections).length === 0) return; // nothing to clear
+
+  // Unlike clearActiveFormSection's containerPath-scoped snapshot (which
+  // deliberately omits repeatingInstanceCounts — see
+  // formEngine.snapshotUnderPathPrefix), ClearAllAction.undo() restores
+  // repeatingInstanceCounts WHOLESALE from `before`, so it must be captured
+  // here even though redo() never touches it — otherwise undo would wipe out
+  // every repeating row the user had added instead of just restoring content.
+  const before = {
+    fieldValues: { ...state.fieldValues },
+    radioSelections: { ...state.radioSelections },
+    repeatingInstanceCounts: { ...state.repeatingInstanceCounts },
+  };
+  const oldDirty = appState.formEngine.isDirty;
+
+  state.fieldValues = {};
+  state.radioSelections = {};
+  appState.formEngine.setDirty(true);
+  appState.undoService.recordAction(new ClearAllAction({ instanceKey, before, oldDirty, newDirty: true }));
+
+  const formEl = document.getElementById('form-content-host').firstElementChild;
+  if (!formEl) return;
+  formEl.querySelectorAll('.field-wrapper').forEach((wrapper) => {
+    if (!wrapper._controlRef) return;
+    wrapper._controlRef.setValue(''); // '' blanks text/numeric/decimal/date/dropdown AND unchecks a checkbox — see controlFactory.setControlValue
+    wrapper._controlRef.validate?.(); // clear any stale format-error text now that the field is empty (§16)
+  });
+  formEl.querySelectorAll('.radio-group').forEach((rgEl) => {
+    rgEl.querySelectorAll('input[type="radio"]').forEach((r) => {
+      r.checked = false;
+    });
+    rgEl.querySelectorAll(':scope > .branch-content').forEach((bc) => {
+      bc.style.display = 'none';
+    });
+    delete rgEl.dataset.selectedBranch;
+  });
+
+  coloringUi.applyAllColors();
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
@@ -457,6 +511,7 @@ function init() {
   themeUi.wireTheme();
   toolbar.wireSplitter();
   toolbar.wireZoom();
+  toolbar.wireLayoutToggle();
   refreshSaveStatus = toolbar.wireSaveStatus(appState);
 
   document.getElementById('fill-all-btn')?.addEventListener('click', () => {
@@ -469,6 +524,7 @@ function init() {
     const schemaElement = appState.schemaParser.parseGlobalElement(appState.currentInstanceKey.formName);
     if (schemaElement) fillActiveForm(schemaElement, '', { requiredOnly: true });
   });
+  document.getElementById('clear-all-btn')?.addEventListener('click', () => clearActiveForm());
 }
 
 init();
