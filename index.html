@@ -102,8 +102,20 @@
       <span id="loading-text">Loading&hellip;</span>
     </div>
 
-    <div id="search-panel" class="hidden"></div>
+    <div id="search-panel" class="hidden">
+      <div id="search-header">
+        <input type="text" id="search-input" placeholder="Search field labels…">
+        <button id="close-search-btn" type="button">&#10005;</button>
+      </div>
+      <div id="search-options">
+        <label><input type="checkbox" id="search-case-sensitive"> Case sensitive</label>
+        <label><input type="checkbox" id="search-include-docs"> Include documentation</label>
+        <label><input type="checkbox" id="search-line-number-mode"> Line number mode</label>
+      </div>
+      <ul id="search-result-list"></ul>
+    </div>
     <div id="debug-panel" class="hidden"></div>
+    <div id="context-menu" class="hidden"></div>
   </div>
 
   <!-- Folder picker fallback for browsers without showDirectoryPicker (§24). -->

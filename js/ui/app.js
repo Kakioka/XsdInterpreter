@@ -2,23 +2,28 @@
 //
 // See web-implementation-spec.md §20 (Application Bootstrap, Schema Load Flow,
 // Form Switch Flow, Radio Selection Fixed-Point Loop), §13 (Loading Overlay),
-// §9 (Coloring Service), §14 (Undo/Redo). IMPLEMENTATION_PLAN.md Phase 3.3
-// (schema/XML load, form switch, add instance) and Phase 4 (coloring, undo).
+// §9 (Coloring Service), §14 (Undo/Redo), §15 (Search), §17 (Test Data Fill),
+// §18 (Context Menu). IMPLEMENTATION_PLAN.md Phase 3.3 (schema/XML load, form
+// switch, add instance), Phase 4 (coloring, undo), Phase 6 (search, test data
+// fill, context menu).
 //
-// Validation, search, context menus, and theming are still later phases.
+// Theming is still a later phase.
 
 import { scanForBom, stripBom, findRootFileCandidates, flattenFromRoot } from '../core/flattener.js';
-import { SchemaParser, findRootElementCandidates, analyzePacket } from '../core/parser.js';
+import { SchemaParser, findRootElementCandidates, analyzePacket, joinPath } from '../core/parser.js';
 import { FormEngine, FormInstanceKey } from '../core/formEngine.js';
 import { readPacket } from '../core/xmlReader.js';
 import { buildPacketXml } from '../core/xmlWriter.js';
-import { UndoService, FormAddAction } from '../core/undoService.js';
+import { UndoService, FormAddAction, FillTestDataAction, ContainerFillAction, ContainerClearAction } from '../core/undoService.js';
+import { generateValues } from '../core/testDataFiller.js';
 import * as formRenderer from './formRenderer.js';
 import * as toolbar from './toolbar.js';
 import * as sidebar from './sidebar.js';
 import * as coloringUi from './coloring.js';
 import * as undoUi from './undo.js';
 import * as validationUi from './validation.js';
+import * as searchUi from './search.js';
+import * as contextMenuUi from './contextMenu.js';
 
 const appState = {
   manifest: null,
@@ -185,7 +190,10 @@ function switchToForm(instanceKey, mutateState) {
   coloringUi.applyAllColors();
 
   validationUi.closeValidationPanel(); // stale results from the PREVIOUS form shouldn't linger after navigating away
-  // Phase 6 TODO: wireContextMenus, refreshSearchContext.
+  // Search and the context menu need no per-switch refresh: search re-derives
+  // its form-name list from appState.instanceKeys at search time (init()
+  // wires its document-level listeners once), and the context menu resolves
+  // its target container fresh from each contextmenu event.
 
   appState.currentInstanceKey = instanceKey;
   sidebar.updateNavTreeActiveState(document.getElementById('nav-tree'), instanceKey);
@@ -263,6 +271,131 @@ async function saveXml() {
 }
 
 // ---------------------------------------------------------------------------
+// Test Data Fill (§17) — the FormEngine-merge + DOM-refresh glue shared by
+// the toolbar's whole-form Fill buttons and contextMenu.js's scoped ones.
+// testDataFiller.generateValues itself is pure/no-DOM (§17's own file-level
+// comment); this is the part of §17 that isn't.
+// ---------------------------------------------------------------------------
+
+function isEmptyValue(value) {
+  return value === undefined || value === null || value === '';
+}
+
+/**
+ * @param {object} schemaElement - the whole active form's root (toolbar Fill
+ *   All/Required) or a specific container subtree within it (contextMenu.js's
+ *   scoped fill).
+ * @param {string} parentPath - the runtime path prefix `schemaElement` itself
+ *   sits under ('' for the form root — this is also how "whole form" vs.
+ *   "scoped" is told apart below, since only the form root itself is ever
+ *   called with an empty parentPath).
+ * @param {object} options - passed through to generateValues (requiredOnly/filter).
+ */
+function fillActiveForm(schemaElement, parentPath, options) {
+  if (appState.undoService.isReplaying) return; // §22 invariant 13
+  if (!appState.currentInstanceKey) return;
+  const instanceKey = appState.currentInstanceKey;
+  const state = appState.formEngine.getFormState(instanceKey);
+  if (!state) return;
+
+  const isWholeForm = parentPath === '';
+  const containerPath = isWholeForm ? null : joinPath(parentPath, schemaElement.elementName);
+  const snapshot = () =>
+    isWholeForm
+      ? { fieldValues: { ...state.fieldValues }, radioSelections: { ...state.radioSelections }, repeatingInstanceCounts: { ...state.repeatingInstanceCounts } }
+      : appState.formEngine.snapshotUnderPathPrefix(containerPath);
+  const before = snapshot();
+
+  const generated = generateValues(schemaElement, {
+    ...options,
+    parentPath,
+    instanceCounts: state.repeatingInstanceCounts,
+    radioSelections: state.radioSelections,
+  });
+
+  // §17 "Only empty fields are filled (merge against existing values)" — §22
+  // invariant 22 states this for the context menu specifically, but applying
+  // it to the toolbar-level Fill buttons too avoids ever silently overwriting
+  // data the user already entered, regardless of which entry point filled it.
+  let changed = false;
+  for (const [path, value] of Object.entries(generated.values)) {
+    if (isEmptyValue(state.fieldValues[path])) {
+      state.fieldValues[path] = value;
+      changed = true;
+    }
+  }
+  for (const [choicePath, branchPath] of Object.entries(generated.radioSelections)) {
+    if (!state.radioSelections[choicePath]) {
+      state.radioSelections[choicePath] = branchPath;
+      changed = true;
+    }
+  }
+  if (!changed) return;
+
+  const oldDirty = appState.formEngine.isDirty;
+  appState.formEngine.setDirty(true);
+  const after = snapshot();
+  appState.undoService.recordAction(
+    isWholeForm
+      ? new FillTestDataAction({ instanceKey, before, after, oldDirty, newDirty: true })
+      : new ContainerFillAction({ instanceKey, containerPath, before, after, oldDirty, newDirty: true })
+  );
+
+  // restoreActiveForm only PUSHES values it finds onto matching registered
+  // controls — it never needs to CREATE anything, so this alone is enough to
+  // reflect newly-filled values into the currently-rendered DOM (unlike
+  // clearActiveFormSection below, which deletes values restoreActiveForm has
+  // no way to reflect).
+  appState.formEngine.restoreActiveForm();
+  const formEl = document.getElementById('form-content-host').firstElementChild;
+  if (formEl) {
+    formRenderer.selectRadioGroupBranches(formEl, state);
+    coloringUi.applyAllColors();
+  }
+}
+
+/**
+ * §18 "Clear This Section" / §22 invariant 22's counterpart for clearing.
+ * Purges FormEngine state under `containerPath`, then resets the actual
+ * rendered controls scoped to `containerEl` directly — restoreActiveForm
+ * can't do this half (it only pushes values that still EXIST; it has no way
+ * to reflect a deletion), so the DOM reset here is explicit. Repeating
+ * instance COUNTS under the prefix are left alone on purpose (purge only
+ * touches fieldValues/radioSelections for a full-path-qualified prefix like
+ * this one, since repeatingInstanceCounts is keyed by bare entry name, not a
+ * path — see FormEngine.purgeValuesUnderPathPrefix) — "clear the content,
+ * keep the rows", not "un-add" repeating instances the user added.
+ */
+function clearActiveFormSection(containerPath, containerEl) {
+  if (appState.undoService.isReplaying) return; // §22 invariant 13
+  if (!appState.currentInstanceKey) return;
+  const instanceKey = appState.currentInstanceKey;
+  const before = appState.formEngine.snapshotUnderPathPrefix(containerPath);
+  const oldDirty = appState.formEngine.isDirty;
+
+  appState.formEngine.purgeValuesUnderPathPrefix(containerPath);
+  appState.formEngine.setDirty(true);
+  appState.undoService.recordAction(new ContainerClearAction({ instanceKey, containerPath, before, oldDirty, newDirty: true }));
+
+  containerEl.querySelectorAll('.field-wrapper').forEach((wrapper) => {
+    if (!wrapper._controlRef) return;
+    wrapper._controlRef.setValue(''); // '' blanks text/numeric/decimal/date/dropdown AND unchecks a checkbox — see controlFactory.setControlValue
+    wrapper._controlRef.validate?.(); // clear any stale format-error text now that the field is empty (§16)
+  });
+  containerEl.querySelectorAll('.radio-group').forEach((rgEl) => {
+    rgEl.querySelectorAll('input[type="radio"]').forEach((r) => {
+      r.checked = false;
+    });
+    rgEl.querySelectorAll(':scope > .branch-content').forEach((bc) => {
+      bc.style.display = 'none';
+    });
+    delete rgEl.dataset.selectedBranch;
+  });
+
+  coloringUi.applyAllColors();
+}
+
+// ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
 
@@ -280,6 +413,19 @@ function init() {
 
   undoUi.wireUndo(appState.undoService, { appState, switchToForm, rebuildNavTree });
   validationUi.wireValidation({ appState, switchToForm });
+  searchUi.wireSearch({ appState, switchToForm });
+  contextMenuUi.wireContextMenu({ appState, fillActiveForm, clearActiveFormSection });
+
+  document.getElementById('fill-all-btn')?.addEventListener('click', () => {
+    if (!appState.currentInstanceKey) return;
+    const schemaElement = appState.schemaParser.parseGlobalElement(appState.currentInstanceKey.formName);
+    if (schemaElement) fillActiveForm(schemaElement, '', {});
+  });
+  document.getElementById('fill-required-btn')?.addEventListener('click', () => {
+    if (!appState.currentInstanceKey) return;
+    const schemaElement = appState.schemaParser.parseGlobalElement(appState.currentInstanceKey.formName);
+    if (schemaElement) fillActiveForm(schemaElement, '', { requiredOnly: true });
+  });
 }
 
 init();

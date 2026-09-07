@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phase 6 check</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 14px; padding: 16px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; margin-top: 24px; }
+    .row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-family: monospace; font-size: 12.5px; }
+    .pass { color: #2e7d32; }
+    .fail { color: #d32f2f; font-weight: bold; }
+    .badge { display: inline-block; width: 3.5em; }
+    #summary { font-size: 16px; font-weight: bold; margin: 12px 0; }
+    #form-content-host { border: 2px dashed #ccc; margin-top: 20px; max-height: 300px; overflow: auto; }
+  </style>
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+  <h1>Phase 6 check — testDataFiller + searchService/search.js + contextMenu.js</h1>
+  <p>Open via a local server. Drives the real modules directly (not reimplementations) —
+  <code>RegexSampleGenerator</code>/<code>generateValues</code> as pure functions, and
+  <code>search.js</code>/<code>contextMenu.js</code>'s real DOM wiring against markup mirroring
+  index.html, plus Phase 5's real <code>validateSchema</code> as the "is this actually
+  schema-valid" oracle for the fill acceptance criterion.</p>
+
+  <div id="summary">running…</div>
+  <div id="results"></div>
+
+  <h2>Live render stage (mirrors index.html's ids)</h2>
+  <div id="search-panel" class="hidden">
+    <div id="search-header">
+      <input type="text" id="search-input" placeholder="Search field labels…">
+      <button id="close-search-btn" type="button">&#10005;</button>
+    </div>
+    <div id="search-options">
+      <label><input type="checkbox" id="search-case-sensitive"> Case sensitive</label>
+      <label><input type="checkbox" id="search-include-docs"> Include documentation</label>
+      <label><input type="checkbox" id="search-line-number-mode"> Line number mode</label>
+    </div>
+    <ul id="search-result-list"></ul>
+  </div>
+  <div id="context-menu" class="hidden"></div>
+  <div id="loading-overlay" class="hidden"><span id="loading-text"></span></div>
+  <div id="form-content-host"></div>
+
+  <script type="module">
+    import { findRootFileCandidates, flattenFromRoot } from '../js/core/flattener.js';
+    import { SchemaParser, findRootElementCandidates, analyzePacket, joinPath } from '../js/core/parser.js';
+    import { FormEngine, FormInstanceKey, keyOf } from '../js/core/formEngine.js';
+    import { UndoService, FillTestDataAction, ContainerFillAction, ContainerClearAction } from '../js/core/undoService.js';
+    import { RegexSampleGenerator, generateValues } from '../js/core/testDataFiller.js';
+    import { search as runSearch } from '../js/core/searchService.js';
+    import { validateSchema } from '../js/ui/validation.js';
+    import * as formRenderer from '../js/ui/formRenderer.js';
+    import * as coloring from '../js/ui/coloring.js';
+    import * as searchUi from '../js/ui/search.js';
+    import * as contextMenuUi from '../js/ui/contextMenu.js';
+
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+    const stageEl = document.getElementById('form-content-host');
+
+    let pass = 0, fail = 0;
+    function check(label, condition, detail = '') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const ok = !!condition;
+      ok ? pass++ : fail++;
+      row.innerHTML = `<span class="badge ${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'}</span><span>${label}${detail ? ' — ' + detail : ''}</span>`;
+      resultsEl.appendChild(row);
+      if (!ok) console.error('FAIL:', label, detail);
+    }
+
+    function isEmptyValue(v) {
+      return v === undefined || v === null || v === '';
+    }
+
+    function fieldWrapper(root, path) {
+      return root.querySelector(`.field-wrapper[data-path="${path}"]`);
+    }
+
+    function typeAndBlur(inputEl, value) {
+      inputEl.dispatchEvent(new Event('focus', { bubbles: true }));
+      inputEl.value = value;
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+      inputEl.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+
+    async function main() {
+      const filenames = ['SamplePacket.xsd', 'SampleCommonTypes.xsd', 'SampleGroups.xsd'];
+      const fileTextMap = new Map();
+      for (const name of filenames) fileTextMap.set(name, await (await fetch(`../sample-schemas/${name}`)).text());
+      const [rootFile] = findRootFileCandidates(fileTextMap);
+      const { doc: flatDoc } = flattenFromRoot(fileTextMap, rootFile);
+      const [rootElementName] = findRootElementCandidates(flatDoc);
+      const parser = new SchemaParser(flatDoc, rootElementName);
+      const manifest = analyzePacket(flatDoc, rootElementName);
+
+      const formEngine = new FormEngine();
+      const undoService = new UndoService();
+      const fakeAppState = { manifest, schemaParser: parser, formEngine, undoService, instanceKeys: [], currentInstanceKey: null };
+      function switchToForm(instanceKey, mutateState) {
+        formEngine.setActiveForm(instanceKey);
+        if (mutateState) mutateState(formEngine);
+        const schemaElement = parser.parseGlobalElement(instanceKey.formName);
+        const formEl = formRenderer.renderForm(schemaElement, formEngine, 0);
+        formRenderer.inflateRepeatingSections(formEl, formEngine);
+        stageEl.innerHTML = '';
+        stageEl.appendChild(formEl);
+        formRenderer.registerControlsUnder(formEl, formEngine);
+        formEngine.restoreActiveForm();
+        formRenderer.selectRadioGroupBranches(formEl, formEngine.getFormState(instanceKey));
+        coloring.setActiveContext(schemaElement, formEngine, instanceKey);
+        coloring.rebuildColorableIndex(formEl);
+        coloring.applyAllColors();
+        fakeAppState.currentInstanceKey = instanceKey;
+        return formEl;
+      }
+
+      // Same ctx shape phase4-check.html's undo tests use — undoService.undo/redo's
+      // Action.undo()/redo() methods call ctx.switchToForm(instanceKey, mutateFormEngine).
+      const ctx = { appState: fakeAppState, switchToForm, rebuildNavTree: () => {} };
+
+      /**
+       * A truly blank instance of `key`, for tests that need one MORE than
+       * once (a repeat use of the SAME key, e.g. 'SampleEntityForm' across
+       * sections C/D/G, would otherwise carry over whatever an earlier
+       * section already filled). Naively calling formEngine.purgeFormState(key)
+       * right before switchToForm(key) does NOT work when key's own OLD
+       * rendered controls are STILL the currently-registered ones:
+       * FormEngine.setActiveForm(key) flushes the CURRENTLY-registered
+       * controls into the active state BEFORE clearing the registry (by
+       * design — so an in-progress edit isn't lost on a real form switch),
+       * and since activeInstanceKey is unchanged when re-switching to the
+       * SAME key, that flush immediately re-hydrates the just-purged state
+       * right back from the stale, still-rendered DOM. Switching to a
+       * throwaway OTHER form first empties the registry against `key` before
+       * the purge, so nothing is left to flush back in.
+       */
+      function switchToFreshForm(key) {
+        switchToForm(new FormInstanceKey('SampleHeader'));
+        formEngine.purgeFormState(key);
+        return switchToForm(key);
+      }
+
+      // Mirrors app.js's fillActiveForm/clearActiveFormSection exactly (not a
+      // reimplementation of the ALGORITHM under test — generateValues itself
+      // — just the merge/DOM-refresh/undo-recording glue app.js and
+      // contextMenu.js share; see app.js for the reasoning in full).
+      function fillActiveForm(schemaElement, parentPath, options) {
+        if (undoService.isReplaying) return;
+        const instanceKey = fakeAppState.currentInstanceKey;
+        const state = formEngine.getFormState(instanceKey);
+        const isWholeForm = parentPath === '';
+        const containerPath = isWholeForm ? null : joinPath(parentPath, schemaElement.elementName);
+        const snapshot = () =>
+          isWholeForm
+            ? { fieldValues: { ...state.fieldValues }, radioSelections: { ...state.radioSelections }, repeatingInstanceCounts: { ...state.repeatingInstanceCounts } }
+            : formEngine.snapshotUnderPathPrefix(containerPath);
+        const before = snapshot();
+
+        const generated = generateValues(schemaElement, {
+          ...options,
+          parentPath,
+          instanceCounts: state.repeatingInstanceCounts,
+          radioSelections: state.radioSelections,
+        });
+        let changed = false;
+        for (const [path, value] of Object.entries(generated.values)) {
+          if (isEmptyValue(state.fieldValues[path])) { state.fieldValues[path] = value; changed = true; }
+        }
+        for (const [choicePath, branchPath] of Object.entries(generated.radioSelections)) {
+          if (!state.radioSelections[choicePath]) { state.radioSelections[choicePath] = branchPath; changed = true; }
+        }
+        if (!changed) return;
+
+        const oldDirty = formEngine.isDirty;
+        formEngine.setDirty(true);
+        const after = snapshot();
+        undoService.recordAction(
+          isWholeForm
+            ? new FillTestDataAction({ instanceKey, before, after, oldDirty, newDirty: true })
+            : new ContainerFillAction({ instanceKey, containerPath, before, after, oldDirty, newDirty: true })
+        );
+
+        formEngine.restoreActiveForm();
+        const formEl = stageEl.firstElementChild;
+        formRenderer.selectRadioGroupBranches(formEl, state);
+        coloring.applyAllColors();
+      }
+      function clearActiveFormSection(containerPath, containerEl) {
+        if (undoService.isReplaying) return;
+        const instanceKey = fakeAppState.currentInstanceKey;
+        const before = formEngine.snapshotUnderPathPrefix(containerPath);
+        const oldDirty = formEngine.isDirty;
+
+        formEngine.purgeValuesUnderPathPrefix(containerPath);
+        formEngine.setDirty(true);
+        undoService.recordAction(new ContainerClearAction({ instanceKey, containerPath, before, oldDirty, newDirty: true }));
+
+        containerEl.querySelectorAll('.field-wrapper').forEach((wrapper) => {
+          if (wrapper._controlRef) { wrapper._controlRef.setValue(''); wrapper._controlRef.validate?.(); }
+        });
+        containerEl.querySelectorAll('.radio-group').forEach((rgEl) => {
+          rgEl.querySelectorAll('input[type="radio"]').forEach((r) => { r.checked = false; });
+          rgEl.querySelectorAll(':scope > .branch-content').forEach((bc) => { bc.style.display = 'none'; });
+          delete rgEl.dataset.selectedBranch;
+        });
+        coloring.applyAllColors();
+      }
+
+      searchUi.wireSearch({ appState: fakeAppState, switchToForm });
+      contextMenuUi.wireContextMenu({ appState: fakeAppState, fillActiveForm, clearActiveFormSection });
+
+      // ==================================================================
+      // A. RegexSampleGenerator — pure, no DOM (§17 "Pattern-Based Generation")
+      // ==================================================================
+      {
+        check('CodeStringType-shaped pattern [A-Z]{2}[0-9]{4} → 2 letters + 4 digits', /^[A-Z]{2}[0-9]{4}$/.test(RegexSampleGenerator.generate('[A-Z]{2}[0-9]{4}')), RegexSampleGenerator.generate('[A-Z]{2}[0-9]{4}'));
+        check('[0-9]{5} → 5 digits', /^[0-9]{5}$/.test(RegexSampleGenerator.generate('[0-9]{5}')));
+        check('[A-Z0-9]{6,9} → between 6 and 9 chars from the class, {n,m} uses the LOWER bound', RegexSampleGenerator.generate('[A-Z0-9]{6,9}').length === 6 && /^[A-Z0-9]+$/.test(RegexSampleGenerator.generate('[A-Z0-9]{6,9}')));
+        check('`?` is treated as 0 occurrences', RegexSampleGenerator.generate('AB?C') === 'AC');
+        check('`\\d` emits "0"', RegexSampleGenerator.generate('X\\dY') === 'X0Y');
+        check('Literal characters pass through with no quantifier (exactly one occurrence)', RegexSampleGenerator.generate('ABC') === 'ABC');
+        check('`|` alternation picks the FIRST branch only', RegexSampleGenerator.generate('cat|dog') === 'cat');
+        check('`(...)` groups recurse and can be quantified as a whole', RegexSampleGenerator.generate('(ab){2}') === 'abab');
+        check('Empty/falsy pattern generates an empty string rather than throwing', RegexSampleGenerator.generate('') === '' && RegexSampleGenerator.generate(null) === '');
+      }
+
+      // ==================================================================
+      // B. generateValues — pure per-kind generation + filter/requiredOnly +
+      //    radio branch pick-or-reuse, against synthetic SchemaElement fixtures
+      //    (no DOM, no real schema needed for these specific checks).
+      // ==================================================================
+      {
+        const el = (fields) => ({ children: [], validationRules: [], enumerationValues: [], isRequired: false, ...fields });
+        const form = el({
+          elementName: 'TestForm', kind: 'GroupContainer', children: [
+            el({ elementName: 'ReqName', kind: 'TextInput', isRequired: true }),
+            el({ elementName: 'OptNotes', kind: 'TextInput', isRequired: false }),
+            el({ elementName: 'ReqCount', kind: 'NumericInput', isRequired: true, validationRules: [{ kind: 'minInclusive', value: '5' }] }),
+            el({ elementName: 'ReqPct', kind: 'DecimalInput', isRequired: true, validationRules: [{ kind: 'minInclusive', value: '0.00' }] }),
+            el({ elementName: 'ReqDate', kind: 'DatePicker', isRequired: true }),
+            el({ elementName: 'ReqFlag', kind: 'Checkbox', isRequired: true }),
+            el({ elementName: 'ReqPick', kind: 'Dropdown', isRequired: true, enumerationValues: [{ value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive' }] }),
+          ],
+        });
+
+        const allResult = generateValues(form, {});
+        check('TextInput generates a name-based sample', allResult.values['testform.reqname'] === 'TESTNAME');
+        check('NumericInput uses minInclusive as its base', allResult.values['testform.reqcount'] === '5');
+        check('DecimalInput uses minInclusive as its base', allResult.values['testform.reqpct'] === '0.00');
+        check('DatePicker uses the fixed sample date', allResult.values['testform.reqdate'] === '2024-01-01');
+        check('Checkbox generates true', allResult.values['testform.reqflag'] === true);
+        check('Dropdown picks the first enumeration option', allResult.values['testform.reqpick'] === 'Active');
+        check('Fill ALL Fields also fills the optional field', allResult.values['testform.optnotes'] !== undefined);
+
+        const requiredOnlyResult = generateValues(form, { requiredOnly: true });
+        check('requiredOnly skips the optional field entirely', requiredOnlyResult.values['testform.optnotes'] === undefined);
+        check('...but still fills every required one', requiredOnlyResult.values['testform.reqname'] === 'TESTNAME' && Object.keys(requiredOnlyResult.values).length === 6);
+
+        // Radio group: pick when unselected, reuse an existing selection instead of overriding it.
+        const choiceForm = el({
+          elementName: 'ChoiceForm', kind: 'GroupContainer', children: [
+            el({
+              elementName: 'MyChoice', kind: 'RadioGroup', isRequired: true, children: [
+                el({ elementName: 'MyChoiceOption1', kind: 'SequenceContainer', isGeneratedWrapper: true, children: [el({ elementName: 'AName', kind: 'TextInput', isRequired: true })] }),
+                el({ elementName: 'MyChoiceOption2', kind: 'SequenceContainer', isGeneratedWrapper: true, children: [el({ elementName: 'BName', kind: 'TextInput', isRequired: true })] }),
+              ],
+            }),
+          ],
+        });
+        const pickResult = generateValues(choiceForm, {});
+        check('An unselected required RadioGroup gets a NEW selection (first option)', pickResult.radioSelections['choiceform.mychoice'] === 'ChoiceForm.MyChoice.MyChoiceOption1');
+        check('...and that option\'s own required field is filled, keyed under the OPTION (§22 invariant 29)', pickResult.values['choiceform.mychoice.mychoiceoption1.aname'] === 'TESTNAME');
+
+        const reuseResult = generateValues(choiceForm, { radioSelections: { 'choiceform.mychoice': 'ChoiceForm.MyChoice.MyChoiceOption2' } });
+        check('An ALREADY-selected RadioGroup is reused, not overridden', reuseResult.radioSelections['choiceform.mychoice'] === undefined);
+        check('...and the REUSED (Option2) branch\'s field is filled, not Option1\'s', reuseResult.values['choiceform.mychoice.mychoiceoption2.bname'] === 'TESTNAME' && reuseResult.values['choiceform.mychoice.mychoiceoption1.aname'] === undefined);
+
+        // Repeating content container: only existing instances get filled.
+        const repeatForm = el({
+          elementName: 'RepForm', kind: 'GroupContainer', children: [
+            el({
+              elementName: 'Items', kind: 'GroupContainer', isRequired: false, children: [
+                el({ elementName: 'ItemsEntry', kind: 'SequenceContainer', isGeneratedWrapper: true, isRepeating: true, children: [el({ elementName: 'ItemName', kind: 'TextInput', isRequired: true })] }),
+              ],
+            }),
+          ],
+        });
+        const zeroInstances = generateValues(repeatForm, { instanceCounts: {} });
+        check('Zero existing instances → nothing filled (the filler never CREATES an instance)', Object.keys(zeroInstances.values).length === 0);
+        const twoInstances = generateValues(repeatForm, { instanceCounts: { itemsentry: 2 } });
+        check('Two existing instances → both get filled at their own [i] paths', twoInstances.values['repform.items.itemsentry[0].itemname'] === 'TESTNAME' && twoInstances.values['repform.items.itemsentry[1].itemname'] === 'TESTNAME');
+      }
+
+      // ==================================================================
+      // C. Whole-form "Fill Required Fields Only" on a REAL, rendered,
+      //    initially-BLANK SampleEntityForm — the Phase 6 acceptance
+      //    criterion itself: the result must be schema-valid per Phase 5's
+      //    real validateSchema, including a pattern field. EntityCode (a
+      //    CodeStringType field DIRECTLY on SampleEntityForm) is used for
+      //    that rather than WALKTHROUGH's own PacketId (a SampleHeader-only
+      //    field, per WALKTHROUGH item 3 — IMPLEMENTATION_PLAN.md's Phase 6
+      //    acceptance text names PacketId while also naming SampleEntityForm
+      //    as the form under test, which don't actually match each other;
+      //    EntityCode/StateCode share PacketId's exact CodeStringType pattern
+      //    and both DO live on SampleEntityForm, so this is what "a pattern
+      //    field" on SampleEntityForm can only sensibly mean).
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        switchToFreshForm(key);
+        const schemaElement = parser.parseGlobalElement('SampleEntityForm');
+        fillActiveForm(schemaElement, '', { requiredOnly: true });
+
+        const entityCodeInput = fieldWrapper(stageEl, 'SampleEntityForm.EntityCode').querySelector('input');
+        check('EntityCode (CodeStringType pattern field) was filled', entityCodeInput.value.length > 0, entityCodeInput.value);
+        check('...and is pattern-shaped (2 letters + 4 digits)', /^[A-Z]{2}[0-9]{4}$/.test(entityCodeInput.value), entityCodeInput.value);
+
+        const errors = validateSchema([key], formEngine.getAllFormStates(), parser);
+        check(
+          '"Fill Required Fields Only" on a blank SampleEntityForm produces schema-valid data (zero validateSchema errors)',
+          errors.length === 0,
+          JSON.stringify(errors)
+        );
+
+        const streetLine2 = fieldWrapper(stageEl, 'SampleEntityForm.RegisteredAddress.StreetLine2').querySelector('input');
+        check('An OPTIONAL field (StreetLine2) is left untouched by "Required Only"', streetLine2.value === '');
+      }
+
+      // ==================================================================
+      // D. Merge-only-empty (§17 "Only empty fields are filled", §22
+      //    invariant 22) — applies to the toolbar-level Fill too, not just
+      //    the context menu (see app.js's fillActiveForm comment).
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        switchToFreshForm(key);
+        const schemaElement = parser.parseGlobalElement('SampleEntityForm');
+        const entityNameInput = fieldWrapper(stageEl, 'SampleEntityForm.EntityName').querySelector('input');
+        entityNameInput.value = 'Already Typed By User';
+        entityNameInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+        fillActiveForm(schemaElement, '', {});
+        check(
+          'A field the user already populated is NOT overwritten by Fill All Fields',
+          formEngine.getValue('SampleEntityForm.EntityName') === 'Already Typed By User'
+        );
+        check('...but a still-empty field alongside it DOES get filled', !!formEngine.getValue('SampleEntityForm.EntityCode'));
+      }
+
+      // ==================================================================
+      // E. searchService — pure function checks (§15)
+      // ==================================================================
+      {
+        const results = runSearch('entity code', ['SampleEntityForm'], parser, { caseSensitive: false, searchInDocs: false });
+        check('Case-insensitive label search finds "Entity Code"', results.some((r) => r.elementPath === 'SampleEntityForm.EntityCode'));
+
+        const caseSensitiveResults = runSearch('ENTITY CODE', ['SampleEntityForm'], parser, { caseSensitive: true, searchInDocs: false });
+        check('Case-SENSITIVE search does NOT match a differently-cased label', !caseSensitiveResults.some((r) => r.elementPath === 'SampleEntityForm.EntityCode'));
+
+        const docResults = runSearch('Two letters then 4 digits', ['SampleEntityForm'], parser, { searchInDocs: true });
+        check('searchInDocs matches documentation text, not the label', docResults.some((r) => r.elementPath === 'SampleEntityForm.EntityCode'));
+
+        const lineNumberResults = runSearch('1', ['SampleEntityForm'], parser, { lineNumberMode: true });
+        check(
+          'Line-number-mode search is a no-op today (lineNumber is always \'\' — parser.js never populates it, a pre-existing/deliberate limitation, not a new bug)',
+          lineNumberResults.length === 0
+        );
+      }
+
+      // ==================================================================
+      // F. search.js — real DOM wiring: Ctrl+F opens the panel, typing
+      //    filters results, clicking a result navigates (cross-form) and
+      //    highlights.
+      // ==================================================================
+      {
+        fakeAppState.instanceKeys = [new FormInstanceKey('SampleHeader'), new FormInstanceKey('SampleEntityForm')];
+        switchToForm(new FormInstanceKey('SampleHeader'));
+
+        const panel = document.getElementById('search-panel');
+        check('Search panel starts hidden', panel.classList.contains('hidden'));
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true }));
+        check('Ctrl+F opens the search panel', !panel.classList.contains('hidden'));
+
+        const input = document.getElementById('search-input');
+        input.value = 'entity code';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        const resultList = document.getElementById('search-result-list');
+        check('Typing a query renders matching results', resultList.children.length > 0);
+
+        const entityCodeRow = [...resultList.querySelectorAll('.search-result')].find((li) => li.querySelector('.search-result-form')?.textContent === 'SampleEntityForm');
+        check('A result from a DIFFERENT form than the currently active one is listed', !!entityCodeRow);
+
+        entityCodeRow.click();
+        check('Clicking a cross-form result navigates to SampleEntityForm', stageEl.querySelector('.field-wrapper[data-path^="SampleEntityForm"]') !== null);
+        const target = fieldWrapper(stageEl, 'SampleEntityForm.EntityCode');
+        check('...and highlights the matched field', target.classList.contains('search-highlight'));
+
+        document.getElementById('close-search-btn').click();
+        check('Closing the panel hides it and clears the highlight', panel.classList.contains('hidden') && !target.classList.contains('search-highlight'));
+      }
+
+      // ==================================================================
+      // G. contextMenu.js — real DOM wiring: right-click a container header,
+      //    scoped fill only touches that container, scoped clear blanks it
+      //    back out, the menu stays within the viewport.
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        switchToFreshForm(key);
+        const addressFieldset = stageEl.querySelector('fieldset.group-container[data-container-path="SampleEntityForm.RegisteredAddress"]');
+        check('RegisteredAddress fieldset carries data-container-path/data-schema-path', !!addressFieldset && addressFieldset.dataset.schemaPath === 'SampleEntityForm.RegisteredAddress');
+
+        addressFieldset.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 }));
+        const menu = document.getElementById('context-menu');
+        check('Right-clicking the fieldset opens the context menu', !menu.classList.contains('hidden'));
+        check('Menu offers exactly the 3 documented actions', menu.querySelectorAll('button').length === 3);
+        const menuRect = menu.getBoundingClientRect();
+        check('Menu stays within the viewport', menuRect.right <= window.innerWidth && menuRect.bottom <= window.innerHeight);
+
+        const fillRequiredBtn = [...menu.querySelectorAll('button')].find((b) => b.textContent === 'Fill Required Fields Only in This Section');
+        fillRequiredBtn.click();
+        check('Menu closes after an action is chosen', menu.classList.contains('hidden'));
+
+        const streetLine1 = fieldWrapper(stageEl, 'SampleEntityForm.RegisteredAddress.StreetLine1').querySelector('input');
+        check('Scoped fill filled RegisteredAddress.StreetLine1', streetLine1.value.length > 0);
+        const entityCodeInput = fieldWrapper(stageEl, 'SampleEntityForm.EntityCode').querySelector('input');
+        check('Scoped fill did NOT touch EntityCode (outside the scoped container)', entityCodeInput.value === '');
+
+        addressFieldset.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 60, clientY: 60 }));
+        const clearBtn = [...document.getElementById('context-menu').querySelectorAll('button')].find((b) => b.textContent === 'Clear This Section');
+        clearBtn.click();
+        check('Scoped clear blanked RegisteredAddress.StreetLine1 back out', streetLine1.value === '');
+        check(
+          'Scoped clear purged the underlying FormEngine value too',
+          !formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine1')
+        );
+      }
+
+      // ==================================================================
+      // H. Undo/redo for Fill All/Required (FillTestDataAction) and the
+      //    context menu's scoped fill/clear (ContainerFillAction/
+      //    ContainerClearAction) — these Action types were already built in
+      //    undoService.js (Phase 4) awaiting Phase 6 to call recordAction(...);
+      //    this confirms fillActiveForm/clearActiveFormSection (mirrored from
+      //    app.js above) actually do.
+      // ==================================================================
+      {
+        const key = new FormInstanceKey('SampleEntityForm');
+        switchToFreshForm(key);
+        const schemaElement = parser.parseGlobalElement('SampleEntityForm');
+
+        // A field the user already typed survives both the fill AND its undo/redo.
+        typeAndBlur(fieldWrapper(stageEl, 'SampleEntityForm.EntityName').querySelector('input'), 'Already Typed By User');
+        check('Pre-existing EntityName committed before the fill', formEngine.getValue('SampleEntityForm.EntityName') === 'Already Typed By User');
+
+        fillActiveForm(schemaElement, '', { requiredOnly: true });
+        check('Fill All (whole-form) populated EntityCode', !!formEngine.getValue('SampleEntityForm.EntityCode'));
+        check('...and recorded an undoable action', undoService.canUndo);
+
+        undoService.undo(ctx);
+        check('Undo of the whole-form fill removes EntityCode', !formEngine.getValue('SampleEntityForm.EntityCode'));
+        check('...but leaves the pre-existing EntityName untouched', formEngine.getValue('SampleEntityForm.EntityName') === 'Already Typed By User');
+        const entityCodeAfterUndo = fieldWrapper(stageEl, 'SampleEntityForm.EntityCode').querySelector('input');
+        check('...and the re-rendered DOM reflects the undo too (not just FormEngine state)', entityCodeAfterUndo.value === '');
+
+        undoService.redo(ctx);
+        check('Redo re-applies the whole-form fill', !!formEngine.getValue('SampleEntityForm.EntityCode'));
+
+        // Scoped fill (context menu) is independently undoable, and undoing
+        // it does not touch the whole-form fill recorded just before it.
+        // Target StreetLine2 (OPTIONAL) rather than StreetLine1 here — StreetLine1
+        // is required and was already filled by the whole-form "Required Only"
+        // pass above, so it wouldn't actually be empty going into this scoped
+        // "Fill All Fields" step (merge-only-empty would correctly skip it,
+        // making "did the scoped fill do this" unobservable through it).
+        const rerenderedFieldset = stageEl.querySelector('fieldset.group-container[data-container-path="SampleEntityForm.RegisteredAddress"]');
+        rerenderedFieldset.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 }));
+        const menu = document.getElementById('context-menu');
+        [...menu.querySelectorAll('button')].find((b) => b.textContent === 'Fill All Fields in This Section').click();
+        check('Scoped fill populated the optional StreetLine2', !!formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine2'));
+
+        undoService.undo(ctx);
+        check('Undo of the scoped fill removes StreetLine2', !formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine2'));
+        check('...and does not disturb the earlier whole-form fill\'s EntityCode', !!formEngine.getValue('SampleEntityForm.EntityCode'));
+        check('...or the required StreetLine1 the whole-form fill already set (out of THIS action\'s scope)', !!formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine1'));
+        undoService.redo(ctx);
+        check('Redo re-applies the scoped fill', !!formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine2'));
+
+        // Scoped clear is undoable too, restoring exactly what was purged —
+        // including StreetLine1, which IS in scope for a container-wide clear
+        // even though it wasn't touched by the scoped FILL above.
+        const streetLine1Value = formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine1');
+        const streetLine2Value = formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine2');
+        const rerenderedFieldset2 = stageEl.querySelector('fieldset.group-container[data-container-path="SampleEntityForm.RegisteredAddress"]');
+        rerenderedFieldset2.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 55, clientY: 55 }));
+        [...document.getElementById('context-menu').querySelectorAll('button')].find((b) => b.textContent === 'Clear This Section').click();
+        check('Scoped clear purged both StreetLine1 and StreetLine2', !formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine1') && !formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine2'));
+
+        undoService.undo(ctx);
+        check(
+          'Undo of the scoped clear restores both fields to their exact prior values',
+          formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine1') === streetLine1Value &&
+            formEngine.getValue('SampleEntityForm.RegisteredAddress.StreetLine2') === streetLine2Value
+        );
+      }
+
+      summaryEl.textContent = `${pass} passed, ${fail} failed`;
+      summaryEl.style.color = fail === 0 ? '#2e7d32' : '#d32f2f';
+      console.log(`Phase 6 check: ${pass} passed, ${fail} failed`);
+    }
+
+    main().catch((err) => {
+      summaryEl.textContent = 'ERROR — see console';
+      summaryEl.style.color = '#d32f2f';
+      console.error(err);
+      const pre = document.createElement('pre');
+      pre.textContent = String(err.stack || err);
+      resultsEl.appendChild(pre);
+    });
+  </script>
+</body>
+</html>

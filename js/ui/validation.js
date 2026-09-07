@@ -185,7 +185,16 @@ function validateRadioGroup(element, state, path, errors, formName, instanceKeyS
   if (selected) {
     const opt = element.children.find((c) => joinPath(choicePath, c.elementName).toLowerCase() === String(selected).toLowerCase());
     if (opt) {
-      for (const child of opt.children) validateNode(child, state, choicePath, errors, formName, instanceKeyStr);
+      // §22 invariant 29: the option wrapper emits no XML tag but its NAME
+      // still contributes a path segment to its children's field keys.
+      // Recursing with bare `choicePath` here — which is what §16's own
+      // literal pseudocode does — is exactly the earlier-draft bug invariant
+      // 29 calls out: every field inside any selected branch would be looked
+      // up at a key nothing registers a control at (coloringService.js's
+      // colorOfRadioGroup and xmlWriter.js/xmlReader.js already get this
+      // right; this brings validateNode in line with them).
+      const optPath = joinPath(choicePath, opt.elementName);
+      for (const child of opt.children) validateNode(child, state, optPath, errors, formName, instanceKeyStr);
     }
   }
 }

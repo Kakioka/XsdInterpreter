@@ -239,10 +239,15 @@ export class RepeatingInstanceRemoveAction {
   }
 }
 
-// --- The following four action types are recorded by Phase 6 features
-// (testDataFiller.js / contextMenu.js) that don't exist yet. The mechanism is
-// built now, per the plan, so Phase 6 only has to call recordAction(...) —
-// nothing here is wired to a live UI trigger yet. ---------------------------
+// --- The following four action types are for Phase 6 features
+// (testDataFiller.js / contextMenu.js). FillTestDataAction (toolbar Fill All/
+// Required) and ContainerFillAction/ContainerClearAction (context menu's
+// scoped fill/clear) are wired in app.js's fillActiveForm/
+// clearActiveFormSection. ClearAllAction has no UI trigger yet — the
+// toolbar's "Clear All" button (#clear-all-btn) stays disabled/unwired, same
+// as FormRemoveAction below (no "remove form instance" button exists either)
+// — both implemented per spec ahead of the UI that will eventually call them.
+// ---------------------------------------------------------------------------
 
 export class FillTestDataAction {
   constructor({ instanceKey, before, after, oldDirty, newDirty }) {

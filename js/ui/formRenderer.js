@@ -202,12 +202,20 @@ function reindexInstances(element, formEngine, instancesContainer) {
 }
 
 /**
- * Renames every data-path / data-choice-path / data-instance-path value under
- * `oldPrefix` (exact match, or continuing with `.` or `[`) to the same suffix
- * under `newPrefix`. `basePath` (in rewriteInstancePaths below) is always
- * schemaElement.elementPath of the repeating node being instantiated — an exact
- * prefix of everything inside it by construction — never a name guessed out of
- * the path string.
+ * Renames every data-path / data-choice-path / data-instance-path / data-
+ * container-path value under `oldPrefix` (exact match, or continuing with `.`
+ * or `[`) to the same suffix under `newPrefix`. `basePath` (in
+ * rewriteInstancePaths below) is always schemaElement.elementPath of the
+ * repeating node being instantiated — an exact prefix of everything inside it
+ * by construction — never a name guessed out of the path string.
+ *
+ * data-container-path (§18 Context Menu) is deliberately included here — it's
+ * the RUNTIME field-value path a container's scoped fill/clear operates on, so
+ * it must pick up the same `[i]` indices data-path does once the container
+ * lands inside a repeating instance. data-schema-path is deliberately NOT
+ * rewritten: it's the STATIC schema-tree lookup key (§18/§4's SchemaElement
+ * tree has no concept of instance indices), and contextMenu.js relies on it
+ * staying that way to resolve the container back to a SchemaElement node.
  */
 function rewritePathPrefix(rootEl, oldPrefix, newPrefix) {
   const rewriteAttr = (attrSelector, datasetKey) => {
@@ -221,6 +229,7 @@ function rewritePathPrefix(rootEl, oldPrefix, newPrefix) {
   rewriteAttr('data-path', 'path');
   rewriteAttr('data-choice-path', 'choicePath');
   rewriteAttr('data-instance-path', 'instancePath');
+  rewriteAttr('data-container-path', 'containerPath');
 }
 
 function rewriteInstancePaths(instanceRootEl, basePath, index) {
