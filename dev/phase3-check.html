@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phase 3 check</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 14px; padding: 16px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-family: monospace; font-size: 12.5px; }
+    .pass { color: #2e7d32; }
+    .fail { color: #d32f2f; font-weight: bold; }
+    .badge { display: inline-block; width: 3.5em; }
+    #summary { font-size: 16px; font-weight: bold; margin: 12px 0; }
+    #stage { border: 2px dashed #ccc; margin-top: 20px; max-height: 400px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Phase 3 check — formRenderer + FormEngine interaction</h1>
+  <p>Open via a local server. Renders real forms into a live (visible, below) DOM
+  container, simulates typing/clicking/radio-selection/add/remove, and checks
+  FormEngine state and rendered control values — not just static assertions.</p>
+
+  <div id="summary">running…</div>
+  <div id="results"></div>
+
+  <h2>Live render stage (for visual sanity-checking)</h2>
+  <div id="stage"></div>
+
+  <script type="module">
+    import { findRootFileCandidates, flattenFromRoot } from '../js/core/flattener.js';
+    import { SchemaParser, findRootElementCandidates, analyzePacket } from '../js/core/parser.js';
+    import { readPacket } from '../js/core/xmlReader.js';
+    import { FormEngine, FormInstanceKey } from '../js/core/formEngine.js';
+    import * as formRenderer from '../js/ui/formRenderer.js';
+
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+    const stageEl = document.getElementById('stage');
+
+    let pass = 0, fail = 0;
+    function check(label, condition, detail = '') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const ok = !!condition;
+      ok ? pass++ : fail++;
+      row.innerHTML = `<span class="badge ${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'}</span><span>${label}${detail ? ' — ' + detail : ''}</span>`;
+      resultsEl.appendChild(row);
+      if (!ok) console.error('FAIL:', label, detail);
+    }
+
+    function setInputAndFireChange(inputEl, value) {
+      if (inputEl.type === 'checkbox') inputEl.checked = value;
+      else inputEl.value = value;
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function fieldWrapper(root, path) {
+      return root.querySelector(`.field-wrapper[data-path="${cssEscape(path)}"]`);
+    }
+    function inputOf(root, path) {
+      const w = fieldWrapper(root, path);
+      return w ? w.querySelector('input, select') : null;
+    }
+    function cssEscape(s) {
+      return window.CSS && CSS.escape ? CSS.escape(s) : s.replace(/([.[\]#:])/g, '\\$1');
+    }
+
+    // renderIntoStage: full switchToForm-equivalent sequence, for testing.
+    function renderIntoStage(schemaElement, formEngine, instanceKey) {
+      formEngine.setActiveForm(instanceKey);
+      const formEl = formRenderer.renderForm(schemaElement, formEngine);
+      formRenderer.inflateRepeatingSections(formEl, formEngine);
+      stageEl.innerHTML = '';
+      stageEl.appendChild(formEl);
+      formRenderer.registerControlsUnder(formEl, formEngine);
+      formEngine.restoreActiveForm();
+      formRenderer.selectRadioGroupBranches(formEl, formEngine.getFormState(instanceKey));
+      return formEl;
+    }
+
+    async function main() {
+      const filenames = ['SamplePacket.xsd', 'SampleCommonTypes.xsd', 'SampleGroups.xsd'];
+      const fileTextMap = new Map();
+      for (const name of filenames) fileTextMap.set(name, await (await fetch(`../sample-schemas/${name}`)).text());
+      const [rootFile] = findRootFileCandidates(fileTextMap);
+      const { doc: flatDoc } = flattenFromRoot(fileTextMap, rootFile);
+      const [rootElementName] = findRootElementCandidates(flatDoc);
+      const parser = new SchemaParser(flatDoc, rootElementName);
+      const manifest = analyzePacket(flatDoc, rootElementName);
+
+      // ------------------------------------------------------------------
+      // A. Render a blank SampleEntityForm and interact with it
+      // ------------------------------------------------------------------
+      {
+        const formEngine = new FormEngine();
+        const key = new FormInstanceKey('SampleEntityForm');
+        const schemaElement = parser.parseGlobalElement('SampleEntityForm');
+        const formEl = renderIntoStage(schemaElement, formEngine, key);
+
+        check('EntityName field renders', !!fieldWrapper(formEl, 'SampleEntityForm.EntityName'));
+
+        setInputAndFireChange(inputOf(formEl, 'SampleEntityForm.EntityName'), 'Acme Test Co');
+        check('Typing into EntityName updates FormEngine', formEngine.getValue('SampleEntityForm.EntityName') === 'Acme Test Co');
+
+        // Radio group: select Organization (Option2), verify branch shows + FormEngine updates.
+        const radioGroupEl = formEl.querySelector('.radio-group[data-choice-path="SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice"]');
+        check('EntityTypeChoiceChoice radio group renders', !!radioGroupEl);
+        const org = radioGroupEl.querySelector('input[data-option-path="SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2"]');
+        check('Organization radio option renders', !!org);
+        org.checked = true;
+        org.dispatchEvent(new Event('change', { bubbles: true }));
+        check(
+          'Selecting Organization writes radioSelections and shows its branch content',
+          formEngine.getRadioSelections()['sampleentityform.entitytypechoice.entitytypechoicechoice'] ===
+            'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2' &&
+            org.closest('.radio-option-label').nextElementSibling.style.display !== 'none'
+        );
+        const orgLegalNameInput = inputOf(formEl, 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2.OrgLegalName');
+        check('OrgLegalName field is now reachable at the option-inclusive path', !!orgLegalNameInput);
+        setInputAndFireChange(orgLegalNameInput, 'Acme Test Co');
+        check(
+          'OrgLegalName value lands under the full option-inclusive path',
+          formEngine.getValue('SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2.OrgLegalName') === 'Acme Test Co'
+        );
+
+        // Repeating section: add two PriorNameList entries, fill them, remove the first, verify re-index.
+        const repeatingSectionEl = formEl.querySelector('.repeating-section[data-path="SampleEntityForm.PriorNameList.PriorNameListEntry"]');
+        check('PriorNameList repeating section renders', !!repeatingSectionEl);
+        const addBtn = repeatingSectionEl.querySelector('.add-btn');
+        addBtn.click();
+        addBtn.click();
+        check('Two Add clicks produce two repeating instances', repeatingSectionEl.querySelectorAll('.repeating-instance').length === 2);
+        check('formEngine repeating instance count tracks the two adds', formEngine.getRepeatingInstanceCount('PriorNameListEntry') === 2);
+
+        const instanceDivs = repeatingSectionEl.querySelectorAll('.repeating-instance');
+        setInputAndFireChange(instanceDivs[0].querySelector('.field-wrapper[data-path$="FormerName"] input'), 'First Name');
+        setInputAndFireChange(instanceDivs[1].querySelector('.field-wrapper[data-path$="FormerName"] input'), 'Second Name');
+        check(
+          'Both instances have independently-addressable values before removal',
+          formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName') === 'First Name' &&
+            formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[1].FormerName') === 'Second Name'
+        );
+
+        instanceDivs[0].querySelector('.remove-btn').click();
+        check('Removing instance [0] leaves exactly one instance', repeatingSectionEl.querySelectorAll('.repeating-instance').length === 1);
+        check(
+          'Remaining instance re-indexed from [1] to [0], value moved with it, count updated',
+          formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName') === 'Second Name' &&
+            formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[1].FormerName') === undefined &&
+            formEngine.getRepeatingInstanceCount('PriorNameListEntry') === 1
+        );
+        const remainingInput = repeatingSectionEl.querySelector('.repeating-instance .field-wrapper[data-path$="FormerName"] input');
+        check("Remaining instance's own data-path was rewritten to [0]", remainingInput.closest('.field-wrapper').dataset.path === 'SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName');
+        setInputAndFireChange(remainingInput, 'Second Name Edited');
+        check(
+          'Editing after re-index still lands under the corrected (re-registered) path',
+          formEngine.getValue('SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName') === 'Second Name Edited'
+        );
+      }
+
+      // ------------------------------------------------------------------
+      // B. Full read → render → restore round-trip against the real sample XML,
+      //    plus the EVT-001/EVT-002 no-bleed property across form switches.
+      // ------------------------------------------------------------------
+      {
+        const xmlText = await (await fetch('../sample-schemas/SamplePacket.xml')).text();
+        const stateMap = readPacket(xmlText, manifest, parser);
+        const formEngine = new FormEngine();
+        for (const [keyStr, state] of stateMap) formEngine.restoreFormState(FormInstanceKey.parse(keyStr), state);
+
+        const headerKey = new FormInstanceKey('SampleHeader');
+        const headerEl = renderIntoStage(parser.parseGlobalElement('SampleHeader'), formEngine, headerKey);
+        check('Restored PacketId renders into its input', inputOf(headerEl, 'SampleHeader.PacketId')?.value === 'HI2025');
+        check('Restored Checkbox (IsAmended=false) unchecked', inputOf(headerEl, 'SampleHeader.IsAmended')?.checked === false);
+        check(
+          'Restored attribute-derived field (MailingAddress.addressKind) renders',
+          inputOf(headerEl, 'SampleHeader.PrimaryContact.MailingAddress.addressKind')?.value === 'Mailing'
+        );
+
+        const entityKey = new FormInstanceKey('SampleEntityForm');
+        const entityEl = renderIntoStage(parser.parseGlobalElement('SampleEntityForm'), formEngine, entityKey);
+        // NOTE: an exact data-path match, not a suffix match — IdTypeChoice (nested
+        // inside the unselected Individual/Option1 branch) has its own Option1/Option2
+        // branches too, which would ambiguously match a "$=Option2" suffix selector
+        // and — since IdTypeChoice's nested branches are never selected here — always
+        // report display:none regardless of whether the OUTER choice is correct.
+        check(
+          'Restored radio selection (Organization) shows the right branch and hides the other',
+          entityEl.querySelector('.branch-content[data-path="SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2"]').style.display !== 'none' &&
+            entityEl.querySelector('.branch-content[data-path="SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption1"]').style.display === 'none'
+        );
+        check('Restored OrgLegalName value renders', inputOf(entityEl, 'SampleEntityForm.EntityTypeChoice.EntityTypeChoiceChoice.EntityTypeChoiceChoiceOption2.OrgLegalName')?.value === 'Acme Sample Corporation');
+        check(
+          'Restored repeating PriorNameList inflated to 2 instances with correct values',
+          entityEl.querySelectorAll('.repeating-instance').length === 2 &&
+            inputOf(entityEl, 'SampleEntityForm.PriorNameList.PriorNameListEntry[0].FormerName')?.value === 'Acme Sample Industries' &&
+            inputOf(entityEl, 'SampleEntityForm.PriorNameList.PriorNameListEntry[1].FormerName')?.value === 'Acme Widgets LLC'
+        );
+
+        // No-bleed across two instances of the SAME repeatable form.
+        const evt1Key = FormInstanceKey.parse('SampleEventLog#EVT-001');
+        const evt2Key = FormInstanceKey.parse('SampleEventLog#EVT-002');
+        const eventLogSchema = parser.parseGlobalElement('SampleEventLog');
+
+        const evt1El = renderIntoStage(eventLogSchema, formEngine, evt1Key);
+        check('EVT-001 renders its own title', inputOf(evt1El, 'SampleEventLog.EventTitle')?.value === 'Initial Submission Received');
+
+        const evt2El = renderIntoStage(eventLogSchema, formEngine, evt2Key);
+        check('EVT-002 renders a DIFFERENT title (not bled from EVT-001)', inputOf(evt2El, 'SampleEventLog.EventTitle')?.value === 'Amendment Filed');
+        setInputAndFireChange(inputOf(evt2El, 'SampleEventLog.EventTitle'), 'Amendment Filed (edited)');
+
+        const evt1Again = renderIntoStage(eventLogSchema, formEngine, evt1Key);
+        check(
+          'Switching back to EVT-001 shows its ORIGINAL value, unaffected by editing EVT-002',
+          inputOf(evt1Again, 'SampleEventLog.EventTitle')?.value === 'Initial Submission Received'
+        );
+        check('EVT-002s edit persisted under its own state', formEngine.getFormState(evt2Key).fieldValues['sampleeventlog.eventtitle'] === 'Amendment Filed (edited)');
+      }
+
+      summaryEl.textContent = `${pass} passed, ${fail} failed`;
+      summaryEl.style.color = fail === 0 ? '#2e7d32' : '#d32f2f';
+      console.log(`Phase 3 check: ${pass} passed, ${fail} failed`);
+    }
+
+    main().catch((err) => {
+      summaryEl.textContent = 'ERROR — see console';
+      summaryEl.style.color = '#d32f2f';
+      console.error(err);
+      const pre = document.createElement('pre');
+      pre.textContent = String(err.stack || err);
+      resultsEl.appendChild(pre);
+    });
+  </script>
+</body>
+</html>

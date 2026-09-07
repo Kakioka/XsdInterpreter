@@ -1,11 +1,8 @@
 /*
- * main.css — global styles.
- *
- * Phase 0 scaffold: minimal reset only, just enough for the page to load cleanly.
- * Full styling — toolbar/sidebar/form-area layout, CSS custom-property theming
- * variables, depth-color backgrounds, coloring borders — lands in later phases.
- * See web-implementation-spec.md §12 (Theming) and §13 (Page Layout), and
- * IMPLEMENTATION_PLAN.md Phase 3 / Phase 7.
+ * main.css — layout and interaction styling for Phase 3 (rendering + basic
+ * interaction). Colors here are plain, hardcoded values — CSS custom-property
+ * theming (§12) and the depth-color/coloring-border palette (§9) land in
+ * Phase 4/7. This file's job for now is just "usable and legible," not "on-brand."
  */
 
 *,
@@ -28,6 +25,401 @@ body {
   background: #f5f5f5;
 }
 
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 #app {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------------- Toolbar */
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #ffffff;
+  border-bottom: 1px solid #dddddd;
+  flex-shrink: 0;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-separator {
+  width: 1px;
+  align-self: stretch;
+  background: #dddddd;
+  margin: 2px 4px;
+}
+
+.toolbar-status {
+  margin-left: auto;
+  color: #666666;
+  font-size: 12.5px;
+}
+
+.dropdown-menu {
+  position: relative;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  background: #ffffff;
+  border: 1px solid #dddddd;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.dropdown-menu:hover .dropdown-content,
+.dropdown-menu:focus-within .dropdown-content {
+  display: flex;
+}
+
+.dropdown-content button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+}
+
+.dropdown-content button:not(:disabled):hover {
+  background: #f0f0f0;
+}
+
+.dropdown-content hr {
+  border: none;
+  border-top: 1px solid #eeeeee;
+  margin: 4px 0;
+}
+
+/* ------------------------------------------------------------ Main layout */
+
+#main-content {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border-right: 1px solid #dddddd;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+#sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-weight: bold;
+  border-bottom: 1px solid #eeeeee;
+}
+
+#current-root-label {
+  padding: 4px 10px;
+  color: #666666;
+  font-size: 12px;
+}
+
+#nav-tree {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  flex: 1;
+}
+
+#nav-tree li {
+  padding: 6px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#nav-tree li:hover {
+  background: #f0f0f0;
+}
+
+#nav-tree li.active {
+  background: #dbe9fb;
+  font-weight: bold;
+}
+
+#splitter {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: #eeeeee;
+}
+
+#form-area {
+  flex: 1;
+  overflow: auto;
+  min-width: 0;
+}
+
+#form-content-host {
+  padding: 16px;
+  transform-origin: top left;
+}
+
+#load-schema-prompt {
+  text-align: center;
+  margin-top: 15vh;
+  color: #555555;
+}
+
+#load-schema-prompt .hint {
+  color: #999999;
+  font-size: 12px;
+}
+
+/* -------------------------------------------------------- Form rendering */
+
+fieldset.group-container {
+  margin: 0 0 12px 0;
+  border: 1px solid #dddddd;
+  border-radius: 4px;
+  padding: 10px 12px 12px;
+}
+
+fieldset.group-container legend {
+  font-weight: bold;
+  padding: 0 6px;
+}
+
+.depth-0 { background: #ffffff; }
+.depth-1 { background: #fafafa; }
+.depth-2 { background: #f5f5f5; }
+.depth-3 { background: #f0f0f0; }
+.depth-4 { background: #ebebeb; }
+
+.sequence-container {
+  margin-bottom: 8px;
+}
+
+.field-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.field-wrapper label {
+  min-width: 220px;
+  flex-shrink: 0;
+}
+
+.field-wrapper label.required::after {
+  content: " *";
+  color: #c0392b;
+}
+
+.field-wrapper input,
+.field-wrapper select {
+  flex: 1;
+  max-width: 320px;
+  padding: 4px 6px;
+  border: 1px solid #cccccc;
+  border-radius: 3px;
+}
+
+.field-wrapper input[type="checkbox"] {
+  flex: none;
+}
+
+.color-border {
+  width: 3px;
+  align-self: stretch;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: transparent; /* Phase 4 paints R/G/Y here */
+}
+
+.field-wrapper .tooltip {
+  color: #888888;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.field-wrapper .line-number {
+  color: #999999;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+/* ------------------------------------------------------------- RadioGroup */
+
+.radio-group {
+  border: 1px dashed #bbbbbb;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+}
+
+.radio-group-header {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.radio-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 16px;
+}
+
+.branch-content {
+  margin: 8px 0 0 20px;
+  padding-left: 10px;
+  border-left: 2px solid #eeeeee;
+}
+
+.clear-selection-btn {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+/* -------------------------------------------------------- Repeating list */
+
+.repeating-section {
+  margin-bottom: 12px;
+}
+
+.repeating-section h4 {
+  margin: 0 0 6px 0;
+}
+
+.repeating-instance {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.add-btn {
+  background: #4a8c6f;
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  padding: 5px 10px;
+}
+
+.remove-btn {
+  background: #a34a5a;
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  padding: 4px 8px;
+  margin-top: 6px;
+}
+
+/* --------------------------------------------------------------- Panels */
+
+#validation-panel {
+  border-top: 1px solid #dddddd;
+  background: #ffffff;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+#validation-panel.collapsed {
+  display: none;
+}
+
+#validation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  font-weight: bold;
+  border-bottom: 1px solid #eeeeee;
+}
+
+#validation-error-list {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+
+#status-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background: #ffffff;
+  border-top: 1px solid #dddddd;
+  font-size: 12px;
+  color: #666666;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------- Loading overlay */
+
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  pointer-events: all;
+}
+
+#loading-overlay.hidden {
+  display: none;
+  pointer-events: none;
+}
+
+#loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid #dddddd;
+  border-top-color: #3a7bd5;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+#loading-text {
+  color: #333333;
+  font-size: 14px;
+}
+
+.hidden {
+  display: none !important;
 }

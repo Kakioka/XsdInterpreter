@@ -8,11 +8,107 @@
 </head>
 <body>
   <!--
-    Phase 0 scaffold only. The real markup (toolbar, sidebar, form area, validation
-    panel, status bar, loading overlay, search/debug panels) is built out in Phase 3
-    per web-implementation-spec.md §13 — see IMPLEMENTATION_PLAN.md.
+    See web-implementation-spec.md §13 (Page Layout). Full toolbar wiring,
+    theming, zoom/splitter, search/debug panels, and the validation panel's
+    contents land in later phases — see IMPLEMENTATION_PLAN.md. This is the
+    Phase 3 markup: enough structure for schema load, the nav tree, and form
+    rendering/editing to work end to end.
   -->
-  <div id="app"></div>
+  <div id="app">
+    <div id="toolbar">
+      <div class="toolbar-group">
+        <div class="dropdown-menu">
+          <button class="menu-btn" type="button">File &#9662;</button>
+          <div class="dropdown-content">
+            <button id="load-schema-menu-btn" type="button">Load Schema Folder</button>
+            <button id="switch-root-btn" type="button" disabled>Switch Root</button>
+            <hr>
+            <button id="save-xml-btn" type="button" disabled>Save XML</button>
+            <button id="load-xml-btn" type="button" disabled>Load XML</button>
+            <hr>
+            <button id="create-package-btn" type="button" disabled>Create Submission Package</button>
+          </div>
+        </div>
+        <div class="dropdown-menu">
+          <button class="menu-btn" type="button">Fill Test Data &#9662;</button>
+          <div class="dropdown-content">
+            <button id="fill-all-btn" type="button" disabled>Fill All Fields</button>
+            <button id="fill-required-btn" type="button" disabled>Fill Required Fields Only</button>
+          </div>
+        </div>
+      </div>
+      <div class="toolbar-separator"></div>
+      <div class="toolbar-group">
+        <button id="validate-btn" type="button" disabled>Validate</button>
+      </div>
+      <div class="toolbar-separator"></div>
+      <div class="toolbar-group">
+        <button id="undo-btn" type="button" disabled>&#8630; Undo</button>
+        <button id="redo-btn" type="button" disabled>&#8631; Redo</button>
+      </div>
+      <div class="toolbar-separator"></div>
+      <div class="toolbar-group">
+        <button id="clear-all-btn" type="button" disabled>Clear All</button>
+      </div>
+      <div class="toolbar-separator"></div>
+      <div class="toolbar-group">
+        <button id="layout-toggle-btn" type="button" disabled>Layout: Wrap</button>
+      </div>
+      <div class="toolbar-separator"></div>
+      <div class="toolbar-group">
+        <label for="theme-select">Theme:</label>
+        <select id="theme-select" disabled></select>
+        <button id="load-theme-btn" type="button" disabled>Load Theme File</button>
+      </div>
+      <span id="top-status" class="toolbar-status">Ready</span>
+    </div>
+
+    <div id="main-content">
+      <div id="sidebar">
+        <div id="sidebar-header">
+          <span>Forms</span>
+          <button id="add-form-btn" type="button" disabled>+ Add</button>
+        </div>
+        <div id="current-root-label"></div>
+        <ul id="nav-tree"></ul>
+      </div>
+      <div id="splitter"></div>
+      <div id="form-area">
+        <div id="form-content-host">
+          <div id="load-schema-prompt">
+            <button id="load-schema-btn" type="button">Load Schema Folder</button>
+            <p>Select a folder containing XSD files to begin.</p>
+            <p class="hint">(Try <code>sample-schemas/</code> in this repo.)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="validation-panel" class="collapsed">
+      <div id="validation-header">
+        <span id="validation-summary"></span>
+        <button id="close-validation-btn" type="button">&#10005;</button>
+      </div>
+      <ul id="validation-error-list"></ul>
+    </div>
+
+    <div id="status-bar">
+      <span id="zoom-indicator">100%</span>
+      <span id="save-status">Not saved</span>
+    </div>
+
+    <div id="loading-overlay" class="hidden">
+      <div id="loading-spinner"></div>
+      <span id="loading-text">Loading&hellip;</span>
+    </div>
+
+    <div id="search-panel" class="hidden"></div>
+    <div id="debug-panel" class="hidden"></div>
+  </div>
+
+  <!-- Folder picker fallback for browsers without showDirectoryPicker (§24). -->
+  <input type="file" id="schema-folder-input" webkitdirectory multiple hidden>
+  <input type="file" id="xml-file-input" accept=".xml" hidden>
 
   <script type="module" src="js/ui/app.js"></script>
 </body>

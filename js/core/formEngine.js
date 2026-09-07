@@ -94,16 +94,23 @@ export class FormEngine extends EventTarget {
    * switches forms out from under it.
    */
   setActiveForm(instanceKey) {
-    if (this.activeInstanceKey) {
-      const oldState = this._getOrCreateActiveState();
-      for (const [path, controlRef] of this.registeredControls) {
-        oldState.fieldValues[path] = controlRef.getValue();
-      }
-    }
+    this.flushRegisteredControls();
     this.registeredControls.clear();
     this.activeInstanceKey = instanceKey;
     const key = keyOf(instanceKey);
     if (!this.storedStates.has(key)) this.storedStates.set(key, createEmptyFormState());
+  }
+
+  /** The read-straight-from-each-control half of the rule above, factored out
+   *  so callers that need a values flush WITHOUT tearing down the active
+   *  form's registrations (e.g. "Save XML" while a field is still mid-edit)
+   *  don't have to call setActiveForm(sameKey) and lose every registration. */
+  flushRegisteredControls() {
+    if (!this.activeInstanceKey) return;
+    const state = this._getOrCreateActiveState();
+    for (const [path, controlRef] of this.registeredControls) {
+      state.fieldValues[path] = controlRef.getValue();
+    }
   }
 
   /** Pushes stored values onto currently-registered controls, by path (already
@@ -175,6 +182,32 @@ export class FormEngine extends EventTarget {
     for (const dict of [state.fieldValues, state.radioSelections, state.repeatingInstanceCounts]) {
       for (const key of Object.keys(dict)) {
         if (hasPathPrefix(key, p)) delete dict[key];
+      }
+    }
+  }
+
+  /**
+   * Renames every fieldValues/radioSelections key under `oldPrefix` to the same
+   * key under `newPrefix` instead. Needed when removing one repeating instance
+   * shifts the remaining ones' indices down (e.g. instance [1] becomes [0]) —
+   * the spec requires this re-indexing (§7 Inflation, WALKTHROUGH.md's "Remove
+   * invariant") without spelling out a mechanism; this is that mechanism.
+   * repeatingInstanceCounts is keyed by bare entry name, not a full path, so a
+   * nested repeating section's own count is unaffected by renumbering its
+   * enclosing instance and is deliberately not touched here.
+   */
+  renamePathPrefix(oldPrefix, newPrefix) {
+    const state = this._getOrCreateActiveState();
+    const oldP = oldPrefix.toLowerCase();
+    const newP = newPrefix.toLowerCase();
+    if (oldP === newP) return;
+    for (const dict of [state.fieldValues, state.radioSelections]) {
+      for (const key of Object.keys(dict)) {
+        if (hasPathPrefix(key, oldP)) {
+          const renamed = newP + key.slice(oldP.length);
+          dict[renamed] = dict[key];
+          delete dict[key];
+        }
       }
     }
   }
