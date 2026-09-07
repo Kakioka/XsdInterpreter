@@ -1,8 +1,11 @@
-// js/ui/toolbar.js — Toolbar button handlers.
+// js/ui/toolbar.js — Toolbar button handlers, plus the rest of §13's Page
+// Layout wiring that doesn't warrant its own file: the sidebar splitter,
+// zoom, and the status bar's save-state indicator (Phase 7.2).
 //
-// See web-implementation-spec.md §13 (Page Layout — Toolbar HTML) and §24
-// (Browser Compatibility Notes — File System Access API with <input
-// webkitdirectory> fallback). IMPLEMENTATION_PLAN.md Phase 3.3.
+// See web-implementation-spec.md §13 (Page Layout — Toolbar HTML, Resizable
+// Sidebar Splitter, Zoom) and §24 (Browser Compatibility Notes — File System
+// Access API with <input webkitdirectory> fallback). IMPLEMENTATION_PLAN.md
+// Phase 3.3 (toolbar), Phase 7.2 (splitter/zoom/status bar).
 //
 // Note: unlike the toolbar HTML sketched in §13, `load-xml-btn` and
 // `add-form-btn` start `disabled` here (index.html) and get enabled only once
@@ -117,4 +120,145 @@ export function setSchemaDependentButtonsEnabled(enabled) {
 export function setStatus(text) {
   const el = document.getElementById('top-status');
   if (el) el.textContent = text;
+}
+
+// ---------------------------------------------------------------------------
+// Resizable Sidebar Splitter (§13 "Resizable Sidebar Splitter")
+// ---------------------------------------------------------------------------
+
+const SIDEBAR_WIDTH_KEY = 'xmlEditor.sidebarWidth';
+const MIN_SIDEBAR_WIDTH = 150;
+const MAX_SIDEBAR_WIDTH = 500;
+
+export function wireSplitter() {
+  const splitter = document.getElementById('splitter');
+  const sidebar = document.getElementById('sidebar');
+  if (!splitter || !sidebar) return;
+
+  let saved;
+  try {
+    saved = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  } catch {
+    saved = 0;
+  }
+  if (saved > 0) sidebar.style.width = `${clamp(saved, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)}px`;
+
+  splitter.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = sidebar.getBoundingClientRect().width;
+    document.body.classList.add('resizing-splitter');
+
+    function onMove(ev) {
+      const width = clamp(startWidth + (ev.clientX - startX), MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
+      sidebar.style.width = `${width}px`;
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.classList.remove('resizing-splitter');
+      try {
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebar.getBoundingClientRect().width));
+      } catch {
+        // ignore — resizing still works for this session
+      }
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function clamp(n, min, max) {
+  return Math.min(max, Math.max(min, n));
+}
+
+// ---------------------------------------------------------------------------
+// Zoom (§13 "Zoom")
+// ---------------------------------------------------------------------------
+
+const ZOOM_KEY = 'xmlEditor.zoomLevel';
+const MIN_ZOOM = 50;
+const MAX_ZOOM = 200;
+const ZOOM_STEP = 10;
+
+function applyZoom(percent) {
+  const host = document.getElementById('form-content-host');
+  const indicator = document.getElementById('zoom-indicator');
+  const clamped = clamp(percent, MIN_ZOOM, MAX_ZOOM);
+  if (host) host.style.transform = `scale(${clamped / 100})`;
+  if (indicator) indicator.textContent = `${clamped}%`;
+  try {
+    localStorage.setItem(ZOOM_KEY, String(clamped));
+  } catch {
+    // ignore — zoom still works for this session
+  }
+  return clamped;
+}
+
+export function wireZoom() {
+  let saved;
+  try {
+    saved = Number(localStorage.getItem(ZOOM_KEY));
+  } catch {
+    saved = 0;
+  }
+  let current = applyZoom(saved > 0 ? saved : 100);
+
+  function isOverlayVisible() {
+    const overlay = document.getElementById('loading-overlay');
+    return !!overlay && !overlay.classList.contains('hidden');
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (isOverlayVisible()) return; // §13: overlay is the real guard against shortcuts firing mid-operation
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.key === '+' || e.key === '=') {
+      e.preventDefault();
+      current = applyZoom(current + ZOOM_STEP);
+    } else if (e.key === '-') {
+      e.preventDefault();
+      current = applyZoom(current - ZOOM_STEP);
+    } else if (e.key === '0') {
+      e.preventDefault();
+      current = applyZoom(100);
+    }
+  });
+
+  document.getElementById('form-area')?.addEventListener(
+    'wheel',
+    (e) => {
+      if (!e.ctrlKey || isOverlayVisible()) return;
+      e.preventDefault();
+      current = applyZoom(current + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+    },
+    { passive: false }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Status bar — save-state indicator (§13 Page Layout diagram: "[Not saved]")
+// ---------------------------------------------------------------------------
+
+export function setSaveStatus(text) {
+  const el = document.getElementById('save-status');
+  if (el) el.textContent = text;
+}
+
+/** Reflects FormEngine's per-form isDirty flag into the status bar. Listens to
+ *  'dirtyChanged' (fired by formEngine.setDirty on every actual flip — fills,
+ *  clears, edits, undo/redo, instance add/remove all go through it) rather
+ *  than 'controlValueChanged', which for text-like fields fires BEFORE the
+ *  dirty flag itself flips true (see formEngine.js's setDirty comment). */
+export function wireSaveStatus(appState) {
+  function refresh() {
+    if (!appState.currentInstanceKey) {
+      setSaveStatus('Not saved');
+      return;
+    }
+    const state = appState.formEngine.getFormState(appState.currentInstanceKey);
+    setSaveStatus(state?.isDirty ? 'Not saved' : 'Saved');
+  }
+  appState.formEngine.addEventListener('dirtyChanged', refresh);
+  refresh();
+  return refresh;
 }

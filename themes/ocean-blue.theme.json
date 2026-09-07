@@ -1,0 +1,22 @@
+{
+  "name": "Ocean Blue",
+  "colors": {
+    "windowBackground":       "#EAF2F8",
+    "panelBackground":        "#FFFFFF",
+    "controlBackground":      "#FFFFFF",
+    "controlBorder":          "#B8D4E8",
+    "primaryText":            "#1B3A4B",
+    "secondaryText":          "#4C7189",
+    "accentColor":            "#1E88C7",
+    "buttonBackground":       "#FFFFFF",
+    "buttonText":             "#1B3A4B",
+    "selectionBackground":    "#1E88C7",
+    "selectionText":          "#FFFFFF",
+    "coloringIncomplete":     "#D9534F",
+    "coloringComplete":       "#2E9E6C",
+    "coloringOptional":       "#E8A93A",
+    "lineNumberText":         "#7E9CB0",
+    "addButtonBackground":    "#2E9E6C",
+    "removeButtonBackground": "#C15A5A"
+  }
+}

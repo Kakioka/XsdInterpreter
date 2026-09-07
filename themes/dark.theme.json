@@ -1,0 +1,22 @@
+{
+  "name": "Dark",
+  "colors": {
+    "windowBackground":       "#1E1E1E",
+    "panelBackground":        "#2A2A2A",
+    "controlBackground":      "#333333",
+    "controlBorder":          "#4A4A4A",
+    "primaryText":            "#E8E8E8",
+    "secondaryText":          "#AAAAAA",
+    "accentColor":            "#5B9BF7",
+    "buttonBackground":       "#3A3A3A",
+    "buttonText":             "#E8E8E8",
+    "selectionBackground":    "#2F5CA8",
+    "selectionText":          "#FFFFFF",
+    "coloringIncomplete":     "#E57373",
+    "coloringComplete":       "#66BB6A",
+    "coloringOptional":       "#FFCA28",
+    "lineNumberText":         "#888888",
+    "addButtonBackground":    "#3F8F6B",
+    "removeButtonBackground": "#A34A5A"
+  }
+}

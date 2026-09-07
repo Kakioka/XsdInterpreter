@@ -8,11 +8,11 @@
 </head>
 <body>
   <!--
-    See web-implementation-spec.md §13 (Page Layout). Full toolbar wiring,
-    theming, zoom/splitter, search/debug panels, and the validation panel's
-    contents land in later phases — see IMPLEMENTATION_PLAN.md. This is the
-    Phase 3 markup: enough structure for schema load, the nav tree, and form
-    rendering/editing to work end to end.
+    See web-implementation-spec.md §13 (Page Layout). Base markup from Phase 3
+    (schema load, nav tree, form rendering/editing); search/validation panels
+    from Phase 5/6; theming, splitter/zoom, and the debug panel (built up
+    dynamically into #debug-panel by js/ui/debug.js, same pattern as
+    #context-menu) from Phase 7 — see IMPLEMENTATION_PLAN.md.
   -->
   <div id="app">
     <div id="toolbar">
@@ -59,6 +59,11 @@
         <label for="theme-select">Theme:</label>
         <select id="theme-select" disabled></select>
         <button id="load-theme-btn" type="button" disabled>Load Theme File</button>
+        <!-- Enabled/populated by js/ui/theme.js's wireTheme() (§12) — schema-independent, so both start disabled here only until that runs at bootstrap, unlike the schema-dependent buttons above. -->
+      </div>
+      <div class="toolbar-separator"></div>
+      <div class="toolbar-group">
+        <button id="debug-toggle-btn" type="button" title="Toggle Debug Panel (Ctrl+Shift+D)">Debug</button>
       </div>
       <span id="top-status" class="toolbar-status">Ready</span>
     </div>
@@ -121,6 +126,7 @@
   <!-- Folder picker fallback for browsers without showDirectoryPicker (§24). -->
   <input type="file" id="schema-folder-input" webkitdirectory multiple hidden>
   <input type="file" id="xml-file-input" accept=".xml" hidden>
+  <input type="file" id="theme-file-input" accept=".json,application/json" hidden>
 
   <script type="module" src="js/ui/app.js"></script>
 </body>

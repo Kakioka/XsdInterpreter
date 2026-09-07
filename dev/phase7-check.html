@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Phase 7 check</title>
+  <style>
+    body { font-family: system-ui, sans-serif; font-size: 14px; padding: 16px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; margin-top: 24px; }
+    .row { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; font-family: monospace; font-size: 12.5px; }
+    .pass { color: #2e7d32; }
+    .fail { color: #d32f2f; font-weight: bold; }
+    .badge { display: inline-block; width: 3.5em; }
+    #summary { font-size: 16px; font-weight: bold; margin: 12px 0; }
+    #form-content-host { border: 2px dashed #ccc; margin-top: 20px; max-height: 300px; overflow: auto; }
+  </style>
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+  <h1>Phase 7 check — theme.js + debug.js + splitter/zoom/save-status</h1>
+  <p>Open via a local server. Drives the real modules directly against markup mirroring
+  index.html (splitter/sidebar, zoom/form-content-host, debug-panel, toolbar theme controls).</p>
+
+  <div id="summary">running…</div>
+  <div id="results"></div>
+
+  <h2>Live render stage (mirrors index.html's ids)</h2>
+  <div id="main-content" style="display:flex; height:200px;">
+    <div id="sidebar" style="width:240px;"></div>
+    <div id="splitter"></div>
+    <div id="form-area" style="flex:1;">
+      <div id="form-content-host"></div>
+    </div>
+  </div>
+  <div id="status-bar"><span id="zoom-indicator">100%</span><span id="save-status">Not saved</span></div>
+  <div class="toolbar-group">
+    <label for="theme-select">Theme:</label>
+    <select id="theme-select" disabled></select>
+    <button id="load-theme-btn" type="button" disabled>Load Theme File</button>
+  </div>
+  <input type="file" id="theme-file-input" accept=".json" hidden>
+  <button id="debug-toggle-btn" type="button">Debug</button>
+  <div id="debug-panel" class="hidden"></div>
+  <div id="loading-overlay" class="hidden"><span id="loading-text"></span></div>
+
+  <script type="module">
+    import { findRootFileCandidates, flattenFromRoot } from '../js/core/flattener.js';
+    import { SchemaParser, findRootElementCandidates, analyzePacket } from '../js/core/parser.js';
+    import { FormEngine, FormInstanceKey } from '../js/core/formEngine.js';
+    import { UndoService } from '../js/core/undoService.js';
+    import * as formRenderer from '../js/ui/formRenderer.js';
+    import * as coloring from '../js/ui/coloring.js';
+    import * as themeUi from '../js/ui/theme.js';
+    import * as debugUi from '../js/ui/debug.js';
+    import * as toolbar from '../js/ui/toolbar.js';
+
+    const resultsEl = document.getElementById('results');
+    const summaryEl = document.getElementById('summary');
+    const stageEl = document.getElementById('form-content-host');
+
+    let pass = 0, fail = 0;
+    function check(label, condition, detail = '') {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const ok = !!condition;
+      ok ? pass++ : fail++;
+      row.innerHTML = `<span class="badge ${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'}</span><span>${label}${detail ? ' — ' + detail : ''}</span>`;
+      resultsEl.appendChild(row);
+      if (!ok) console.error('FAIL:', label, detail);
+    }
+
+    function cssVar(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function clearLocalStorage() {
+      ['xmlEditor.activeTheme', 'xmlEditor.sidebarWidth', 'xmlEditor.zoomLevel', 'xmlEditor.debugPanelWidth'].forEach((k) => {
+        try { localStorage.removeItem(k); } catch {}
+      });
+    }
+
+    async function main() {
+      clearLocalStorage();
+
+      // ==================================================================
+      // A. theme.js — pure color-math helpers
+      // ==================================================================
+      {
+        check('interpolateColor at t=0 returns the FROM color', themeUi.interpolateColor('#FFFFFF', '#000000', 0) === '#ffffff');
+        check('interpolateColor at t=1 returns the TO color', themeUi.interpolateColor('#FFFFFF', '#000000', 1) === '#000000');
+        check('interpolateColor at t=0.5 is the midpoint', themeUi.interpolateColor('#000000', '#FFFFFF', 0.5) === '#808080');
+        check('camelToKebab converts camelCase to kebab-case', themeUi.camelToKebab('windowBackground') === 'window-background');
+        check('camelToKebab leaves an already-single-word key alone', themeUi.camelToKebab('accentColor') === 'accent-color');
+        check('getDefaultColors returns all 11 required tokens', ['windowBackground','panelBackground','controlBackground','controlBorder','primaryText','secondaryText','accentColor','buttonBackground','buttonText','selectionBackground','selectionText'].every((k) => k in themeUi.getDefaultColors()));
+      }
+
+      // ==================================================================
+      // B. applyTheme — writes CSS custom properties + derives depth colors
+      // ==================================================================
+      {
+        themeUi.applyTheme({ name: 'UnitTestTheme', colors: { ...themeUi.getDefaultColors(), windowBackground: '#000000', panelBackground: '#ffffff' } });
+        check('applyTheme sets --window-background', cssVar('--window-background') === '#000000');
+        check('applyTheme sets --panel-background', cssVar('--panel-background') === '#ffffff');
+        check('applyTheme derives --depth-color-0 as panelBackground (t=0)', cssVar('--depth-color-0').toLowerCase() === '#ffffff');
+        check('applyTheme derives --depth-color-4 as windowBackground (t=1)', cssVar('--depth-color-4').toLowerCase() === '#000000');
+        check('applyTheme derives --depth-color-2 as the midpoint', cssVar('--depth-color-2').toLowerCase() === '#808080');
+
+        const partialTheme = { name: 'PartialTheme', colors: { windowBackground: '#123456' } };
+        themeUi.applyTheme(partialTheme);
+        check('A theme missing optional tokens falls back to defaults (coloringIncomplete)', cssVar('--coloring-incomplete').toLowerCase() === themeUi.getDefaultColors().coloringIncomplete.toLowerCase());
+        check('...but still applies the one token it DID specify', cssVar('--window-background').toLowerCase() === '#123456');
+
+        themeUi.applyTheme({ name: 'PersistedTheme', colors: themeUi.getDefaultColors() });
+        check('applyTheme persists the theme name to localStorage', themeUi.getSavedThemePreference() === 'PersistedTheme');
+      }
+
+      // ==================================================================
+      // C. loadBuiltinThemes / wireTheme — real fetch of themes/*.json,
+      //    real <select> population, live swap, "Load Theme File" wiring.
+      // ==================================================================
+      {
+        const builtins = await themeUi.loadBuiltinThemes();
+        check('All 4 built-in themes load', builtins.length === 4, JSON.stringify(builtins.map((t) => t.name)));
+        check('Every built-in theme has all 11 required tokens', builtins.every((t) => ['windowBackground','panelBackground','controlBackground','controlBorder','primaryText','secondaryText','accentColor','buttonBackground','buttonText','selectionBackground','selectionText'].every((k) => k in t.colors)));
+        check('Built-in theme names are the expected 4', ['Default','Dark','High Contrast','Ocean Blue'].every((n) => builtins.some((t) => t.name === n)));
+
+        clearLocalStorage();
+        await themeUi.wireTheme();
+        const select = document.getElementById('theme-select');
+        check('wireTheme populates the theme <select> with 4 options', select.options.length === 4);
+        check('wireTheme enables the (previously disabled) select', !select.disabled);
+        check('wireTheme applies a theme immediately on load (Default, since nothing was saved)', select.value === 'Default' && cssVar('--window-background').toLowerCase() === '#f5f5f5');
+
+        select.value = 'Dark';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        check('Selecting "Dark" in the toolbar live-swaps CSS variables', cssVar('--window-background').toLowerCase() === '#1e1e1e');
+        check('...and persists the new active theme', themeUi.getSavedThemePreference() === 'Dark');
+
+        // Reload simulation: wireTheme again should restore the persisted theme.
+        await themeUi.wireTheme();
+        check('Re-running wireTheme (simulating a reload) restores the persisted theme', document.getElementById('theme-select').value === 'Dark' && cssVar('--window-background').toLowerCase() === '#1e1e1e');
+
+        // "Load Theme File" — a custom theme is added to the select and applied.
+        const customTheme = { name: 'CustomFileTheme', colors: { ...themeUi.getDefaultColors(), accentColor: '#ABCDEF' } };
+        const file = new File([JSON.stringify(customTheme)], 'custom.theme.json', { type: 'application/json' });
+        const fileInput = document.getElementById('theme-file-input');
+        Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 30)); // file.text() is async
+        check('Loading a custom theme file adds it to the select', [...document.getElementById('theme-select').options].some((o) => o.value === 'CustomFileTheme'));
+        check('...and applies it immediately', cssVar('--accent-color').toLowerCase() === '#abcdef');
+      }
+
+      // ==================================================================
+      // D. Load a real schema/form to drive splitter/zoom/save-status/debug
+      //    against actual registered controls and FormEngine state.
+      // ==================================================================
+      const filenames = ['SamplePacket.xsd', 'SampleCommonTypes.xsd', 'SampleGroups.xsd'];
+      const fileTextMap = new Map();
+      for (const name of filenames) fileTextMap.set(name, await (await fetch(`../sample-schemas/${name}`)).text());
+      const [rootFile] = findRootFileCandidates(fileTextMap);
+      const { doc: flatDoc } = flattenFromRoot(fileTextMap, rootFile);
+      const [rootElementName] = findRootElementCandidates(flatDoc);
+      const parser = new SchemaParser(flatDoc, rootElementName);
+      const manifest = analyzePacket(flatDoc, rootElementName);
+
+      const formEngine = new FormEngine();
+      const undoService = new UndoService();
+      const fakeAppState = { manifest, schemaParser: parser, formEngine, undoService, instanceKeys: [], currentInstanceKey: null };
+
+      function switchToForm(instanceKey) {
+        formEngine.setActiveForm(instanceKey);
+        const schemaElement = parser.parseGlobalElement(instanceKey.formName);
+        const formEl = formRenderer.renderForm(schemaElement, formEngine, 0);
+        formRenderer.inflateRepeatingSections(formEl, formEngine);
+        stageEl.innerHTML = '';
+        stageEl.appendChild(formEl);
+        formRenderer.registerControlsUnder(formEl, formEngine);
+        formEngine.restoreActiveForm();
+        formRenderer.selectRadioGroupBranches(formEl, formEngine.getFormState(instanceKey));
+        coloring.setActiveContext(schemaElement, formEngine, instanceKey);
+        coloring.rebuildColorableIndex(formEl);
+        coloring.applyAllColors();
+        fakeAppState.currentInstanceKey = instanceKey;
+        return formEl;
+      }
+
+      const entityKey = new FormInstanceKey('SampleEntityForm');
+      fakeAppState.instanceKeys = [entityKey];
+      switchToForm(entityKey);
+
+      function fieldWrapper(path) {
+        return stageEl.querySelector(`.field-wrapper[data-path="${path}"]`);
+      }
+      function typeAndBlur(inputEl, value) {
+        inputEl.dispatchEvent(new Event('focus', { bubbles: true }));
+        inputEl.value = value;
+        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        inputEl.dispatchEvent(new Event('blur', { bubbles: true }));
+      }
+
+      // ==================================================================
+      // E. Splitter (§13) — drag resizes #sidebar and persists to localStorage.
+      // ==================================================================
+      {
+        toolbar.wireSplitter();
+        const sidebar = document.getElementById('sidebar');
+        const splitter = document.getElementById('splitter');
+        const startWidth = sidebar.getBoundingClientRect().width;
+
+        splitter.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 240 }));
+        document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 340 }));
+        document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+        const newWidth = sidebar.getBoundingClientRect().width;
+        check('Dragging the splitter right widens the sidebar', newWidth > startWidth, `${startWidth} -> ${newWidth}`);
+        check('The new width is persisted to localStorage', Number(localStorage.getItem('xmlEditor.sidebarWidth')) === newWidth);
+
+        // Clamping: drag far past the max.
+        splitter.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 340 }));
+        document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 5000 }));
+        document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        check('Sidebar width is clamped to the documented max (500px)', sidebar.getBoundingClientRect().width <= 500);
+      }
+
+      // ==================================================================
+      // F. Zoom (§13) — Ctrl+Plus/Minus/0, clamped 50%-200%, persisted.
+      // ==================================================================
+      {
+        clearLocalStorage();
+        toolbar.wireZoom();
+        const indicator = document.getElementById('zoom-indicator');
+        check('Zoom starts at 100% with no saved preference', indicator.textContent === '100%');
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: '+', ctrlKey: true, bubbles: true, cancelable: true }));
+        check('Ctrl+Plus increases zoom by the step (110%)', indicator.textContent === '110%');
+        check('...and applies a scale() transform to #form-content-host', stageEl.style.transform === 'scale(1.1)');
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: '-', ctrlKey: true, bubbles: true, cancelable: true }));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: '0', ctrlKey: true, bubbles: true, cancelable: true }));
+        check('Ctrl+0 resets zoom to 100%', indicator.textContent === '100%');
+
+        for (let i = 0; i < 12; i++) document.dispatchEvent(new KeyboardEvent('keydown', { key: '+', ctrlKey: true, bubbles: true, cancelable: true }));
+        check('Zoom is clamped at the documented max (200%)', indicator.textContent === '200%');
+
+        for (let i = 0; i < 20; i++) document.dispatchEvent(new KeyboardEvent('keydown', { key: '-', ctrlKey: true, bubbles: true, cancelable: true }));
+        check('Zoom is clamped at the documented min (50%)', indicator.textContent === '50%');
+        check('Zoom level is persisted to localStorage', localStorage.getItem('xmlEditor.zoomLevel') === '50');
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: '0', ctrlKey: true, bubbles: true, cancelable: true }));
+      }
+
+      // ==================================================================
+      // G. Save status (§13 status bar) — reflects FormEngine's dirty flag.
+      // ==================================================================
+      {
+        const refresh = toolbar.wireSaveStatus(fakeAppState);
+        const saveStatusEl = document.getElementById('save-status');
+        check('A freshly-switched-to form with no edits shows "Saved"', saveStatusEl.textContent === 'Saved');
+
+        typeAndBlur(fieldWrapper('SampleEntityForm.EntityName').querySelector('input'), 'Debug Test Co');
+        check('Editing a field flips the status to "Not saved"', saveStatusEl.textContent === 'Not saved');
+
+        formEngine.getFormState(entityKey).isDirty = false;
+        refresh();
+        check('Manually clearing the dirty flag (simulating Save XML) flips it back to "Saved"', saveStatusEl.textContent === 'Saved');
+      }
+
+      // ==================================================================
+      // H. Debug panel (§21) — Ctrl+Shift+D toggle, Fields/State/Export tabs
+      //    reflect the real, currently-registered controls and FormEngine state.
+      // ==================================================================
+      {
+        debugUi.wireDebug({ appState: fakeAppState });
+        const panel = document.getElementById('debug-panel');
+        check('Debug panel starts hidden', panel.classList.contains('hidden'));
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+        check('Ctrl+Shift+D opens the debug panel', !panel.classList.contains('hidden'));
+        check('Panel renders all 4 tab buttons', panel.querySelectorAll('.debug-tab-btn').length === 4);
+        check('"Fields" tab is active by default', panel.querySelector('.debug-tab-btn.active')?.textContent === 'Fields');
+
+        const table = panel.querySelector('table');
+        check('Fields tab renders a table of registered controls', !!table && table.querySelectorAll('tbody tr').length > 0);
+        const entityNameRow = [...table.querySelectorAll('tbody tr')].find((tr) => tr.children[0].textContent === 'SampleEntityForm.EntityName');
+        check('EntityName appears in the Fields table with its edited value', entityNameRow?.children[3].textContent === 'Debug Test Co');
+        check('...and its Kind/Required columns are resolved from the real schema (not "(unknown)")', entityNameRow?.children[1].textContent !== '(unknown)');
+
+        // Schema Tree tab.
+        [...panel.querySelectorAll('.debug-tab-btn')].find((b) => b.textContent === 'Schema Tree').click();
+        check('Schema Tree tab renders the root node', panel.querySelector('.debug-tree-label')?.textContent.includes('SampleEntityForm'));
+        const clickedText = panel.querySelectorAll('.debug-tree-label')[1].textContent;
+        panel.querySelectorAll('.debug-tree-label')[1].click();
+        // click() triggers a full render() (body.innerHTML rebuilt from scratch,
+        // same pattern the rest of the app uses) — the PRE-click element
+        // reference is now detached, so re-query rather than reuse it.
+        const reQueriedLabel = [...panel.querySelectorAll('.debug-tree-label')].find((el) => el.textContent === clickedText);
+        check('Clicking a tree node shows its details (marks it selected)', reQueriedLabel?.classList.contains('selected'));
+        check('...and the detail pane shows real SchemaElement JSON', panel.querySelector('#debug-tree-detail')?.textContent.includes('"kind"'));
+
+        // State tab.
+        [...panel.querySelectorAll('.debug-tab-btn')].find((b) => b.textContent === 'State').click();
+        check('State tab lists the active stored form instance', panel.textContent.includes('sampleentityform'));
+
+        // Export tab — Copy TSV / Export JSON buttons exist and TSV has real rows.
+        [...panel.querySelectorAll('.debug-tab-btn')].find((b) => b.textContent === 'Export').click();
+        const exportButtons = [...panel.querySelectorAll('button')].map((b) => b.textContent);
+        check('Export tab offers Copy TSV and Export JSON', exportButtons.includes('Copy TSV') && exportButtons.includes('Export JSON'));
+
+        // Debug toggle button (toolbar) closes it again.
+        document.getElementById('debug-toggle-btn').click();
+        check('Debug toggle button closes the panel', panel.classList.contains('hidden'));
+
+        // Refresh-on-value-change (debounced 200ms) — only while visible.
+        document.getElementById('debug-toggle-btn').click(); // reopen, lands back on 'Export' tab from _activeTab state
+        [...panel.querySelectorAll('.debug-tab-btn')].find((b) => b.textContent === 'Fields').click();
+        typeAndBlur(fieldWrapper('SampleEntityForm.EntityCode').querySelector('input'), 'AB1234');
+        await new Promise((r) => setTimeout(r, 260));
+        const entityCodeRow = [...panel.querySelectorAll('tbody tr')].find((tr) => tr.children[0].textContent === 'SampleEntityForm.EntityCode');
+        check('A field edit (debounced 200ms) refreshes the Fields tab while the panel is visible', entityCodeRow?.children[3].textContent === 'AB1234');
+      }
+
+      summaryEl.textContent = `${pass} passed, ${fail} failed`;
+      summaryEl.style.color = fail === 0 ? '#2e7d32' : '#d32f2f';
+      console.log(`Phase 7 check: ${pass} passed, ${fail} failed`);
+    }
+
+    main().catch((err) => {
+      summaryEl.textContent = 'ERROR — see console';
+      summaryEl.style.color = '#d32f2f';
+      console.error(err);
+      const pre = document.createElement('pre');
+      pre.textContent = String(err.stack || err);
+      resultsEl.appendChild(pre);
+    });
+  </script>
+</body>
+</html>

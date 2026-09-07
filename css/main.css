@@ -1,17 +1,41 @@
 /*
- * main.css — layout and interaction styling for Phase 3 (rendering + basic
- * interaction). Colors here are plain, hardcoded values — CSS custom-property
- * theming (§12) and the depth-color/coloring-border palette (§9) land in
- * Phase 4/7. This file's job for now is just "usable and legible," not "on-brand."
+ * main.css — layout, interaction, and theming for the XML Form Editor.
+ *
+ * §12 Theming: every color below is a CSS custom property. The block on
+ * :root here is only the DEFAULT palette (so the page looks right even
+ * before js/ui/theme.js's applyTheme() runs on first paint) — at runtime
+ * applyTheme() overwrites each `--kebab-case` variable directly, and every
+ * selector past this point references only variables, never a literal color,
+ * so swapping a theme re-paints the whole app with no selector changes
+ * needed (Phase 7.1). The 5 --depth-color-N variables are themeable too —
+ * applyTheme() derives them per-theme by interpolating panelBackground →
+ * windowBackground; the values here are just Default's own interpolation,
+ * kept in sync manually since plain CSS can't call interpolateColor() itself.
  */
-
-/* §9/§12: the coloring palette is CSS custom properties from the start, even
- * though full theme.js JSON loading is Phase 7 — this way Phase 7 only has to
- * overwrite these three variables' values on :root, never touch selectors. */
 :root {
+  --window-background: #f5f5f5;
+  --panel-background: #ffffff;
+  --control-background: #ffffff;
+  --control-border: #dddddd;
+  --primary-text: #333333;
+  --secondary-text: #666666;
+  --accent-color: #3a7bd5;
+  --button-background: #ffffff;
+  --button-text: #333333;
+  --selection-background: #3a7bd5;
+  --selection-text: #ffffff;
   --coloring-incomplete: #d32f2f;
   --coloring-complete: #2e7d32;
   --coloring-optional: #f9a825;
+  --line-number-text: #888888;
+  --add-button-background: #4a8c6f;
+  --remove-button-background: #a34a5a;
+
+  --depth-color-0: #ffffff;
+  --depth-color-1: #fafafa;
+  --depth-color-2: #f5f5f5;
+  --depth-color-3: #f0f0f0;
+  --depth-color-4: #ebebeb;
 }
 
 *,
@@ -30,18 +54,35 @@ body {
 body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px;
-  color: #333333;
-  background: #f5f5f5;
+  color: var(--primary-text);
+  background: var(--window-background);
 }
 
 button {
   font: inherit;
   cursor: pointer;
+  background: var(--button-background);
+  color: var(--button-text);
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+  padding: 5px 10px;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(0.95);
 }
 
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* Splitter/debug-panel drag in progress: lock the cursor and stop text
+ * selection everywhere, not just over the handle itself (§13). */
+body.resizing-splitter,
+body.resizing-splitter * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 #app {
@@ -57,8 +98,8 @@ button:disabled {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: #ffffff;
-  border-bottom: 1px solid #dddddd;
+  background: var(--panel-background);
+  border-bottom: 1px solid var(--control-border);
   flex-shrink: 0;
 }
 
@@ -68,16 +109,20 @@ button:disabled {
   gap: 4px;
 }
 
+.toolbar-group button {
+  padding: 5px 10px;
+}
+
 .toolbar-separator {
   width: 1px;
   align-self: stretch;
-  background: #dddddd;
+  background: var(--control-border);
   margin: 2px 4px;
 }
 
 .toolbar-status {
   margin-left: auto;
-  color: #666666;
+  color: var(--secondary-text);
   font-size: 12.5px;
 }
 
@@ -91,8 +136,8 @@ button:disabled {
   top: 100%;
   left: 0;
   z-index: 20;
-  background: #ffffff;
-  border: 1px solid #dddddd;
+  background: var(--panel-background);
+  border: 1px solid var(--control-border);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   min-width: 200px;
   flex-direction: column;
@@ -111,15 +156,17 @@ button:disabled {
   padding: 6px 12px;
   background: none;
   border: none;
+  border-radius: 0;
 }
 
 .dropdown-content button:not(:disabled):hover {
-  background: #f0f0f0;
+  background: color-mix(in srgb, var(--accent-color) 12%, transparent);
+  filter: none;
 }
 
 .dropdown-content hr {
   border: none;
-  border-top: 1px solid #eeeeee;
+  border-top: 1px solid var(--control-border);
   margin: 4px 0;
 }
 
@@ -134,8 +181,8 @@ button:disabled {
 #sidebar {
   width: 240px;
   flex-shrink: 0;
-  background: #ffffff;
-  border-right: 1px solid #dddddd;
+  background: var(--panel-background);
+  border-right: 1px solid var(--control-border);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -147,12 +194,12 @@ button:disabled {
   justify-content: space-between;
   padding: 8px 10px;
   font-weight: bold;
-  border-bottom: 1px solid #eeeeee;
+  border-bottom: 1px solid var(--control-border);
 }
 
 #current-root-label {
   padding: 4px 10px;
-  color: #666666;
+  color: var(--secondary-text);
   font-size: 12px;
 }
 
@@ -172,19 +219,23 @@ button:disabled {
 }
 
 #nav-tree li:hover {
-  background: #f0f0f0;
+  background: color-mix(in srgb, var(--accent-color) 10%, transparent);
 }
 
 #nav-tree li.active {
-  background: #dbe9fb;
+  background: var(--selection-background);
+  color: var(--selection-text);
   font-weight: bold;
 }
 
+/* §13 "Resizable Sidebar Splitter" — width is set inline by toolbar.js's
+ * wireSplitter(), restored from localStorage on load; this rule is just the
+ * drag handle's own look. */
 #splitter {
   width: 4px;
   flex-shrink: 0;
   cursor: col-resize;
-  background: #eeeeee;
+  background: var(--control-border);
 }
 
 #form-area {
@@ -193,6 +244,8 @@ button:disabled {
   min-width: 0;
 }
 
+/* §13 "Zoom" — toolbar.js's wireZoom() sets `transform: scale(N)` inline
+ * here. transform-origin lives here (not inline) since it never changes. */
 #form-content-host {
   padding: 16px;
   transform-origin: top left;
@@ -201,11 +254,12 @@ button:disabled {
 #load-schema-prompt {
   text-align: center;
   margin-top: 15vh;
-  color: #555555;
+  color: var(--secondary-text);
 }
 
 #load-schema-prompt .hint {
-  color: #999999;
+  color: var(--secondary-text);
+  opacity: 0.75;
   font-size: 12px;
 }
 
@@ -213,7 +267,7 @@ button:disabled {
 
 fieldset.group-container {
   margin: 0 0 12px 0;
-  border: 1px solid #dddddd;
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   padding: 10px 12px 12px;
 }
@@ -221,13 +275,14 @@ fieldset.group-container {
 fieldset.group-container legend {
   font-weight: bold;
   padding: 0 6px;
+  color: var(--primary-text);
 }
 
-.depth-0 { background: #ffffff; }
-.depth-1 { background: #fafafa; }
-.depth-2 { background: #f5f5f5; }
-.depth-3 { background: #f0f0f0; }
-.depth-4 { background: #ebebeb; }
+.depth-0 { background: var(--depth-color-0); }
+.depth-1 { background: var(--depth-color-1); }
+.depth-2 { background: var(--depth-color-2); }
+.depth-3 { background: var(--depth-color-3); }
+.depth-4 { background: var(--depth-color-4); }
 
 .sequence-container {
   margin-bottom: 8px;
@@ -244,11 +299,12 @@ fieldset.group-container legend {
 .field-wrapper label {
   min-width: 220px;
   flex-shrink: 0;
+  color: var(--primary-text);
 }
 
 .field-wrapper label.required::after {
   content: " *";
-  color: #c0392b;
+  color: var(--coloring-incomplete);
 }
 
 .field-wrapper input,
@@ -256,8 +312,10 @@ fieldset.group-container legend {
   flex: 1;
   max-width: 320px;
   padding: 4px 6px;
-  border: 1px solid #cccccc;
+  background: var(--control-background);
+  border: 1px solid var(--control-border);
   border-radius: 3px;
+  color: var(--primary-text);
 }
 
 .field-wrapper input[type="checkbox"] {
@@ -319,13 +377,13 @@ fieldset.group-container.color-yellow,
 }
 
 .field-wrapper .tooltip {
-  color: #888888;
+  color: var(--secondary-text);
   font-size: 12px;
   font-style: italic;
 }
 
 .field-wrapper .line-number {
-  color: #999999;
+  color: var(--line-number-text);
   font-family: monospace;
   font-size: 11px;
 }
@@ -333,7 +391,7 @@ fieldset.group-container.color-yellow,
 /* ------------------------------------------------------------- RadioGroup */
 
 .radio-group {
-  border: 1px dashed #bbbbbb;
+  border: 1px dashed var(--control-border);
   border-radius: 4px;
   padding: 8px 10px;
   margin-bottom: 12px;
@@ -343,6 +401,7 @@ fieldset.group-container.color-yellow,
   display: block;
   font-weight: bold;
   margin-bottom: 6px;
+  color: var(--primary-text);
 }
 
 .radio-option-label {
@@ -350,12 +409,13 @@ fieldset.group-container.color-yellow,
   align-items: center;
   gap: 4px;
   margin-right: 16px;
+  color: var(--primary-text);
 }
 
 .branch-content {
   margin: 8px 0 0 20px;
   padding-left: 10px;
-  border-left: 2px solid #eeeeee;
+  border-left: 2px solid var(--control-border);
 }
 
 .clear-selection-btn {
@@ -372,10 +432,11 @@ fieldset.group-container.color-yellow,
 
 .repeating-section h4 {
   margin: 0 0 6px 0;
+  color: var(--primary-text);
 }
 
 .repeating-instance {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   padding: 8px 10px;
   margin-bottom: 8px;
@@ -383,7 +444,7 @@ fieldset.group-container.color-yellow,
 }
 
 .add-btn {
-  background: #4a8c6f;
+  background: var(--add-button-background);
   color: #ffffff;
   border: none;
   border-radius: 3px;
@@ -391,7 +452,7 @@ fieldset.group-container.color-yellow,
 }
 
 .remove-btn {
-  background: #a34a5a;
+  background: var(--remove-button-background);
   color: #ffffff;
   border: none;
   border-radius: 3px;
@@ -402,8 +463,8 @@ fieldset.group-container.color-yellow,
 /* --------------------------------------------------------------- Panels */
 
 #validation-panel {
-  border-top: 1px solid #dddddd;
-  background: #ffffff;
+  border-top: 1px solid var(--control-border);
+  background: var(--panel-background);
   max-height: 220px;
   overflow-y: auto;
 }
@@ -418,7 +479,7 @@ fieldset.group-container.color-yellow,
   align-items: center;
   padding: 6px 10px;
   font-weight: bold;
-  border-bottom: 1px solid #eeeeee;
+  border-bottom: 1px solid var(--control-border);
 }
 
 #validation-error-list {
@@ -431,8 +492,8 @@ fieldset.group-container.color-yellow,
   padding: 6px 10px 2px;
   font-weight: bold;
   font-size: 12px;
-  color: #555555;
-  background: #fafafa;
+  color: var(--secondary-text);
+  background: var(--window-background);
 }
 
 .validation-error {
@@ -441,11 +502,11 @@ fieldset.group-container.color-yellow,
   gap: 8px;
   padding: 4px 10px;
   cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--control-border);
 }
 
 .validation-error:hover {
-  background: #f0f6ff;
+  background: color-mix(in srgb, var(--accent-color) 8%, transparent);
 }
 
 /* §22 invariant 4: completeness/occurrence/choice (a field is missing/
@@ -477,10 +538,11 @@ fieldset.group-container.color-yellow,
 
 .validation-message {
   flex: 1;
+  color: var(--primary-text);
 }
 
 .validation-path {
-  color: #888888;
+  color: var(--secondary-text);
   font-family: monospace;
   font-size: 11px;
 }
@@ -504,10 +566,10 @@ fieldset.group-container.color-yellow,
   display: flex;
   justify-content: space-between;
   padding: 4px 10px;
-  background: #ffffff;
-  border-top: 1px solid #dddddd;
+  background: var(--panel-background);
+  border-top: 1px solid var(--control-border);
   font-size: 12px;
-  color: #666666;
+  color: var(--secondary-text);
   flex-shrink: 0;
 }
 
@@ -521,8 +583,8 @@ fieldset.group-container.color-yellow,
   max-height: 60vh;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
-  border: 1px solid #cccccc;
+  background: var(--panel-background);
+  border: 1px solid var(--control-border);
   border-radius: 6px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   z-index: 900;
@@ -533,14 +595,16 @@ fieldset.group-container.color-yellow,
   display: flex;
   gap: 6px;
   padding: 8px;
-  border-bottom: 1px solid #eeeeee;
+  border-bottom: 1px solid var(--control-border);
 }
 
 #search-header input {
   flex: 1;
   padding: 4px 6px;
-  border: 1px solid #cccccc;
+  background: var(--control-background);
+  border: 1px solid var(--control-border);
   border-radius: 3px;
+  color: var(--primary-text);
 }
 
 #search-options {
@@ -549,8 +613,8 @@ fieldset.group-container.color-yellow,
   gap: 2px;
   padding: 6px 8px;
   font-size: 12px;
-  color: #555555;
-  border-bottom: 1px solid #eeeeee;
+  color: var(--secondary-text);
+  border-bottom: 1px solid var(--control-border);
 }
 
 #search-result-list {
@@ -566,27 +630,28 @@ fieldset.group-container.color-yellow,
   gap: 1px;
   padding: 5px 10px;
   cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--control-border);
 }
 
 .search-result:hover {
-  background: #f0f6ff;
+  background: color-mix(in srgb, var(--accent-color) 8%, transparent);
 }
 
 .search-result-form {
   font-size: 10px;
   text-transform: uppercase;
-  color: #888888;
+  color: var(--secondary-text);
 }
 
 .search-result-label {
   font-size: 13px;
+  color: var(--primary-text);
 }
 
 /* §15 "Highlight" — a sticky marker (cleared on the NEXT navigation or panel
  * close), distinct from validation's transient .validation-flash. */
 .search-highlight {
-  outline: 3px solid #3a7bd5;
+  outline: 3px solid var(--accent-color);
   outline-offset: 2px;
 }
 
@@ -597,8 +662,8 @@ fieldset.group-container.color-yellow,
   display: flex;
   flex-direction: column;
   min-width: 220px;
-  background: #ffffff;
-  border: 1px solid #cccccc;
+  background: var(--panel-background);
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   z-index: 1100;
@@ -614,10 +679,167 @@ fieldset.group-container.color-yellow,
   background: none;
   text-align: left;
   font-size: 13px;
+  color: var(--primary-text);
+  border-radius: 0;
 }
 
 #context-menu button:hover {
-  background: #f0f6ff;
+  background: color-mix(in srgb, var(--accent-color) 8%, transparent);
+  filter: none;
+}
+
+/* ----------------------------------------------------------- Debug panel */
+
+/* §21 — a resizable panel on the right, tabbed (Fields / Schema Tree / State
+ * / Export), toggled by Ctrl+Shift+D or the toolbar's Debug button. Content
+ * is built dynamically by js/ui/debug.js (same pattern as #context-menu) —
+ * these rules only style whatever it renders into #debug-panel. */
+#debug-panel {
+  position: fixed;
+  top: 44px;
+  right: 0;
+  bottom: 28px;
+  width: 420px;
+  min-width: 260px;
+  max-width: 80vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-background);
+  border-left: 1px solid var(--control-border);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15);
+  z-index: 950;
+}
+
+#debug-panel.hidden {
+  display: none;
+}
+
+#debug-resize-handle {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+#debug-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  font-weight: bold;
+  border-bottom: 1px solid var(--control-border);
+  flex-shrink: 0;
+}
+
+#debug-panel-header button {
+  padding: 2px 8px;
+}
+
+#debug-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--control-border);
+  flex-shrink: 0;
+}
+
+.debug-tab-btn {
+  flex: 1;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--secondary-text);
+  font-size: 12px;
+}
+
+.debug-tab-btn:hover {
+  filter: none;
+  color: var(--primary-text);
+}
+
+.debug-tab-btn.active {
+  border-bottom-color: var(--accent-color);
+  color: var(--primary-text);
+  font-weight: bold;
+}
+
+#debug-panel-body {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--primary-text);
+}
+
+#debug-panel-body h5 {
+  margin: 10px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--secondary-text);
+}
+
+#debug-panel-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+#debug-panel-body th,
+#debug-panel-body td {
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--control-border);
+  word-break: break-all;
+}
+
+#debug-panel-body th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-background);
+}
+
+#debug-panel-body pre {
+  background: var(--window-background);
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+  padding: 6px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+#debug-panel-body ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.debug-tree-node {
+  margin-left: 14px;
+}
+
+.debug-tree-label {
+  cursor: pointer;
+  display: inline-block;
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+.debug-tree-label:hover {
+  background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+}
+
+.debug-tree-label.selected {
+  background: var(--selection-background);
+  color: var(--selection-text);
+}
+
+#debug-tree-detail {
+  margin-top: 8px;
 }
 
 /* --------------------------------------------------------- Loading overlay */
@@ -631,7 +853,7 @@ fieldset.group-container.color-yellow,
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--panel-background) 85%, transparent);
   pointer-events: all;
 }
 
@@ -643,8 +865,8 @@ fieldset.group-container.color-yellow,
 #loading-spinner {
   width: 36px;
   height: 36px;
-  border: 4px solid #dddddd;
-  border-top-color: #3a7bd5;
+  border: 4px solid var(--control-border);
+  border-top-color: var(--accent-color);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -654,7 +876,7 @@ fieldset.group-container.color-yellow,
 }
 
 #loading-text {
-  color: #333333;
+  color: var(--primary-text);
   font-size: 14px;
 }
 

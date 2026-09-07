@@ -1,0 +1,22 @@
+{
+  "name": "High Contrast",
+  "colors": {
+    "windowBackground":       "#000000",
+    "panelBackground":        "#000000",
+    "controlBackground":      "#000000",
+    "controlBorder":          "#FFFFFF",
+    "primaryText":            "#FFFFFF",
+    "secondaryText":          "#FFFFFF",
+    "accentColor":            "#FFFF00",
+    "buttonBackground":       "#000000",
+    "buttonText":             "#FFFFFF",
+    "selectionBackground":    "#FFFF00",
+    "selectionText":          "#000000",
+    "coloringIncomplete":     "#FF3333",
+    "coloringComplete":       "#33FF33",
+    "coloringOptional":       "#FFFF00",
+    "lineNumberText":         "#FFFFFF",
+    "addButtonBackground":    "#33FF33",
+    "removeButtonBackground": "#FF3333"
+  }
+}

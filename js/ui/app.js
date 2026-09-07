@@ -1,13 +1,12 @@
 // js/ui/app.js — Bootstrap, wiring, global event bus.
 //
 // See web-implementation-spec.md §20 (Application Bootstrap, Schema Load Flow,
-// Form Switch Flow, Radio Selection Fixed-Point Loop), §13 (Loading Overlay),
-// §9 (Coloring Service), §14 (Undo/Redo), §15 (Search), §17 (Test Data Fill),
-// §18 (Context Menu). IMPLEMENTATION_PLAN.md Phase 3.3 (schema/XML load, form
-// switch, add instance), Phase 4 (coloring, undo), Phase 6 (search, test data
-// fill, context menu).
-//
-// Theming is still a later phase.
+// Form Switch Flow, Radio Selection Fixed-Point Loop), §13 (Loading Overlay,
+// Splitter, Zoom), §9 (Coloring Service), §12 (Theming), §14 (Undo/Redo), §15
+// (Search), §17 (Test Data Fill), §18 (Context Menu), §21 (Debug Panel).
+// IMPLEMENTATION_PLAN.md Phase 3.3 (schema/XML load, form switch, add
+// instance), Phase 4 (coloring, undo), Phase 6 (search, test data fill,
+// context menu), Phase 7 (theming, layout polish, debug panel).
 
 import { scanForBom, stripBom, findRootFileCandidates, flattenFromRoot } from '../core/flattener.js';
 import { SchemaParser, findRootElementCandidates, analyzePacket, joinPath } from '../core/parser.js';
@@ -24,6 +23,8 @@ import * as undoUi from './undo.js';
 import * as validationUi from './validation.js';
 import * as searchUi from './search.js';
 import * as contextMenuUi from './contextMenu.js';
+import * as themeUi from './theme.js';
+import * as debugUi from './debug.js';
 
 const appState = {
   manifest: null,
@@ -35,6 +36,12 @@ const appState = {
   undoService: new UndoService(),
   instanceKeys: [], // ordered FormInstanceKey[] — the nav tree's source of truth
 };
+
+// Set by toolbar.wireSaveStatus in init() — called explicitly at the points
+// below where currentInstanceKey/dirty state change WITHOUT already going
+// through a controlValueChanged/undoService 'changed' event (a form switch;
+// a successful Save XML clearing the dirty flag).
+let refreshSaveStatus = () => {};
 
 // ---------------------------------------------------------------------------
 // Loading / busy overlay (§13) — must actually paint before heavy sync work runs
@@ -197,6 +204,7 @@ function switchToForm(instanceKey, mutateState) {
 
   appState.currentInstanceKey = instanceKey;
   sidebar.updateNavTreeActiveState(document.getElementById('nav-tree'), instanceKey);
+  refreshSaveStatus();
 }
 
 function rebuildNavTree() {
@@ -267,6 +275,10 @@ async function saveXml() {
     const xmlString = buildPacketXml(appState.manifest, allFormStates, appState.instanceKeys, appState.schemaParser, appState.targetNamespace);
     toolbar.downloadXmlString(xmlString, `${appState.manifest.packetName}.xml`);
     toolbar.setStatus('Saved');
+    // §13 status bar: a completed Save XML writes EVERY stored form's state to
+    // the file, so every one of them (not just the active form) is clean now.
+    for (const state of allFormStates.values()) state.isDirty = false;
+    refreshSaveStatus();
   });
 }
 
@@ -415,6 +427,11 @@ function init() {
   validationUi.wireValidation({ appState, switchToForm });
   searchUi.wireSearch({ appState, switchToForm });
   contextMenuUi.wireContextMenu({ appState, fillActiveForm, clearActiveFormSection });
+  debugUi.wireDebug({ appState });
+  themeUi.wireTheme();
+  toolbar.wireSplitter();
+  toolbar.wireZoom();
+  refreshSaveStatus = toolbar.wireSaveStatus(appState);
 
   document.getElementById('fill-all-btn')?.addEventListener('click', () => {
     if (!appState.currentInstanceKey) return;

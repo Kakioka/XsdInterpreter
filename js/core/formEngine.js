@@ -237,8 +237,21 @@ export class FormEngine extends EventTarget {
     return this._getOrCreateActiveState().isDirty;
   }
 
+  /** Dispatches 'dirtyChanged' only on an actual flip — the status bar (§13,
+   *  Phase 7.2) listens for this rather than 'controlValueChanged' because a
+   *  text/numeric/decimal/date field's dirty flag doesn't flip until its
+   *  `blur` handler runs recordValueChange (see formRenderer.js), which is
+   *  AFTER the `change` handler already fired 'controlValueChanged' via
+   *  setValue — listening to that event alone would read a one-step-stale
+   *  isDirty. Every setDirty call site (fills, clears, instance add/remove,
+   *  radio swap, undo/redo restoring oldDirty/newDirty) goes through here, so
+   *  this one event covers all of them uniformly. */
   setDirty(val) {
-    this._getOrCreateActiveState().isDirty = !!val;
+    const state = this._getOrCreateActiveState();
+    const newVal = !!val;
+    if (state.isDirty === newVal) return;
+    state.isDirty = newVal;
+    this.dispatchEvent(new CustomEvent('dirtyChanged', { detail: { isDirty: newVal } }));
   }
 
   // --- whole-form-state access (used by undo snapshots, xmlReader/xmlWriter) --
