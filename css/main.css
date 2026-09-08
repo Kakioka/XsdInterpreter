@@ -307,6 +307,18 @@ fieldset.group-container legend {
   color: var(--coloring-incomplete);
 }
 
+/* Groups color-border + input so wrap mode's flex-wrap (below) always keeps
+ * them on the same line — otherwise a narrow column can wrap "input" onto
+ * its own line while "label + color-border" stay together on the previous
+ * one, stranding the color strip next to the label it doesn't describe. */
+.field-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
 .field-wrapper input,
 .field-wrapper select {
   flex: 1;

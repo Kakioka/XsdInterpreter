@@ -602,36 +602,28 @@ Computes `FieldColorState` for every registered field based on completeness and 
 
 ```
 computeColor(element, value, allValues, radioSelections):
-  if (!element.isRequired and isEmpty(value)):
-    return null   // no color for untouched optional leaf
-  if (!element.isRequired and hasValue(value)):
-    if isValid(element, value): return 'Yellow'   // optional + filled
-    else: return 'Red'
-  if (element.isRequired):
-    if isEmpty(value): return 'Red'
-    if !isValid(element, value): return 'Red'
-    return 'Green'
+  if isEmpty(value):
+    return element.isRequired ? 'Red' : 'Yellow'   // empty: Red if required, Yellow if optional
+  return isValid(element, value) ? 'Green' : 'Red'  // filled: Green if valid, Red if not — required or not
 ```
+
+Every leaf always has some color — there is no "no color" state. Yellow marks "optional and empty" as distinctly as Red marks "required and empty"; a field only turns Red once it's genuinely wrong (required-and-empty, or filled with invalid data).
 
 ### Container Coloring
 
 ```
 computeContainerColor(containerElement, allValues, radioSelections):
-  if (containerElement.isRequired):
-    if all required-context children are Green: return 'Green'
-    if any child is Red: return 'Red'
-    return 'Yellow'
-  else (optional container):
-    childColors = computeChildColors(...)
-    if childColors is empty (no values at all): return null
-    if all children are Green: return 'Green'   // strict: ALL must be complete
-    if any child is Red: return 'Red'
-    return 'Yellow'
+  childColors = computeChildColors(...)
+  if childColors is empty (no scoreable descendants at all):
+    return containerElement.isRequired ? 'Green' : 'Yellow'
+  if all children are Green: return 'Green'   // strict: ALL must be complete
+  if any child is Red: return 'Red'
+  return 'Yellow'
 ```
 
-**Radio branch coloring:** Only evaluate the selected branch. Hidden branches are ignored.
+**Radio branch coloring:** Only evaluate the selected branch. Hidden branches are ignored. An unselected radio group reads the same as an empty leaf: Red if required, Yellow if optional.
 
-**Optional child poisoning:** An optional container whose children have been activated (any values entered) counts toward parent completeness. An incomplete optional child poisons the required parent to Yellow/Red.
+**Optional child poisoning:** since every child always has a color, a container is Green only once every child (required or optional) is Green — an optional child left empty (Yellow) or filled invalid (Red) keeps its parent from reading Green, same as a required one would.
 
 ### Coloring Index
 

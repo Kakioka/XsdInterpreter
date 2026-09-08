@@ -478,7 +478,16 @@ function buildLeafControl(element, formEngine, depth, undoService) {
     formEngine.setValue(wrapper.dataset.path, controlFactory.getControlValue(input, element));
   });
 
-  wrapper.append(label, colorBorder, input, errorText);
+  // colorBorder and input are grouped in their own flex container so that
+  // wrap mode's flex-wrap (§13) never breaks the row between them — without
+  // this, a narrow wrap-mode column can fit "label + colorBorder" on one
+  // line and push "input" alone onto the next, leaving the color strip
+  // stranded next to the label instead of the input it actually describes.
+  const controlGroup = document.createElement('div');
+  controlGroup.classList.add('field-control');
+  controlGroup.append(colorBorder, input);
+
+  wrapper.append(label, controlGroup, errorText);
 
   if (element.documentation) {
     const tooltip = document.createElement('span');

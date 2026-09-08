@@ -65,22 +65,21 @@ export function isFieldValid(element, value) {
 }
 
 /** §9 "Color Rules" — one leaf (or attribute) field's own color. Knows nothing
- *  about siblings/containers. */
+ *  about siblings/containers. Yellow marks "optional and empty" (a field the
+ *  user is free to leave alone) as distinctly as Red marks "required and
+ *  empty" — every leaf always has some color, never none. */
 export function computeColor(element, value) {
-  if (!element.isRequired && isEmpty(value)) return null; // no color for untouched optional leaf
-  if (!element.isRequired) return isFieldValid(element, value) ? 'Yellow' : 'Red';
-  if (isEmpty(value)) return 'Red';
+  if (isEmpty(value)) return element.isRequired ? 'Red' : 'Yellow';
   return isFieldValid(element, value) ? 'Green' : 'Red';
 }
 
 /**
- * §9 "Container Coloring". `childColors` must already have nulls filtered out
- * — an untouched optional child contributes nothing either way (§22 invariant
- * 7's "poisoning" only happens once a child is ACTIVATED, i.e. has a non-null
- * color of its own).
+ * §9 "Container Coloring". Every child always has some color now (leaves
+ * never come back null — see computeColor), so an empty `childColors` only
+ * happens for a container with no scoreable descendants at all.
  */
 export function computeContainerColor(isRequired, childColors) {
-  if (childColors.length === 0) return isRequired ? 'Green' : null;
+  if (childColors.length === 0) return isRequired ? 'Green' : 'Yellow';
   if (childColors.every((c) => c === 'Green')) return 'Green';
   if (childColors.some((c) => c === 'Red')) return 'Red';
   return 'Yellow';
@@ -145,7 +144,9 @@ function colorOfRadioGroup(element, parentPath, state, result) {
   const selectedTarget = state.radioSelections[choicePath.toLowerCase()];
   let color;
   if (!selectedTarget) {
-    color = element.isRequired ? 'Red' : null; // required-but-unselected reads as an incomplete field
+    // Unselected reads the same as an empty leaf (§9's computeColor): Red if
+    // required, Yellow if this choice is optional to leave alone.
+    color = element.isRequired ? 'Red' : 'Yellow';
   } else {
     const option = element.children.find((o) => joinPath(choicePath, o.elementName).toLowerCase() === String(selectedTarget).toLowerCase());
     if (option) {
@@ -165,10 +166,11 @@ function colorOfRadioGroup(element, parentPath, state, result) {
  * branch (§16): `element` is the named, non-repeating container (e.g.
  * PriorNameList) whose sole structural child is the synthetic, repeating Entry
  * wrapper. Each instance's own children are aggregated first (using the
- * ENTRY's isRequired — an untouched, freshly-added blank instance colors null,
- * same symmetry as an untouched optional leaf); those per-instance colors then
- * roll up into one overall color for `element` itself, alongside any of its
- * own attributes, using ELEMENT's isRequired.
+ * ENTRY's isRequired — an untouched, freshly-added blank instance colors
+ * Yellow if the entry is optional, same symmetry as an untouched optional
+ * leaf); those per-instance colors then roll up into one overall color for
+ * `element` itself, alongside any of its own attributes, using ELEMENT's
+ * isRequired.
  */
 function colorOfRepeatingContentContainer(element, parentPath, state, result) {
   const path = joinPath(parentPath, element.elementName);

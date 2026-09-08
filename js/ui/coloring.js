@@ -47,7 +47,10 @@ export function rebuildColorableIndex(formEl) {
   const index = new Map();
 
   formEl.querySelectorAll('.field-wrapper[data-path]').forEach((wrapper) => {
-    const border = wrapper.querySelector(':scope > .color-border');
+    // Not `:scope > .color-border`: the border lives inside the wrapper's
+    // .field-control group (see formRenderer.js buildLeafControl), not as a
+    // direct child of .field-wrapper.
+    const border = wrapper.querySelector('.color-border');
     if (border) index.set(wrapper.dataset.path.toLowerCase(), border);
   });
   formEl.querySelectorAll('fieldset.group-container[data-path]').forEach((el) => {
