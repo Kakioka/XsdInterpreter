@@ -977,6 +977,71 @@ body.layout-wrap .branch-content > *:not(.field-wrapper) {
   flex-shrink: 0;
 }
 
+/* ----------------------------------------------------- Choose-root dialog */
+
+/* §20 steps 6/9 — a centered modal offering a dropdown of the detected root
+ * schema file / root element candidates. Content is built dynamically by
+ * js/ui/chooseRootDialog.js (same pattern as #package-dialog); these rules
+ * only style whatever it renders into #choose-root-dialog-overlay. */
+#choose-root-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+#choose-root-dialog-overlay.hidden {
+  display: none;
+}
+
+#choose-root-dialog {
+  width: 420px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-background);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+#choose-root-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-weight: bold;
+  border-bottom: 1px solid var(--control-border);
+  flex-shrink: 0;
+}
+
+#choose-root-dialog-header button {
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+#choose-root-dialog-body {
+  padding: 14px;
+}
+
+#choose-root-dialog-select {
+  width: 100%;
+  max-width: none;
+}
+
+#choose-root-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--control-border);
+  flex-shrink: 0;
+}
+
 /* --------------------------------------------------------- Loading overlay */
 
 #loading-overlay {

@@ -26,6 +26,7 @@ import * as contextMenuUi from './contextMenu.js';
 import * as themeUi from './theme.js';
 import * as debugUi from './debug.js';
 import * as packagingUi from './packaging.js';
+import { chooseOne } from './chooseRootDialog.js';
 
 const appState = {
   manifest: null,
@@ -136,18 +137,6 @@ function buildInitialInstanceKeys(manifest) {
   };
   walk(manifest.sections);
   return keys;
-}
-
-/** candidates.length === 1 → auto-pick. 0 → alert + null. >1 → prompt (a real
- *  "Choose Root" modal is a later polish pass — see spec §20 step 6/9). */
-async function chooseOne(candidates, emptyMessage, multipleMessage) {
-  if (candidates.length === 1) return candidates[0];
-  if (candidates.length === 0) {
-    window.alert(emptyMessage);
-    return null;
-  }
-  const chosen = window.prompt(`${multipleMessage}\n(${candidates.join(', ')})`, candidates[0]);
-  return chosen && candidates.includes(chosen) ? chosen : null;
 }
 
 // ---------------------------------------------------------------------------
