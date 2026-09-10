@@ -13,26 +13,47 @@
 // manifest/parser to already exist, so enabling them earlier would just be an
 // invitation to click something that can't do anything yet.
 
-/** @returns {Promise<Map<string,string>>} filename → text, .xsd files only */
+/**
+ * Recursively walks a directory handle, collecting every .xsd file underneath
+ * it (including nested subfolders) keyed by its path relative to the chosen
+ * root. A real MeF schema set nests root candidates and includes/imports
+ * arbitrarily deep (e.g. Individual2025/State Schemas/<StateAbbr>/Root/...),
+ * so a single-level scan of the chosen folder would silently miss files that
+ * live in sibling/cousin folders — the flattener needs the whole tree.
+ * @param {FileSystemDirectoryHandle} dirHandle
+ * @param {string} relativePath path prefix accumulated so far (empty at the root)
+ * @param {Map<string,string>} map filename → text, filled in place
+ */
+async function walkDirectoryForXsd(dirHandle, relativePath, map) {
+  for await (const [name, handle] of dirHandle.entries()) {
+    const entryPath = relativePath ? `${relativePath}/${name}` : name;
+    if (handle.kind === 'directory') {
+      await walkDirectoryForXsd(handle, entryPath, map);
+    } else if (handle.kind === 'file' && name.toLowerCase().endsWith('.xsd')) {
+      const file = await handle.getFile();
+      map.set(entryPath, await file.text());
+    }
+  }
+}
+
+/** @returns {Promise<Map<string,string>>} path (relative to the chosen folder) → text, .xsd files only */
 export async function pickSchemaFileTextMap(folderInputEl) {
   if (window.showDirectoryPicker) {
     const dirHandle = await window.showDirectoryPicker();
     const map = new Map();
-    for await (const [name, handle] of dirHandle.entries()) {
-      if (handle.kind === 'file' && name.toLowerCase().endsWith('.xsd')) {
-        const file = await handle.getFile();
-        map.set(name, await file.text());
-      }
-    }
+    await walkDirectoryForXsd(dirHandle, '', map);
     return map;
   }
   return new Promise((resolve, reject) => {
     folderInputEl.value = '';
     folderInputEl.onchange = async () => {
       try {
+        // <input webkitdirectory> already recurses the whole subtree on its own;
+        // keep each file's relative path (rather than bare name) as the map key
+        // so same-named files in different folders don't clobber one another.
         const files = Array.from(folderInputEl.files).filter((f) => f.name.toLowerCase().endsWith('.xsd'));
         const map = new Map();
-        for (const f of files) map.set(f.name, await f.text());
+        for (const f of files) map.set(f.webkitRelativePath || f.name, await f.text());
         resolve(map);
       } catch (err) {
         reject(err);
