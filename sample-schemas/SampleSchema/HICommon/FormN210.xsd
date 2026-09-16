@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN210" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii State Form N-210</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="FormN210">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>UNDERPAYMENT OF ESTIMATED TAX BY INDIVIDUALS, ESTATES, AND TRUSTS</Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="FormN210Type">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:complexType name="FormN210Type">
+    <xsd:sequence>
+      <!-- ==== Part I: Reasons For Filing ==== -->
+      <xsd:element name="PartIReasonsForFiling" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Part I: reasons for filing</Description>
+            <LineNumber>Part I, a-e</LineNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Exceptions to Penalty -->
+            <xsd:element name="ExceptionsToPenalty" type="CheckboxType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>You meet all of the following conditions: (1) You were a full-year Hawaii resident in 2018 (or an estate for a Hawaii decendent or a Hawaii trust), (2) You had no tax liability for 2018, and (3) Your 2018 tax year covered a 12-month period. See the Instructions for Exceptions to the Penalty</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part I, a</LineNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- You Request a Waiver. In Certain Circumstances, the Department of Taxation Will Waive All or Part of the Penalty. See the Instructions for Waiver of Penalty -->
+            <xsd:element name="WaiverRequestInd" type="CheckboxType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>You request a waiver. In certain circumstances, the Department of Taxation will waive all or part of the penalty. See the Instructions for Waiver of Penalty</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part I, b</LineNumber>
+                  <ELFFieldNumber>0050</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- You Use the Annualized Income Installment Method. If Your Income Varied During the Year, this Method May Reduce the Amount of One or More Required Installments. See the Instructions for Schedule A -->
+            <xsd:element name="AnnualIncInstallmentMethodInd" type="CheckboxType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>
+                    You use the annualized income installment method. If your income varied during the year, this method may reduce the amount of one or more required installments. See the Instructions for Schedule A
+                  </Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part I, c</LineNumber>
+                  <ELFFieldNumber>0055</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- You Had Hawaii Income Tax Withheld from Wages and You Treat it as Paid for Estimated Tax Purposes when It Was Actually Withheld Instead of in Equal Amounts on the Payment Due Dates. See the Instructions for Line 10 -->
+            <xsd:element name="HIIncomeTaxWithheldVsPaidInd" type="CheckboxType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>You had Hawaii income tax withheld from wages and you treat it as paid for estimated tax purposes when it was actually withheld instead of in equal amounts on the payment due dates. See the Instructions for line 10</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part I, d</LineNumber>
+                  <ELFFieldNumber>0060</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- One or More of Your Required Installments (Line 9) are Based upon Your Previous Year Tax and You Filed or are Filing a Joint Return for Either Previous Year or Current Year but not for Both Years -->
+            <xsd:element name="ReqInstallmentsBasedOnPrYrInd" type="CheckboxType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>
+                    One or more of your required installments (line 9) are based upon your Previous Year tax and you filed or are filing a joint return for either Previous Year or Current Year but not for both years
+                  </Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part I, e</LineNumber>
+                  <ELFFieldNumber>0065</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!--  ==== Part II: All Filers Must Complete This Part ==== -->
+      <xsd:element name="PartIIRequiredInformation">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Part II: all filers must complete this part</Description>
+            <FormNumber>FormN210</FormNumber>
+            <LineNumber>Part II, 1-8</LineNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Current Year Tax Liability -->
+            <xsd:element name="CurYearTaxLiablility" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Current year tax liability. (See Instructions)</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part II, 1</LineNumber>
+                  <ELFFieldNumber>0070</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Total Credits -->
+            <xsd:element name="TotalCredits" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total credits. (See Instructions)</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part II, 2</LineNumber>
+                  <ELFFieldNumber>0075</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Balance. Line 1 Minus Line 2 -->
+            <xsd:element name="CurYearTaxAfterCredits" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Balance. Line 1 minus line 2</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part II, 3</LineNumber>
+                  <ELFFieldNumber>0080</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Hawaii Income Taxes Withheld -->
+            <xsd:element name="CurYearIncTaxWithheld" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Hawaii income taxes withheld. (See Instructions)</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part II, 4</LineNumber>
+                  <ELFFieldNumber>0085</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Balance -->
+            <xsd:element name="CurYearTaxDue" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Balance. Line 3 minus line 4</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part II, 5</LineNumber>
+                  <ELFFieldNumber>0090</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Multiply the Amount on Line 3 by 60% (.60) -->
+            <xsd:element name="PctOfCurYearTaxDue" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Multiply the amount on line 3 by 60% (.60)</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part II, 6</LineNumber>
+                  <ELFFieldNumber>0100</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Tax Amount from Prior Year Income Tax Return -->
+            <xsd:element name="PriorYearTaxLiability" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter the tax amount from prior year income tax return. (Caution: See Instructions)</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part II, 7</LineNumber>
+                  <ELFFieldNumber>0105</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Smaller of Line 6 or Line 7 -->
+            <xsd:element name="SmallerOfPrYrTaxOrPctOfCrYrTax" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter the smaller of line 6 or line 7. (See Instructions)</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part II, 8</LineNumber>
+                  <ELFFieldNumber>0110</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== Part III: Figure Taxpayer's Underpayment ==== -->
+      <xsd:element name="PartIIIUnderpayment" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Part III: figure taxpayer's underpayment</Description>
+            <FormNumber>FormN210</FormNumber>
+            <LineNumber>Part III, 9-17</LineNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- 4/20/tax yr -->
+            <xsd:element name="PeriodAUnderpayment" type="HIEstTaxUnderpaymentComputType" minOccurs="0"/>
+            <!-- 6/20/tax yr -->
+            <xsd:element name="PeriodBUnderpayment" type="HIEstTaxUnderpaymentComputType" minOccurs="0"/>
+            <!-- 9/20/tax yr -->
+            <xsd:element name="PeriodCUnderpayment" type="HIEstTaxUnderpaymentComputType" minOccurs="0"/>
+            <!-- 1/20/tax yr + 1 -->
+            <xsd:element name="PeriodDUnderpayment" type="HIEstTaxUnderpaymentComputType" minOccurs="0"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== Part IV: Penalty ==== -->
+      <xsd:element name="PartIVPenalty" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Part IV: Penalty</Description>
+            <FormNumber>FormN210</FormNumber>
+            <LineNumber>Part IV, 18-21</LineNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- 4/20/tax yr -->
+            <xsd:element name="PeriodAPenalty" type="HIUnderpaymentPenaltyCompType" minOccurs="0"/>
+            <!-- 6/20/tax yr -->
+            <xsd:element name="PeriodBPenalty" type="HIUnderpaymentPenaltyCompType" minOccurs="0"/>
+            <!-- 9/20/tax yr -->
+            <xsd:element name="PeriodCPenalty" type="HIUnderpaymentPenaltyCompType" minOccurs="0"/>
+            <!-- 1/20/tax yr + 1  -->
+            <xsd:element name="PeriodDPenalty" type="HIUnderpaymentPenaltyCompType" minOccurs="0"/>
+            <!--Total Underpayment Penalty -->
+            <xsd:element name="TotalUnderpaymentPenalty" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total underpayment penalty — Add amounts on line 20 in all columns.</Description>
+                  <FormNumber>FormN210</FormNumber>
+                  <LineNumber>Part IV, 21</LineNumber>
+                  <ELFFieldNumber>0335</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== Schedule A. Required Installments Using the Annualized Income Installment Method ==== -->
+      <xsd:element name="SchA" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Schedule A. Required installments using the annualized income installment method</Description>
+            <FormNumber>FormN210</FormNumber>
+            <LineNumber>Sch A, 1-24</LineNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- 1/1/tax yr - 3/31/tax year -->
+            <xsd:element name="AnnualizedIncomeInstallmentA" type="HIAnnualizedIncInstMethodType" minOccurs="0"/>
+            <!-- 1/1/tax yr - 5/31/tax year -->
+            <xsd:element name="AnnualizedIncomeInstallmentB" type="HIAnnualizedIncInstMethodType" minOccurs="0"/>
+            <!-- 1/1/tax yr - 8/31/tax year -->
+            <xsd:element name="AnnualizedIncomeInstallmentC" type="HIAnnualizedIncInstMethodType" minOccurs="0"/>
+            <!-- 1/1/tax yr - 12/31/tax year -->
+            <xsd:element name="AnnualizedIncomeInstallmentD" type="HIAnnualizedIncInstMethodType" minOccurs="0"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>

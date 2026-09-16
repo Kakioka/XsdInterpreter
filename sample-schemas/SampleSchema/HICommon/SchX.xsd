@@ -1,0 +1,863 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="SchX" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii Schedule X</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="SchX">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>TAX CREDITS FOR HAWAII RESIDENTS</Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="SchXType">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:complexType name="SchXType">
+    <xsd:sequence>
+      <!-- ==== PART I: CREDIT FOR LOW-INCOME HOUSEHOLD RENTERS COMPUTATION ==== -->
+      <xsd:element name="LowIncHouseholdRentersCrComp" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="RentalUnitInformation" minOccurs="0" maxOccurs="unbounded">
+              <xsd:complexType>
+                <xsd:sequence>
+                  <!-- Address -->
+                  <xsd:element name="RentalAddress" type="USAddressType">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Address</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>4, Part I</LineNumber>
+                        <ELFFieldNumber>0210, 0214</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Start Month -->
+                  <xsd:element name="StartMonth" type="MonthType">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Start month - occupied from</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>4, Part I</LineNumber>
+                        <ELFFieldNumber>0230</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- End Month -->
+                  <xsd:element name="EndMonth" type="MonthType">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>End month - occupied to</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>4, Part I</LineNumber>
+                        <ELFFieldNumber>0235</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Total Rent -->
+                  <xsd:element name="TotalRentPaid" type="USAmountNNType">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Total rent paid for this period</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>4, Part I</LineNumber>
+                        <ELFFieldNumber>0240</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Owned By (or Agent for Owner) -->
+                  <xsd:choice>
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Owner name</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>4, Part I</LineNumber>
+                        <ELFFieldNumber>0245</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                    <xsd:element name="OwnerPersonName" type="PersonNameType"/>
+                    <xsd:element name="OwnerBusinessName" type="BusinessNameType"/>
+                  </xsd:choice>
+                  <!-- Owner Address -->
+                  <xsd:choice>
+                    <xsd:element name="OwnerUSAddress" type="USAddressType">
+                      <xsd:annotation>
+                        <xsd:documentation>
+                          <Description>Owner US address</Description>
+                          <FormNumber>SchX</FormNumber>
+                          <LineNumber>4, Part I</LineNumber>
+                          <ELFFieldNumber>0250, 0254</ELFFieldNumber>
+                        </xsd:documentation>
+                      </xsd:annotation>
+                    </xsd:element>
+                    <xsd:element name="OwnerForeignAddress" type="ForeignAddressType">
+                      <xsd:annotation>
+                        <xsd:documentation>
+                          <Description>Owner foreign address</Description>
+                          <FormNumber>SchX</FormNumber>
+                          <LineNumber>4, Part I</LineNumber>
+                          <ELFFieldNumber>0250, 0254</ELFFieldNumber>
+                        </xsd:documentation>
+                      </xsd:annotation>
+                    </xsd:element>
+                  </xsd:choice>
+                  <!-- Hawaii Tax I.D. Number -->
+                  <xsd:element name="OwnerHIGETaxIdNumber" type="HIGETaxIdNumberType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Hawaii General Excise Tax I.D. number - 12 digits, "GE" must be entered</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>4, Part I</LineNumber>
+                        <ELFFieldNumber>0273</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>
+            <!-- Taxpayer's Share of Rent Paid During the Taxable Year for All the Units Listed -->
+            <xsd:element name="AllUnitsRentSharePaid" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Taxpayer's share of rent paid during the taxable year for all the units listed</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>5, Part I</LineNumber>
+                  <ELFFieldNumber>0275</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Exclusions Amount -->
+            <xsd:element name="ExclusionsAmt" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Exclusions amount (e.g. utilities, parking stalls, ground rent, rental subsides such as public assistance)</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>6, Part I</LineNumber>
+                  <ELFFieldNumber>0280</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Taxpayer's Rent Share Amount Less Exclusions -->
+            <xsd:element name="UnitsRentShareLessExclusions">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Taxpayer's share of rent paid less exclusions - line 5 minus line 6. If this amount is $1,000, or less, cannot claim this credit</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>7, Part I</LineNumber>
+                  <ELFFieldNumber>0285</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:simpleType>
+                <xsd:restriction base="USAmountNNType">
+                  <xsd:minExclusive value="1000"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:element>
+			<!-- List of Qualified Exemptions (Taxpayer, Spouse, and Dependents) -->
+			<xsd:element name="QualifiedPerson" minOccurs="0" maxOccurs="unbounded">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>The list of qualified exemptions (a taxpayer, a spouse, and dependents). Include minor children receiving more than half of their support from public agencies</Description>
+				  <FormNumber>SchX</FormNumber>
+				  <LineNumber>8, Part I</LineNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			  <xsd:complexType>
+				<xsd:sequence>
+				  <xsd:element name="Name" type="PersonNameType"/>
+				  <xsd:element name="Relationship">
+					<xsd:simpleType>
+					  <xsd:restriction base="StringType">
+						<xsd:enumeration value="SELF"/>
+						<xsd:enumeration value="SPOUSE"/>
+						<xsd:enumeration value="SON"/>
+						<xsd:enumeration value="DAUGHTER"/>
+						<xsd:enumeration value="GRANDCHILD"/>
+						<xsd:enumeration value="GRANDPARENT"/>
+						<xsd:enumeration value="PARENT"/>
+						<xsd:enumeration value="STEPCHILD"/>
+						<xsd:enumeration value="FOSTERCHILD"/>
+						<xsd:enumeration value="SISTER"/>
+						<xsd:enumeration value="BROTHER"/>
+						<xsd:enumeration value="AUNT"/>
+						<xsd:enumeration value="UNCLE"/>
+						<xsd:enumeration value="NIECE"/>
+						<xsd:enumeration value="NEPHEW"/>
+						<xsd:enumeration value="NONE"/>
+						<xsd:enumeration value="HALF BROTHER"/>
+						<xsd:enumeration value="HALF SISTER"/>
+						<xsd:enumeration value="STEPBROTHER"/>
+						<xsd:enumeration value="STEPSISTER"/>
+						<xsd:enumeration value="OTHER"/>
+					  </xsd:restriction>
+					</xsd:simpleType>
+				  </xsd:element>
+				</xsd:sequence>
+			  </xsd:complexType>
+			</xsd:element>
+			<!-- The Number of Qualified Persons -->
+			<xsd:element name="QualifiedPersonsCnt" minOccurs="0">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>The number of qualified persons</Description>
+				  <FormNumber>SchX</FormNumber>
+				  <LineNumber>8, Part I</LineNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			  <xsd:simpleType>
+				<xsd:restriction base="IntegerNNType">
+				  <xsd:totalDigits value="2"/>
+				</xsd:restriction>
+			  </xsd:simpleType>
+			</xsd:element>	
+			<!-- Over 65 Self Qualified Exemption -->
+            <xsd:element name="SelfOver65Exemption" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter 1 if qualified self exemption over 65, otherwise enter 0</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>9, Part I</LineNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:simpleType>
+				<xsd:restriction base="IntegerNNType">
+				   <xsd:pattern value="([0-1]{1})"/>
+				</xsd:restriction>
+			  </xsd:simpleType>
+            </xsd:element>
+			<!-- Over 65 Spouse Qualified Exemption -->
+            <xsd:element name="SpouseOver65Exemption" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter 1 if qualified spouse exemption over 65, otherwise enter 0</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>10, Part I</LineNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:simpleType>
+				<xsd:restriction base="IntegerNNType">
+				   <xsd:pattern value="([0-1]{1})"/>
+				</xsd:restriction>
+			  </xsd:simpleType>
+            </xsd:element>
+            <!-- Number of Qualified Exemptions -->
+            <xsd:element name="QualifiedExemptionsCnt" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Number of qualified exemptions</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>11, Part I</LineNumber>
+                  <ELFFieldNumber>0290</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:simpleType>
+                <xsd:restriction base="IntegerNNType">
+                  <xsd:totalDigits value="2"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:element>
+            <!-- Total Rental Credit -->
+            <xsd:element name="LowIncHouseholdRentersCredit" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total rental credit. Multiply the number of exemptions on line 11 by $50</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>12, Part I</LineNumber>
+                  <ELFFieldNumber>0295</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== PART II: CREDIT FOR CHILD AND DEPENDENT CARE EXPENSES DETAILS ==== -->
+      <xsd:element name="ChildAndDependentCareExpCrDtls" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name ="MarriedPersonsFSInd" type ="CheckboxType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>You cannot claim a credit for child and dependent care expenses if your filing is married filing separately unless you meet the requirements listed in the instructions under "Married Persons Filing Separetly". If you meet these requirements, check this box.</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>Part II</LineNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Section A: Care Provider Information -->
+            <xsd:element name="CareProviderInformation" minOccurs="0" maxOccurs="unbounded">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Care provider information</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>1, Part II, Section A</LineNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:complexType>
+                <xsd:sequence>
+                  <xsd:choice>
+                    <xsd:element name="Individual">
+                      <xsd:complexType>
+                        <xsd:sequence>
+                          <!-- Care Provider's Name -->
+                          <xsd:element name="Name" type="IndividualNameType">
+                            <xsd:annotation>
+                              <xsd:documentation>
+                                <Description>Care provider's name</Description>
+                                <FormNumber>SchX</FormNumber>
+                                <LineNumber>1a, Part II, Section A</LineNumber>
+                                <ELFFieldNumber>0300, 0340, 0376</ELFFieldNumber>
+                              </xsd:documentation>
+                            </xsd:annotation>
+                          </xsd:element>
+                          <!-- Care Provider's Address -->
+                          <xsd:element name="Address" type="USAddressType">
+                            <xsd:annotation>
+                              <xsd:documentation>
+                                <Description>Care provider's address</Description>
+                                <FormNumber>SchX</FormNumber>
+                                <LineNumber>1b, Part II, Section A</LineNumber>
+                                <ELFFieldNumber>0305, 0309, 0345, 0349, 0377, 0378</ELFFieldNumber>
+                              </xsd:documentation>
+                            </xsd:annotation>
+                          </xsd:element>
+                          <!-- Care Provider's Identification Number -->
+                          <xsd:choice>
+                            <xsd:annotation>
+                              <xsd:documentation>
+                                <Description>Provider's social security number or individual taxpayer identification number</Description>
+                                <FormNumber>SchX</FormNumber>
+                                <LineNumber>1c, Part II, Section A</LineNumber>
+                                <ELFFieldNumber>0325, 0365, 0379</ELFFieldNumber>
+                              </xsd:documentation>
+                            </xsd:annotation>
+                            <xsd:element name="SSN" type="SSNType"/>
+                            <xsd:element name="MissingTINReason">
+                              <xsd:simpleType>
+                                <xsd:restriction base="StringType">
+                                  <xsd:enumeration value="APPLIED FOR"/>
+                                  <xsd:enumeration value="SEE ATTACHED"/>
+                                </xsd:restriction>
+                              </xsd:simpleType>
+                            </xsd:element>
+                          </xsd:choice>
+                          <!-- Care Provider's Hawaii General Excise Tax I.D. Number -->
+                          <xsd:choice>
+                            <xsd:element name="HIGETaxIdNumber" type="HIGETaxIdNumberType">
+                              <xsd:annotation>
+                                <xsd:documentation>
+                                  <Description>Provider's Hawaii General Excise Tax I.D. number - 12 digits</Description>
+                                  <FormNumber>SchX</FormNumber>
+                                  <LineNumber>1d, Part II, Section A</LineNumber>
+                                  <ELFFieldNumber>0333, 0373, 0380</ELFFieldNumber>
+                                </xsd:documentation>
+                              </xsd:annotation>
+                            </xsd:element>
+                            <xsd:element name="MissingHITaxIdNumberReason" type="StringType" fixed="SEE ATTACHED"/>
+                          </xsd:choice>
+                        </xsd:sequence>
+                      </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="Organization">
+                      <xsd:complexType>
+                        <xsd:sequence>
+                          <!-- Care Provider's Name -->
+                          <xsd:element name="Name" type="BusinessNameType">
+                            <xsd:annotation>
+                              <xsd:documentation>
+                                <Description>Care provider's name</Description>
+                                <FormNumber>SchX</FormNumber>
+                                <LineNumber>1a, Part II, Section A</LineNumber>
+                                <ELFFieldNumber>0300, 0340, 0376</ELFFieldNumber>
+                              </xsd:documentation>
+                            </xsd:annotation>
+                          </xsd:element>
+                          <!-- Care Provider's Address -->
+                          <xsd:choice>
+                            <xsd:annotation>
+                              <xsd:documentation>
+                                <Description>Care provider's address</Description>
+                                <FormNumber>SchX</FormNumber>
+                                <LineNumber>1b, Part II, Section A</LineNumber>
+                                <ELFFieldNumber>0305, 0309, 0345, 0349, 0377, 0378</ELFFieldNumber>
+                              </xsd:documentation>
+                            </xsd:annotation>
+                            <xsd:element name="Address" type="USAddressType"/>
+                            <xsd:element name="MissingAddressReason" type="StringType" fixed="SEE W-2"/>
+                          </xsd:choice>
+                          <!-- Care Provider's Identification Number -->
+                          <xsd:choice minOccurs="0">
+                            <xsd:annotation>
+                              <xsd:documentation>
+                                <Description>Provider's federal employer identification number</Description>
+                                <FormNumber>SchX</FormNumber>
+                                <LineNumber>1c, Part II, Section A</LineNumber>
+                                <ELFFieldNumber>0325, 0365, 0379</ELFFieldNumber>
+                              </xsd:documentation>
+                            </xsd:annotation>
+                            <xsd:element name="FEIN" type="EINType"/>
+                            <xsd:element name="MissingTINReason">
+                              <xsd:simpleType>
+                                <xsd:restriction base="StringType">
+                                  <xsd:enumeration value="TAX-EXEMPT"/>
+                                  <xsd:enumeration value="SEE ATTACHED"/>
+                                </xsd:restriction>
+                              </xsd:simpleType>
+                            </xsd:element>
+                          </xsd:choice>
+                          <!-- Care Provider's Hawaii General Excise Tax I.D. Number -->
+                          <xsd:choice minOccurs="0">
+                            <xsd:element name="HIGETaxIdNumber" type="HIGETaxIdNumberType">
+                              <xsd:annotation>
+                                <xsd:documentation>
+                                  <Description>Provider's Hawaii General Excise Tax I.D. number - 12 digits</Description>
+                                  <FormNumber>SchX</FormNumber>
+                                  <LineNumber>1d, Part II, Section A</LineNumber>
+                                  <ELFFieldNumber>0333, 0373, 0380</ELFFieldNumber>
+                                </xsd:documentation>
+                              </xsd:annotation>
+                            </xsd:element>
+                            <xsd:element name="MissingHITaxIdNumberReason">
+                              <xsd:simpleType>
+                                <xsd:restriction base="StringType">
+                                  <xsd:enumeration value="TAX-EXEMPT"/>
+                                  <xsd:enumeration value="SEE ATTACHED"/>
+                                </xsd:restriction>
+                              </xsd:simpleType>
+                            </xsd:element>
+                          </xsd:choice>
+                        </xsd:sequence>
+                      </xsd:complexType>
+                    </xsd:element>
+                  </xsd:choice>
+                  <!-- Amount Paid to Care Provider -->
+                  <xsd:element name="AmountPaidToProvider" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Amount paid to provider</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>1e, Part II, Section A</LineNumber>
+                        <ELFFieldNumber>0335, 0375, 0381</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <xsd:element name ="DueDiligenceStatement" type="ShortExplanationType" minOccurs="0"/>
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>
+            <!-- Section B: Dependent Care Benefits -->
+            <xsd:element name="DependentCareBenefits" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Dependent care benefits</Description>
+                  <FormNumber>SchX</FormNumber>
+                  <LineNumber>2-15, Part II, Section B</LineNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:complexType>
+                <xsd:sequence>
+                  <!-- Dependent Care Benefits Amount -->
+                  <xsd:element name="DependentCareBenefitsAmt" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Dependent care benefits amount</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>2, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0382</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Amount Carried Over -->
+                  <xsd:element name="CarriedOverAmt" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Amount carried over from the previous year and used in the current year during the grace period</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>3, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0383</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Amount Carried Forward -->
+                  <xsd:element name="CarriedForwardAmt" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Amount carried forward to the next year</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>4, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0385</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Addition Amount -->
+                  <xsd:element name="TotalDependentCareBenefitsAmt" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Addition amount - combine lines 2 through 4</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>5, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0390</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Qualified Expenses Amount -->
+                  <xsd:element name="QualifiedExpensesAmt" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Qualified expenses amount - the total amount of qualified expenses</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>6, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0395</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Comparison Amount - The Smaller of line 5 or 6 -->
+                  <xsd:element name="SmallerOfBenefitsOrExpenses" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Comparison amount - the smaller of line 5 or 6</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>7, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0400</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Taxpayer Earned Income -->
+                  <xsd:element name="PrimaryEarnedIncome" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Taxpayer earned income</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>8, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0405</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Spouse Earned Income -->
+                  <xsd:element name="SpouseEarnedIncome" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Spouse earned income</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>9, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0410</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Comparison Amount - The Smallest of line 7, 8 or 9 -->
+                  <xsd:element name="SmallestOfBenefitsExpOrIncome" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Comparison amount - the smallest of line 7, 8 or 9</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>10, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0415</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+				  <!-- Standard Deduction Amount -->
+					<xsd:element name="StandardDeductionAmount" type="USAmountNNType" minOccurs="0">
+					  <xsd:annotation>
+						<xsd:documentation>
+						  <Description>Enter $5000 ($2500 if married filing separately and required to enter spouse's income)</Description>
+						  <FormNumber>SchX</FormNumber>
+						  <LineNumber>11, Part II, Section B</LineNumber>
+						</xsd:documentation>
+					  </xsd:annotation>
+					</xsd:element>
+					<!-- Amount from sole proprietorship or partnership -->
+					<xsd:element name="ProprietorshipOrPartnershipAmt" type="USAmountNNType" minOccurs="0">
+					  <xsd:annotation>
+						<xsd:documentation>
+						  <Description>Amount of dependent care benefits from sole proprietorship or partnership</Description>
+						  <FormNumber>SchX</FormNumber>
+						  <LineNumber>12, Part II, Section B</LineNumber>
+						</xsd:documentation>
+					  </xsd:annotation>
+					</xsd:element>
+					<!-- Total Dependent Care benefits minus sole proprietorship/partnership benefits -->
+					<xsd:element name="DepCareMinusPropPartnerAmt" type="USAmountNNType" minOccurs="0">
+					  <xsd:annotation>
+						<xsd:documentation>
+						  <Description>Total dependent care benefits minus sole proprietorship/partnership benefits</Description>
+						  <FormNumber>SchX</FormNumber>
+						  <LineNumber>13, Part II, Section B</LineNumber>
+						</xsd:documentation>
+					  </xsd:annotation>
+					</xsd:element>
+					<!-- Deductible Benefits -->
+					<xsd:element name="DeductibleBenefits" type="USAmountNNType" minOccurs="0">
+					  <xsd:annotation>
+						<xsd:documentation>
+						  <Description>Comparison amount - the smallest of lines 10, 11, or 12</Description>
+						  <FormNumber>SchX</FormNumber>
+						  <LineNumber>14, Part II, Section B</LineNumber>
+						</xsd:documentation>
+					  </xsd:annotation>
+					</xsd:element>
+					<!-- Excluded Benefits -->
+					<xsd:element name="ExcludedBenefits" type="USAmountNNType" minOccurs="0">
+					  <xsd:annotation>
+						<xsd:documentation>
+						  <Description>If line 12 is 0, enter the smaller of line 10 or 11. Otherwise, subtract line 14 from the smaller of line 10 or 11</Description>
+						  <FormNumber>SchX</FormNumber>
+						  <LineNumber>15, Part II, Section B</LineNumber>
+						</xsd:documentation>
+					  </xsd:annotation>
+					</xsd:element>
+                  <!-- Taxable Benefits Amount -->
+                  <xsd:element name="TaxableBenefitsAmt" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Taxable benefits amount – amount of taxable benefits from the worksheet in the Instructions</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>16, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0420</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Qualifying Amount - Enter $2,400 ($4,800 if Two or More Qualifying Persons) -->
+                  <xsd:element name="QualifyingAmt" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Enter $2,400 ($4,800 if two or more qualifying persons)</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>17, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0430</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Deductible and Excluded Benefits - F plus I Amounts From the Taxable Benefits Worksheet in the Instruction -->
+                  <xsd:element name="DeductibleAndExcludedBenefits" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Deductible and excluded benefits. Add lines 14 and 15</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>18, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0435</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Subtraction Amount - Line 12 Minus Line 13 -->
+                  <xsd:element name="QualAmtLessDeductAndExclBnfts" type="USAmountType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Subtraction amount - line 17 minus line 18</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>19, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0440</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Qualified Expenses Amount - The Total of Qualified Expenses From the List of Qualified Persons  -->
+                  <xsd:element name="TotalQualifiedExpensesListed" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Qualified expenses amount - the total of qualified expenses from the list of qualified persons</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>20, Part II, Section B</LineNumber>
+                        <ELFFieldNumber>0445</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>
+            <!-- Section C: Credit for Child and Dependent Care Expenses Computation -->
+            <xsd:element name="ChildAndDependentCareExpCrComp" minOccurs="0">
+              <xsd:complexType>
+                <xsd:sequence>
+                  <xsd:element name="QualifyingPersonInformation" minOccurs="0" maxOccurs="unbounded">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Qualifying person information</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>21, Part II, Section C</LineNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                    <xsd:complexType>
+                      <xsd:sequence>
+                        <!-- Qualifying Person's Name -->
+                        <xsd:element name="QualifyingPersonName" type="IndividualNameType">
+                          <xsd:annotation>
+                            <xsd:documentation>
+                              <Description>Qualifying person's name</Description>
+                              <FormNumber>SchX</FormNumber>
+                              <LineNumber>21a, Part II, Section C</LineNumber>
+                              <ELFFieldNumber>0450, 0455, 0480, 0485, 0545, 0550</ELFFieldNumber>
+                            </xsd:documentation>
+                          </xsd:annotation>
+                        </xsd:element>
+                        <!-- Qualifying Person's Date of Birth -->
+                        <xsd:element name="QualifyingPersonDateOfBirth" type="DateType">
+                          <xsd:annotation>
+                            <xsd:documentation>
+                              <Description>Qualifying person's date of birth</Description>
+                              <FormNumber>SchX</FormNumber>
+                              <LineNumber>21b, Part II, Section C</LineNumber>
+                              <ELFFieldNumber>0460, 0490, 0555</ELFFieldNumber>
+                            </xsd:documentation>
+                          </xsd:annotation>
+                        </xsd:element>                        
+                        <!-- Qualifying Person's Grade -->
+                        <xsd:element name="QualifyingPersonGrade">
+                          <xsd:annotation>
+                            <xsd:documentation>
+                              <Description>Qualifying person's grade</Description>
+                              <FormNumber>SchX</FormNumber>
+                              <LineNumber>21c, Part II, Section C</LineNumber>
+                            </xsd:documentation>
+                          </xsd:annotation>
+                          <xsd:simpleType>
+                            <xsd:restriction base="StringType">
+                              <xsd:enumeration value="Pre-K"/>
+                              <xsd:enumeration value="K"/>
+                              <xsd:enumeration value="1"/>
+                              <xsd:enumeration value="2"/>
+                              <xsd:enumeration value="3"/>
+                              <xsd:enumeration value="4"/>
+                              <xsd:enumeration value="5"/>
+                              <xsd:enumeration value="6"/>
+                              <xsd:enumeration value="7"/>
+                              <xsd:enumeration value="8"/>
+                              <xsd:enumeration value="9"/>
+                              <xsd:enumeration value="10"/>
+                              <xsd:enumeration value="11"/>
+                              <xsd:enumeration value="12"/>
+	   						  <xsd:enumeration value="N/A"/>								
+                            </xsd:restriction>
+                          </xsd:simpleType>
+                        </xsd:element>
+                        <!-- Qualifying Person's SSN -->
+                        <xsd:element name="QualifyingPersonSSN" type="SSNType" minOccurs="0">
+                          <xsd:annotation>
+                            <xsd:documentation>
+                              <Description>Qualifying person's SSN</Description>
+                              <FormNumber>SchX</FormNumber>
+                              <LineNumber>21d, Part II, Section C</LineNumber>
+                              <ELFFieldNumber>0470, 0500, 0565</ELFFieldNumber>
+                            </xsd:documentation>
+                          </xsd:annotation>
+                        </xsd:element>
+                        <!-- Qualified Expenses Paid -->
+                        <xsd:element name="QualifiedExpensesPaid" type="USAmountNNType">
+                          <xsd:annotation>
+                            <xsd:documentation>
+                              <Description>Qualified expenses paid</Description>
+                              <FormNumber>SchX</FormNumber>
+                              <LineNumber>21e, Part II, Section C</LineNumber>
+                              <ELFFieldNumber>0475, 0505, 0570</ELFFieldNumber>
+                            </xsd:documentation>
+                          </xsd:annotation>
+                        </xsd:element>
+                      </xsd:sequence>
+                    </xsd:complexType>
+                  </xsd:element>
+                  <!-- Total Qualified Expenses -->
+                  <xsd:element name="TotalQualifiedExpensesPaid" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>the total of qualified expenses from the list of qualifying persons, but not more than $2,400 for one qualifying person or $4,800 for two persons. However, if taxpayer had employer-paid dependent care benefits, enter the smaller of line 19 or 20</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>22, Part II, Section C</LineNumber>
+                        <ELFFieldNumber>0510</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Taxpayer's Earned Income -->
+                  <xsd:element name="PrimaryEarnedIncome" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Taxpayer's earned income</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>23, Part II, Section C</LineNumber>
+                        <ELFFieldNumber>0515</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Spouse's Earned Income -->
+                  <xsd:element name="SpouseEarnedIncome" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Spouse's earned income</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>24, Part II, Section C</LineNumber>
+                        <ELFFieldNumber>0520</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Comparison Amount - The Smallest of Line 17, 18 or 19 -->
+                  <xsd:element name="SmallestOfQualExpOrIncomes" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Comparison amount - the smallest of line 22, 23 or 24</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>25, Part II, Section C</LineNumber>
+                        <ELFFieldNumber>0525</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- AGI -->
+                  <xsd:element name="AGI" type="USAmountType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>AGI, Section C</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>26, Part II</LineNumber>
+                        <ELFFieldNumber>0530</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Decimal Amount -->
+                  <xsd:element name="CareExpensesDecimalAmt" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Decimal amount</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>27, Part II, Section C</LineNumber>
+                        <ELFFieldNumber>0535</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                    <xsd:simpleType>
+                      <xsd:restriction base="DecimalType">
+                        <xsd:enumeration value= "0.15"/>
+                        <xsd:enumeration value= "0.20"/>
+                        <xsd:enumeration value= "0.21"/>
+                        <xsd:enumeration value= "0.22"/>
+                        <xsd:enumeration value= "0.23"/>
+                        <xsd:enumeration value= "0.24"/>
+                        <xsd:enumeration value= "0.25"/>
+                      </xsd:restriction>
+                    </xsd:simpleType>
+                  </xsd:element>
+                  <!-- Child-Dependent Care Credit -->
+                  <xsd:element name="ChildAndDependentCareExpCredit" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Child-dependent care credit - multiply line 25 by the decimal amount on line 27</Description>
+                        <FormNumber>SchX</FormNumber>
+                        <LineNumber>28, Part II, Section C</LineNumber>
+                        <ELFFieldNumber>0540</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>

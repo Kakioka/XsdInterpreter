@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN158" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii State Form N-158</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="FormN158">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>INVESTMENT INTEREST EXPENSE DEDUCTION</Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="FormN158Type">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:complexType name="FormN158Type">
+    <xsd:sequence>
+      <!-- ==== Part I: Total Investment Interest Expense ==== -->
+      <xsd:element name="TotalInvestmentInterestExpense" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Investment Interest Expense Paid or Accrued -->
+            <xsd:element name="InvestmentInterestExpense" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Investment interest expense paid or accrued. See Instructions</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>1</LineNumber>
+                  <ELFFieldNumber>0050</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Disallowed Investment Interest Expense from the Previous Year Form N-158, Line 7  -->
+            <xsd:element name="DisallowedInvIntExpCarryover" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Disallowed investment interest expense from the previous year Form N-158, line 7</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>2</LineNumber>
+                  <ELFFieldNumber>0055</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Total Investment Interest Expense -->
+            <xsd:element name="TotalInvInterestExpenseAmt" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total investment interest expense. Add lines 1 and 2</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>3</LineNumber>
+                  <ELFFieldNumber>0060</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== Part II: Net Investment Income ==== -->
+      <xsd:element name="NetInvestmentIncome" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Gross Income from Property Held for Investment -->
+            <xsd:element name="InvestmentPptyGrossIncome" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Gross income from property held for investment (excluding any net gain from the disposition of property held for investment)</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>4a</LineNumber>
+                  <ELFFieldNumber>0065</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Net Gain from the Disposition of Property Held for Investment  -->
+            <xsd:element name="InvPptyDispositionNetGain" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Net gain from the disposition of property held for investment</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>4b</LineNumber>
+                  <ELFFieldNumber>0070</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Smaller of Line 4b or the Net Capital Gain from the Disposition of Property Held for Investment -->
+            <xsd:element name="SmallerOfPptyDispNetOrCapGain" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Smaller of line 4b or the net capital gain from the disposition of property held for investment</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>4c</LineNumber>
+                  <ELFFieldNumber>0075</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Line 4b Minus Line 4c -->
+            <xsd:element name="PptyDispositionNonCapitalGain" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Line 4b minus line 4c. Cannot be negative</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>4d</LineNumber>
+                  <ELFFieldNumber>0080</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter the Amount from Line 4c that You Elect to Include in Investment Income -->
+            <xsd:element name="InvestmentIncomeIncludedAmt" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Amount from line 4c that you elect to include in investment income</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>4e</LineNumber>
+                  <ELFFieldNumber>0085</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Investment Income. Add Lines 4a, 4d, and 4e -->
+            <xsd:element name="InvestmentIncome" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Investment income. Add lines 4a, 4d, and 4e</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>4f</LineNumber>
+                  <ELFFieldNumber>0090</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Investment Expenses -->
+            <xsd:element name="InvestmentExpenses" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Investment expenses. See Instructions</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>5</LineNumber>
+                  <ELFFieldNumber>0095</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Net Investment Income. Line 4f Minus Line 5 -->
+            <xsd:element name="NetInvestmentIncomeAmt" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Net investment income. Line 4f minus line 5. If zero or less, enter 0</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>6</LineNumber>
+                  <ELFFieldNumber>0100</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== Part III: Investment Interest Expense Deduction ==== -->
+      <xsd:element name="InvInterestExpenseDeduction">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Disallowed Investment Interest Expense to be Carried Forward to the Next Year -->
+            <xsd:element name="DisallowedInvIntExpCarriedFwd" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Disallowed investment interest expense to be carried forward to the next year. Line 3 minus line 6. If zero or less, enter -0-</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>7</LineNumber>
+                  <ELFFieldNumber>0105</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Investment Interest Expense Deduction -->
+            <xsd:element name="InvInterestExpenseDeductionAmt" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Investment interest expense deduction. Enter the smaller of line 3 or line 6. See Instructions</Description>
+                  <FormNumber>FormN158</FormNumber>
+                  <LineNumber>8</LineNumber>
+                  <ELFFieldNumber>0110</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>

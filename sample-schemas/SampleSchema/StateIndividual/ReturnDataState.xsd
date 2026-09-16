@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2006 sp1 U (http://www.altova.com) by SCDOR (SC DEPT OF REVENUE & TAXATION) -->
+<xsd:schema xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:annotation>
+		<xsd:documentation>This is a stub schema only.  Each state will complete this schema for each type of filing by referencing schemas for various combinations of state forms, schedules, and worksheets.</xsd:documentation>
+	</xsd:annotation>
+	<xsd:element name="ReturnDataState"/>
+</xsd:schema>

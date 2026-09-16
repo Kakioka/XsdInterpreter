@@ -1,0 +1,445 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2009 sp1 (http://www.altova.com) by ASC X12 (ASC X12) -->
+<xsd:schema xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:annotation>
+		<xsd:documentation>
+			<Description>Estandards version of IRS Form 1099K</Description>
+			<TaxYear>2022</TaxYear>
+			<ReleaseDate>July 12, 2022</ReleaseDate>
+		</xsd:documentation>
+	</xsd:annotation>
+	<xsd:include schemaLocation="../../Common/efileTypes.xsd"/>
+	<xsd:include schemaLocation="../../Common/StateeFileTypes.xsd"/>
+	<xsd:element name="State1099K">
+		<xsd:complexType>
+			<xsd:complexContent>
+				<xsd:extension base="State1099KType">
+					<xsd:attributeGroup ref="DocumentAttributes">
+						<xsd:annotation>
+							<xsd:documentation>Common return document attributes</xsd:documentation>
+						</xsd:annotation>
+					</xsd:attributeGroup>
+				</xsd:extension>
+			</xsd:complexContent>
+		</xsd:complexType>
+	</xsd:element>
+	<xsd:complexType name="State1099KType">
+		<xsd:sequence>
+			<!-- Corrected Indicator -->
+			<xsd:element name="CorrectedInd" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Corrected Indicator</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Void Indicator -->
+			<xsd:element name="VoidInd" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Void Indicator</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Filer Name -->
+			<xsd:element name="FilerName">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Filer name</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:complexType>
+					<xsd:complexContent>
+						<xsd:extension base="BusinessNameType">
+							<xsd:attribute name="filerNameControl" type="BusinessNameControlType" use="required"/>
+						</xsd:extension>
+					</xsd:complexContent>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Filer Checkboxes -->
+			<xsd:choice minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Filer Address</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<!-- Filer US Address -->
+				<xsd:element name="FilerUSAddress" type="USAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Filer US address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+				<!-- Filer Foreign Address -->
+				<xsd:element name="FilerForeignAddress" type="ForeignAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Filer foreign address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+			</xsd:choice>
+			<xsd:choice minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Filer Phone Number</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:element name="FilerPhone" type="PhoneNumberType"/>
+				<xsd:element name="FilerForeignPhone" type="ForeignPhoneNumberType"/>
+			</xsd:choice>
+			<xsd:element name="FilerEIN" type="EINType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Filer Identification Number</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:choice minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Filer Checkboxes</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:element name="PaymentSettlementEntity" type="CheckboxType" minOccurs="0">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Payment Settlement Entity (PSE)</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+				<xsd:element name="EPFOtherThirdParty" minOccurs="0">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Electronic Payment Facilitator (EPF)/Other third party</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+					<xsd:complexType>
+						<xsd:sequence>
+							<xsd:element name="EPFOtherThirdPartyCheckbox" type="CheckboxType" minOccurs="0">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Electronic Payment Facilitator (EPF)/Other third party checkbox</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+							</xsd:element>
+							<xsd:element name="PSEName" type="BusinessNameType">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Payment Settlement Entity (PSE) Name</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+							</xsd:element>
+							<xsd:choice>
+								<xsd:element name="PSEPhone" type="PhoneNumberType"/>
+								<xsd:element name="PSEForeignPhone" type="ForeignPhoneNumberType"/>
+							</xsd:choice>
+						</xsd:sequence>
+					</xsd:complexType>
+				</xsd:element>
+			</xsd:choice>
+			<!-- Transaction Reported Checkboxes -->
+			<xsd:choice minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Transaction Reported Checkboxes</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:element name="PaymentCard" type="CheckboxType" minOccurs="0">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Payment Card</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+				<xsd:element name="ThirdPartyNetwork" type="CheckboxType" minOccurs="0">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Third Party Network</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+			</xsd:choice>
+			<!-- Filer Address -->
+			<!-- Filer Phone Number -->
+			<!-- Filer EIN -->
+			<xsd:choice>
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Payee is Individual or Business</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<!-- Payee is an Individual -->
+				<xsd:element name="IndividualPayee">
+					<xsd:complexType>
+						<xsd:sequence>
+							<!-- Payee SSN -->
+							<xsd:element name="SSN" type="SSNType">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Payee SSN</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+							</xsd:element>
+							<!-- Payee Name -->
+							<xsd:element name="Name" type="PersonNameType">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Payee name</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+							</xsd:element>
+						</xsd:sequence>
+					</xsd:complexType>
+				</xsd:element>
+				<!-- Payee is a Business -->
+				<xsd:element name="BusinessPayee">
+					<xsd:complexType>
+						<xsd:sequence>
+							<!-- Payee EIN -->
+							<xsd:element name="EIN" type="EINType">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Payee EIN</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+							</xsd:element>
+							<!-- Payee Name -->
+							<xsd:element name="Name">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Payee name</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:complexContent>
+										<xsd:extension base="BusinessNameType">
+											<xsd:attribute name="nameControl" type="BusinessNameControlType" use="required"/>
+										</xsd:extension>
+									</xsd:complexContent>
+								</xsd:complexType>
+							</xsd:element>
+						</xsd:sequence>
+					</xsd:complexType>
+				</xsd:element>
+			</xsd:choice>
+			<!-- Payee Address -->
+			<xsd:choice minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Payee's Address</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<!-- Payee US Address -->
+				<xsd:element name="PayeeUSAddress" type="USAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Payee US address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+				<!-- Payee Foreign Address -->
+				<xsd:element name="PayeeForeignAddress" type="ForeignAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Payee foreign address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+			</xsd:choice>
+			<!-- Account Number -->
+			<xsd:element name="AccountNumber" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Account Number</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:simpleType>
+					<xsd:restriction base="StringType">
+						<xsd:maxLength value="30"/>
+					</xsd:restriction>
+				</xsd:simpleType>
+			</xsd:element>
+			<xsd:element name="FATCAFilingReqInd" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>FATCA Filing Requirement</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="TINNot" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>2nd TIN not.</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Gross Payments -->
+			<xsd:element name="GrossPayments" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Gross amount of payment card/third party network transactions</Description>
+						<LineNumber>1a</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Card Not Present Transactions -->
+			<xsd:element name="CardNotPresentTransactions" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Card Not Present Transactions</Description>
+						<LineNumber>1b</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Merchant Category Code -->
+			<xsd:element name="MerchantCategoryCode" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Merchant Category Code</Description>
+						<LineNumber>2</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:simpleType>
+					<xsd:restriction base="TextType">
+						<xsd:pattern value="[0-9]{4}[A-Z]{0,1}"/>
+					</xsd:restriction>
+				</xsd:simpleType>
+			</xsd:element>
+			<!-- Number Of Payment Transactions -->
+			<xsd:element name="NumberOfPaymentTransactions" type="IntegerType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Number Of Payment Transactions</Description>
+						<LineNumber>3</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Federal income tax withheld -->
+			<xsd:element name="FederalTaxWithheld" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Federal income tax withheld</Description>
+						<LineNumber>4</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- January -->
+			<xsd:element name="January" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>January</Description>
+						<LineNumber>5a</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- February -->
+			<xsd:element name="February" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>February</Description>
+						<LineNumber>5b</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- March -->
+			<xsd:element name="March" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>March</Description>
+						<LineNumber>5c</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- April -->
+			<xsd:element name="April" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>April</Description>
+						<LineNumber>5d</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- May -->
+			<xsd:element name="May" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>May</Description>
+						<LineNumber>5e</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- June -->
+			<xsd:element name="June" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>June</Description>
+						<LineNumber>5f</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- July -->
+			<xsd:element name="July" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>July</Description>
+						<LineNumber>5g</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- August -->
+			<xsd:element name="August" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>August</Description>
+						<LineNumber>5h</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- September -->
+			<xsd:element name="September" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>September</Description>
+						<LineNumber>5i</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- October -->
+			<xsd:element name="October" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>October</Description>
+						<LineNumber>5j</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- November -->
+			<xsd:element name="November" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>November</Description>
+						<LineNumber>5k</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- December -->
+			<xsd:element name="December" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>December</Description>
+						<LineNumber>5l</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="State1099KStateLocalTaxGrp" type="StateLocalTaxGrpType" minOccurs="0" maxOccurs="unbounded">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>State1099K State Local Tax Group</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+</xsd:schema>

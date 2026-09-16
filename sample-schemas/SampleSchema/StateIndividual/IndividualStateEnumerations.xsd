@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:include schemaLocation="../Common/StateeFileTypes.xsd"/>
+	<xsd:annotation>
+		<xsd:documentation>This is a place for states to store enumerated lists of values </xsd:documentation>
+	</xsd:annotation>
+	<xsd:simpleType name="ReturnTypeType">
+		<xsd:annotation>
+			<xsd:documentation>Enumerate the specific Return Types that your state accepts</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="String20Type">
+			<!--for example:
+			<xsd:enumeration value="Form1"/>
+			<xsd:enumeration value="Form1A"/>
+			-->
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="SpecialProgramType">
+		<xsd:annotation>
+			<xsd:documentation>Enumerate the specific special programs that your state supports</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="String20Type">
+			<!--for example:
+			<xsd:enumeration value="Freefile"/>
+			<xsd:enumeration value="Spanish"/>
+			-->
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="State1099BAdjInfoCodeType">
+		<xsd:annotation>
+			<xsd:documentation>Enumerate the adjustment info codes your state supports</xsd:documentation>
+		</xsd:annotation>
+		<xsd:restriction base="TextType">
+			<xsd:pattern value="[A-Z]{0,7}"/>
+			<!--<xsd:enumeration value="W"/>
+			<xsd:enumeration value="C"/>
+			<xsd:enumeration value="D"/>-->
+		</xsd:restriction>
+	</xsd:simpleType>
+</xsd:schema>

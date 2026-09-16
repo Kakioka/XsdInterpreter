@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2006 rel. 3 sp2 (http://www.altova.com) by Terry Garber (SC DEPT OF REVENUE & TAXATION) -->
+<xsd:schema xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:annotation>
+		<xsd:documentation>
+			<Description>State e-file Individual Income Tax Schema</Description>
+		</xsd:documentation>
+	</xsd:annotation>
+	<xsd:include schemaLocation="IndividualReturnHeaderState.xsd"/>
+	<xsd:include schemaLocation="ReturnDataState.xsd"/>
+	<xsd:include schemaLocation="../Common/BinaryAttachment.xsd"/>
+	<xsd:include schemaLocation="../Common/FinancialTransaction.xsd"/>
+	<xsd:include schemaLocation="AuthenticationHeader.xsd"/>
+	<xsd:include schemaLocation="TaxPaidOtherStates.xsd"/>
+	<!-- Individual Return - 1040 -->
+	<xsd:element name="ReturnState">
+		<xsd:annotation>
+			<xsd:documentation>1040 Individual Return - wraps around Return Header and Return Data</xsd:documentation>
+		</xsd:annotation>
+		<xsd:complexType>
+			<xsd:sequence>
+				<xsd:element ref="AuthenticationHeader"/>
+				<xsd:element ref="ReturnHeaderState"/>
+				<!--ReturnDataState to be built by each state -->
+				<xsd:element ref="ReturnDataState"/>
+				<xsd:element ref="TaxPaidOtherStates" minOccurs="0" maxOccurs="50"/>
+				<xsd:element ref="BinaryAttachment" minOccurs="0" maxOccurs="100"/>
+				<xsd:element ref="FinancialTransaction" minOccurs="0"/>
+			</xsd:sequence>
+			<xsd:attribute name="stateSchemaVersion" type="String50Type"/>
+			<!-- Version of the state schema set used for the filing-->
+		</xsd:complexType>
+	</xsd:element>
+</xsd:schema>

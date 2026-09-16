@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN362" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:annotation>
+        <xsd:documentation>
+			<Description>Form N362</Description>
+        </xsd:documentation>
+    </xsd:annotation>
+	<xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="FormN362">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>PASS-THROUGH ENTITY TAX CREDIT</Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="FormN362Type">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+	<xsd:complexType name="FormN362Type">
+		<xsd:sequence>
+			<xsd:element name="N362Table" type="FormN362TableRow" minOccurs="1" maxOccurs="unbounded"/>
+			<xsd:element name="TotalPTECred" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total New Credit Claimed</Description>
+                  <FormNumber>N362 Part1</FormNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+			<xsd:element name="AdjTaxLiability" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Adjusted Tax Liability</Description>
+                  <FormNumber>N362 Part2</FormNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+			<xsd:element name="OtherNonRfnCred" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Other Non-refundable Credits</Description>
+                  <FormNumber>N362 Part2</FormNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+			<xsd:element name="RemainTaxLiability" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Remaining Tax Liability</Description>
+                  <FormNumber>N362 Part2</FormNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+			<xsd:element name="TotalCredApplied" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total Credit Applied</Description>
+                  <FormNumber>N362 Part2</FormNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+			<xsd:element name="PTECarryoverCred" type="USAmountNNType">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Unused Credit to Carryover</Description>
+						<FormNumber>N362 Part2</FormNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+	<xsd:complexType name="FormN362TableRow">
+		<xsd:sequence>
+			<xsd:element name="PrimeOrSpouse" type="PrimeOrSpouse" maxOccurs="1">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Primary Or Spouse</Description>
+                  <FormNumber>FormN362 Table</FormNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+			<xsd:element name="Name" type="PersonNameType" maxOccurs="1">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Name</Description>
+                  <FormNumber>FormN362 Table</FormNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+			<xsd:element name="FEIN" type="EINType" maxOccurs="1"> 
+			<xsd:annotation>
+                <xsd:documentation>
+                  <Description>FEIN</Description>
+                  <FormNumber>FormN362 Table</FormNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+			</xsd:element>
+			<xsd:element name="PTECred" type="USAmountNNType" maxOccurs="1"> 
+			<xsd:annotation>
+                <xsd:documentation>
+                  <Description>PTE Elective Tax Credits</Description>
+                  <FormNumber>FormN362 Table</FormNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+	<!-- Simple Types -->
+	<!-- Primary Or Spouse -->
+	<xsd:simpleType name="PrimeOrSpouse">
+		<xsd:restriction base="xsd:string">
+			<xsd:enumeration value="Prime"/>
+			<xsd:enumeration value="Spouse"/>
+		</xsd:restriction>
+	</xsd:simpleType>
+</xsd:schema>

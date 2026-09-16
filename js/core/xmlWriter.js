@@ -14,7 +14,13 @@ export function isEmpty(value) {
 }
 
 export function formatValue(value, schemaElement) {
-  if (schemaElement.kind === 'Checkbox') return value ? 'true' : 'false';
+  if (schemaElement.kind === 'Checkbox') {
+    // The X/blank-enum checkbox idiom (parser.js assignLeafKind's
+    // isXEnumCheckboxType) has no valid "false" text — its enumeration only
+    // ever allows the literal "X" — so buildNodes below only calls this for
+    // value === true on that flavor; a real xsd:boolean still needs both.
+    return schemaElement.xsdDataType === 'xs:boolean' ? (value ? 'true' : 'false') : 'X';
+  }
   return String(value).trim();
 }
 
@@ -153,9 +159,16 @@ export function buildNodes(parentEl, schemaElement, state, path = '') {
 
   if (isLeaf(schemaElement)) {
     const value = state.fieldValues[currentPath.toLowerCase()];
-    if (isEmpty(value) && !schemaElement.isRequired) return; // omit optional empty
+    // The X/blank-enum checkbox idiom (see formatValue above) has no valid
+    // "false" text to fall back on, so unchecked always means "omit the
+    // element" — same as any other empty optional field — never an empty
+    // <Field/>. A real xsd:boolean Checkbox is unaffected: isEmpty(false) is
+    // false, so it keeps writing an explicit true/false either way.
+    const isUncheckedXEnum = schemaElement.kind === 'Checkbox' && schemaElement.xsdDataType !== 'xs:boolean' && value !== true;
+    const noValue = isUncheckedXEnum || isEmpty(value);
+    if (noValue && !schemaElement.isRequired) return; // omit optional empty
     const el = createElement(schemaElement.elementName);
-    if (!isEmpty(value)) el.textContent = formatValue(value, schemaElement);
+    if (!noValue) el.textContent = formatValue(value, schemaElement);
     parentEl.appendChild(el);
     return;
   }

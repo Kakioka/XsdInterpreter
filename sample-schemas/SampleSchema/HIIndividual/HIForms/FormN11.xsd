@@ -1,0 +1,1042 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN11" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:annotation>
+		<xsd:documentation>
+			<Description>Hawaii State Form N-11</Description>
+		</xsd:documentation>
+	</xsd:annotation>
+	<xsd:include schemaLocation ="../../HICommon/HIeFileTypes.xsd"/>
+	<xsd:element name="FormN11">
+		<xsd:complexType>
+			<xsd:complexContent>
+				<xsd:extension base="FormN11Type">
+					<xsd:attributeGroup ref="StateDocumentAttributes">
+						<xsd:annotation>
+							<xsd:documentation>Common return document attributes</xsd:documentation>
+						</xsd:annotation>
+					</xsd:attributeGroup>
+				</xsd:extension>
+			</xsd:complexContent>
+		</xsd:complexType>
+	</xsd:element>
+	<xsd:complexType name="FormN11Type">
+		<xsd:sequence>
+			<xsd:element name="Header">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- NOL Carryback Indicator -->
+						<xsd:element name="NOLCarrybackInd" type="CheckboxType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Net operating loss carryback indicator</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>Header</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- IRS Adjustment Indicator -->
+						<xsd:element name="IRSAdjustmentInd" type="CheckboxType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>IRS adjustment indicator</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>Header</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- First Time Filer Indicator -->
+						<xsd:element name="FirstTimeFilerInd" type="CheckboxType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>First time filer indicator</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>Header</LineNumber>
+									<ELFFieldNumber>0305</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Primary Name Control - The First Four Letters of Last Name -->
+						<xsd:element name="PrimaryNameControl" type="PersonNameControlType">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Primary name control - the first four letters of last name</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>Header</LineNumber>
+									<ELFFieldNumber>0305</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Primary Deceased Indicator -->
+						<xsd:element name="PrimaryDeceasedInd" type="CheckboxType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Primary deceased indicator</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>Header</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Spouse Name Control - The First Four Letters of Last Name -->
+						<xsd:element name="SpouseNameControl" type="PersonNameControlType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Spouse name control - the first four letters of last name</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>Header</LineNumber>
+									<ELFFieldNumber>0305</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Spouse Deceased Indicator -->
+						<xsd:element name="SpouseDeceasedInd" type="CheckboxType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Spouse deceased indicator</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>Header</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Hawaii Filing Status -->
+			<xsd:element name="HawaiiFilingStatus" type="HIFilingStatusType">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Hawaii Filing Status</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>1-5</LineNumber>
+						<ELFFieldNumber>0305</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Qualifying Spouse Name If Married Filing Separate -->
+			<xsd:element name="QualifyingSpouseNameForMFS" type="PersonNameType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Qualifying spouse name if married filing separate</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>3</LineNumber>
+						<ELFFieldNumber>0310</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Qualifying Child's Name for Head of Household -->
+			<xsd:element name="QualifyingChildNameForHOH" type="PersonNameType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Qualifying child's name for head of household</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>4</LineNumber>
+						<ELFFieldNumber>0305</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+
+			<!-- Exemptions -->
+			<xsd:element name="Exemptions" type="HIExemptionsType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Exemptions</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>6a-6e</LineNumber>
+						<ELFFieldNumber>0310</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Federal Adjusted Gross Income (AGI) -->
+			<xsd:element name="FederalAGI" type="USAmountType">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Federal adjusted gross income</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>7</LineNumber>
+						<ELFFieldNumber>0350</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Hawaii Additions to Federal AGI -->
+			<xsd:element name="HIAdditionsToFederalAGI" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Difference in State/Federal Wages Due to COLA, ERS, etc. -->
+						<xsd:element name="StateFederalWageDifference" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Difference in state/federal wages due to COLA, ERS, etc.</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>8</LineNumber>
+									<ELFFieldNumber>0355</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Interest on Out-Of-State Bonds -->
+						<xsd:element name="InterestOnOutOfStateBonds" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Interest on out-of-state bonds</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>9</LineNumber>
+									<ELFFieldNumber>0360</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Other Hawaii Additions to Federal AGI -->
+						<xsd:element name="OtherHIAdditionsToFederalAGI" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Other Hawaii additions to federal AGI</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>10</LineNumber>
+									<ELFFieldNumber>0365</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Total Hawaii additions to federal AGI -->
+						<xsd:element name="TotalHIAdditionsToFederalAGI" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total Hawaii additions to federal AGI. Sum of lines 8 to 10</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>11</LineNumber>
+									<ELFFieldNumber>0370</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Federal AGI + Hawaii Additions -->
+			<xsd:element name="FederalAGIAndHIAdditions" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Federal AGI + Hawaii additions. Sum of lines 7 and 11</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>12</LineNumber>
+						<ELFFieldNumber>0375</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Hawaii Subtractions from Federal AGI -->
+			<xsd:element name="HISubtractionsFromFederalAGI" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Pensions Taxed Federally but not Taxed by Hawaii -->
+						<xsd:element name="PensionsNotTaxed" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Pensions taxed federally but not taxed by Hawaii</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>13</LineNumber>
+									<ELFFieldNumber>0380</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Social Security Benefits Taxed on Federal Return -->
+						<xsd:element name="SocialSecurityBenefits" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Social Security Benefits taxed on federal return</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>14</LineNumber>
+									<ELFFieldNumber>0385</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Military Reserve or Hawaii National Guard Duty Pay Limit-->
+						<xsd:element name="MilitaryReservePay" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Military reserve or Hawaii national guard duty pay limit</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>15</LineNumber>
+									<ELFFieldNumber>0390</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Payments to an Individual Housing Account -->
+						<xsd:element name="IndividualHousingAccountPmts" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Payments to an individual housing account</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>16</LineNumber>
+									<ELFFieldNumber>0395</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Exceptional Trees Deduction -->
+						<xsd:element name="ExceptionalTreesDeduction" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Exceptional trees deduction</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>17</LineNumber>
+									<ELFFieldNumber>0400</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="BinaryAttachment"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Other Hawaii Subtractions from Federal AGI -->
+						<xsd:element name="OtherHISubtractions" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Other Hawaii subtractions from federal AGI</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>18</LineNumber>
+									<ELFFieldNumber>0405</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Total Hawaii Subtractions from Federal AGI -->
+						<xsd:element name="TotalHISubtractionsFromFedAGI" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total Hawaii subtractions from federal AGI. Sum of lines 13-18</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>19</LineNumber>
+									<ELFFieldNumber>0410</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Hawaii AGI -->
+			<xsd:element name="HawaiiAGI" type="USAmountType">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Hawaii AGI. Line 12 minus 19. Can be negative</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>20</LineNumber>
+						<ELFFieldNumber>0415</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Deductions and Taxable Income Computation -->
+			<!-- Dependent on Another Person's Return Indicator -->
+			<xsd:element name="DependentOnAnotherReturnInd" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Dependent on another person's return indicator</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>20.5</LineNumber>
+						<ELFFieldNumber>0310</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Itemized Deductions -->
+			<xsd:element name="ItemizedDeductions" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Medical and Dental Expenses (from Worksheet A-1)-->
+						<xsd:element name="MedicalAndDentalDeduction" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Medical and dental expenses (from Worksheet A-1)</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>21a</LineNumber>
+									<ELFFieldNumber>0420</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="WksA1"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Taxes Deduction (from Worksheet A-2) -->
+						<xsd:element name="TaxesDeduction" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Taxes deduction (from Worksheet A-2)</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>21b</LineNumber>
+									<ELFFieldNumber>0425</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="WksA2"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Interest Expense (from Worksheet A-3) -->
+						<xsd:element name="InterestExpenseDeduction" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Interest expense (from Worksheet A-3)</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>21c</LineNumber>
+									<ELFFieldNumber>0430</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="WksA3"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Contributions (from Worksheet A-4) -->
+						<xsd:element name="ContributionsDeduction" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Contributions (from Worksheet A-4)</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>21d</LineNumber>
+									<ELFFieldNumber>0435</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="WksA4"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Casualty and Theft Losses (from Worksheet A-5) -->
+						<xsd:element name="CasualtyAndTheftLosses" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Casualty and theft losses (from Worksheet A-5)</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>21e</LineNumber>
+									<ELFFieldNumber>0440</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Miscellaneous Deductions -->
+						<xsd:element name="MiscellaneousDeductions" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Miscellaneous deductions</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>21f</LineNumber>
+									<ELFFieldNumber>0445</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="WksA6"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Total Itemized Deductions -->
+						<xsd:element name="TotalItemizedDeductions" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total itemized deductions - Add lines 21a through 21f</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>22</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Standard Deduction -->
+			<xsd:element name="StandardDeduction" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Standard deduction</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>23</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Hawaii AGI Less Deductions -->
+			<xsd:element name="HawaiiAGILessDeductions" type="USAmountType">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Hawaii AGI less deductions. Line 20 minus 22 or 23, whichever applies</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>24</LineNumber>
+						<ELFFieldNumber>0455</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Exemption Amount Computation -->
+			<xsd:element name="ExemptionAmtComputation" type="HIExemptionAmtComputationType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Exemption amount computation</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>25</LineNumber>
+						<ELFFieldNumber>0310, 0460</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Tax Computation -->
+			<xsd:element name="StateTaxComputation">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Taxable Income -->
+						<xsd:element name="TaxableIncome" type="USAmountNNType">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Taxable income: line 24 minus line 25. If negative, zero fill</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>26</LineNumber>
+									<ELFFieldNumber>0465</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Tax Table Indicator -->
+						<xsd:element name="TaxTableInd" type="CheckboxType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Tax table indicator - tax from tax table</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>27</LineNumber>
+									<ELFFieldNumber>0310</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Tax Rate Schedule Indicator -->
+						<xsd:element name="TaxRateScheduleInd" type="CheckboxType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Tax rate schedule indicator - tax from tax rate schedule</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>27</LineNumber>
+									<ELFFieldNumber>0310</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Capital Gain Tax Indicator -->
+						<xsd:element name="CapitalGainsTaxInd" type="CheckboxType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Capital gain tax indicator - capital gain tax</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>27</LineNumber>
+									<ELFFieldNumber>0310</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Separate Tax Indicator -->
+						<xsd:element name="TaxFromSeparateFormsInd" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Separate tax indicator - applicable when attaching Form N-2, Form N-103, Form N-152, Form N-168, Form N-312, Form N-325, Form N-338, Form N-344, Form N-348, Form N-405, Form N-586, Form N-615 or Form N-814</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>27</LineNumber>
+									<ELFFieldNumber>0310</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="CheckboxType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="BinaryAttachment"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Tax -->
+						<xsd:element name="TaxLiability" type="USAmountNNType">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Tax</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>27</LineNumber>
+									<ELFFieldNumber>0475</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- The Amount of Net Capital Gains Eligible for Alternative Tax -->
+						<xsd:element name="NetCapitalGainsAmt" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>The amount of net capital gains eligible for alternative tax - if tax is from the Capital Gains Tax Worksheet, enter the net capital gain from line 14 of that worksheet</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>27a</LineNumber>
+									<ELFFieldNumber>0480</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Refundable Credits -->
+			<xsd:element name="RefundableCredits" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Refundable Food/Excise Tax Credit -->
+						<xsd:element name="RefundableFoodExciseTaxCredit" minOccurs="0">
+							<xsd:complexType>
+								<xsd:sequence>
+									<xsd:element name="DhsExemptions" minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>DHS exemptions</Description>
+												<FormNumber>FormN11</FormNumber>
+												<LineNumber>28</LineNumber>
+												<ELFFieldNumber>0310</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+										<xsd:simpleType>
+											<xsd:restriction base="IntegerNNType">
+												<xsd:totalDigits value="2"/>
+											</xsd:restriction>
+										</xsd:simpleType>
+									</xsd:element>
+									<xsd:element name="Amount" minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>Refundable food/excise tax credit amount</Description>
+												<FormNumber>FormN11</FormNumber>
+												<LineNumber>28</LineNumber>
+												<ELFFieldNumber>0515</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+										<xsd:complexType>
+											<xsd:simpleContent>
+												<xsd:extension base="USAmountNNType">
+													<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+													<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN311"/>
+												</xsd:extension>
+											</xsd:simpleContent>
+										</xsd:complexType>
+									</xsd:element>
+								</xsd:sequence>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Credit for Low-Income Household Renters -->
+						<xsd:element name="LowIncHouseholdRentersCredit" minOccurs="0" >
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Credit for low-income household renters</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>29</LineNumber>
+									<ELFFieldNumber>0520</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="SchX"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Credit for Child and Dependent Care Expenses -->
+						<xsd:element name="ChildAndDependentCareExpCredit" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Credit for child and dependent care expenses</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>30</LineNumber>
+									<ELFFieldNumber>0525</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="SchX"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Credit for Child Passenger Restraint System(s) -->
+						<xsd:element name="ChildRestraintSystemCredit" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Credit for child passenger restraint system(s)</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>31</LineNumber>
+									<ELFFieldNumber>0530</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="BinaryAttachment"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Total Refundable Tax Credits from Schedule CR -->
+						<xsd:element name="TotalRefundCreditsFromSchCR" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total refundable tax credits from Schedule CR</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>32</LineNumber>
+									<ELFFieldNumber>0540</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="SchCR"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Total Refundable Credits -->
+						<xsd:element name="TotalRefundableTaxCredits" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total Refundable Credits - add lines 28 through 32</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>33</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Line 27 Minus Line 33 -->
+			<xsd:element name="TaxLessRefundableCredits" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Line 27 minus line 33</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>34</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Total Non-Refundable Tax Credits -->
+			<xsd:element name="TotalNonrefundableTaxCredits" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total nonrefundable tax credits</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>35</LineNumber>
+						<ELFFieldNumber>0485</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:complexType>
+					<xsd:simpleContent>
+						<xsd:extension base="USAmountNNType">
+							<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+							<xsd:attribute name="referenceDocumentName" type="StringType" fixed="SchCR"/>
+						</xsd:extension>
+					</xsd:simpleContent>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Balance - Line 34 Minus Line 35 -->
+			<xsd:element name="TaxLessCredits" type="USAmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Balance - line 34 minus line 35</Description>
+						<FormNumber>FormN11</FormNumber>
+						<LineNumber>36</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Tax Already Paid -->
+			<xsd:element name="TaxAlreadyPaid" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Hawaii State Income tax withheld -->
+						<xsd:element name="StateIncomeTaxWithheld" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Hawaii State Income tax withheld</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>37</LineNumber>
+									<ELFFieldNumber>0495</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Estimated Tax Payments -->
+						<xsd:element name="EstimatedTaxPayments" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Estimated tax payments</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>38</LineNumber>
+									<ELFFieldNumber>0500</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Amount of Estimated Tax Applied from Prior Year Return -->
+						<xsd:element name="EstimatedTaxApplFromPriorYear" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Amount of estimated tax applied from prior year return</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>39</LineNumber>
+									<ELFFieldNumber>0505</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Amount paid with extension -->
+						<xsd:element name="AmtPaidWithExtension" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Amount paid with extension</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>40</LineNumber>
+									<ELFFieldNumber>0510</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Total Payments -->
+						<xsd:element name="TotalPayments" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total payments. Add lines 37 through 40</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>41</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Refund or Balance Due -->
+			<xsd:element name="RefundOrBalanceDue" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Amount Overpaid -->
+						<xsd:element name="AmtOverpaid" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>If line 41 is larger than line 36, enter the amount OVERPAID (line 41 minus line 36)</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>42</LineNumber>
+									<ELFFieldNumber>0550</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Contributions to Hawaii Schools, Public Libraries, Domestic and Sexual Violence Funds -->
+						<xsd:element name="Contributions" type="HIContributionsType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Contributions to Hawaii schools, public libraries, domestic and sexual violence funds</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>43a,b,c-44</LineNumber>
+									<ELFFieldNumber>0315, 0320, 0565</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Overpayment Less Contributions -->
+						<xsd:element name="OverpaymentLessContributions" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Overpayment less contributions - line 42 minus line 44</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>45</LineNumber>
+									<ELFFieldNumber></ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Amount to Be Applied to Estimated Tax -->
+						<xsd:element name="AmtAppliedToNextYearEstTax" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Amount to be applied to Estimated Tax</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>46</LineNumber>
+									<ELFFieldNumber>0555</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Amount to Be Refunded -->
+						<xsd:element name="RefundAmt" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Amount to be refunded. Line 45 minus line 46</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>47a</LineNumber>
+									<ELFFieldNumber>0570</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Amount Owed -->
+						<xsd:element name="AmtOwed" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Amount owed</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>48</LineNumber>
+									<ELFFieldNumber>0575</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Payment Amount -->
+						<xsd:element name="PaymentAmt" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>PAYMENT AMOUNT - Send a check or money order payable to the “Hawaii State Tax Collector.”</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>49</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Form N-210 attached -->
+						<xsd:element name="FormN210Ind" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Form N-210 attached</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>50</LineNumber>
+									<ELFFieldNumber>0310</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="CheckboxType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN210"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Estimated Tax Penalty -->
+						<xsd:element name="EstimatedTaxPenalty" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Estimated tax penalty. Do not include the penalty amount on line 42 or line 48</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>50</LineNumber>
+									<ELFFieldNumber>0580</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Taxpayer Questionnaire -->
+			<xsd:element name="TaxpayerQuestionnaire" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Federal Schedule C Indicator -->
+						<!-- Federal Schedule C Amount -->
+						<!-- Federal Schedule C Activity -->
+						<!-- Federal Schedule C Product -->
+						<!-- Tax I.D. Number For Federal Schedule C Activity -->
+						<xsd:element name="FederalSchCQuestionnaire" type="HITaxpayerQuestionnaireType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Federal Schedule C questionnaire</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>51</LineNumber>
+									<ELFFieldNumber>0310, 0595, 0315, 0315, 0310</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Schedule E Indicator -->
+						<!-- Schedule E Amount -->
+						<!-- Tax I.D. Number For Schedule E Activity -->
+						<xsd:element name="FederalSchEQuestionnaire" type="HITaxpayerQuestionnaireType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Federal Schedule E questionnaire</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>52</LineNumber>
+									<ELFFieldNumber>0315, 0600, 0315</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Schedule F Indicator -->
+						<!-- Schedule F Amount -->
+						<!-- Schedule F Activity -->
+						<!-- Schedule F Product -->
+						<!-- Tax I.D. Number For Schedule F Activity -->
+						<xsd:element name="FederalSchFQuestionnaire" type="HITaxpayerQuestionnaireType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Federal Schedule F questionnaire</Description>
+									<FormNumber>FormN11</FormNumber>
+									<LineNumber>53</LineNumber>
+									<ELFFieldNumber>0315, 0605, 0315, 0315, 0315</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Designee -->
+			<xsd:element name="Designee" type="HIDesigneeType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>If designating another person to discuss this return with the Hawaii Department of Taxation</Description>
+						<FormNumber>FormN11</FormNumber>
+						<ELFFieldNumber>0320</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Hawaii Election Campaign - Taxpayer -->
+			<xsd:element name="PrimaryElectionCampaignInd" type="BooleanType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Hawaii election campaign - taxpayer</Description>
+						<FormNumber>FormN11</FormNumber>
+						<ELFFieldNumber>0315</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Hawaii Election Campaign - Spouse -->
+			<xsd:element name="SpouseElectionCampaignInd" type="BooleanType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Hawaii election campaign - spouse</Description>
+						<FormNumber>FormN11</FormNumber>
+						<ELFFieldNumber>0315</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Primary Filer's Occupation - Hawaii State Signature Section -->
+			<xsd:element name="PrimaryFilerInfo" type="PersonTitleType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Primary filer's occupation - Hawaii State signature section</Description>
+						<FormNumber>FormN11</FormNumber>
+						<ELFFieldNumber>0305</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Secondary Filer's Occupation - Hawaii State Signature Section -->
+			<xsd:element name="SecondaryFilerInfo" type="PersonTitleType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Secondary filer's occupation - Hawaii State signature section</Description>
+						<FormNumber>FormN11</FormNumber>
+						<ELFFieldNumber>0305</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+</xsd:schema>

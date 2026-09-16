@@ -20,7 +20,16 @@ function generateUUID() {
 }
 
 export function parseValue(rawText, schemaElement) {
-  if (schemaElement.kind === 'Checkbox') return rawText.trim().toLowerCase() === 'true';
+  if (schemaElement.kind === 'Checkbox') {
+    // Mirrors xmlWriter.js's formatValue: the X/blank-enum checkbox idiom
+    // (parser.js assignLeafKind's isXEnumCheckboxType) only ever has literal
+    // "X" as valid content — the element being absent entirely (never
+    // reaching this function) is what "unchecked" looks like on disk for
+    // that flavor. A real xsd:boolean still reads true/false as written.
+    return schemaElement.xsdDataType === 'xs:boolean'
+      ? rawText.trim().toLowerCase() === 'true'
+      : rawText.trim().toUpperCase() === 'X';
+  }
   return rawText.trim();
 }
 

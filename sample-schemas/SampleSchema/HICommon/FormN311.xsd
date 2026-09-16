@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN311" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii State Form N-311</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="FormN311">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>REFUNDABLE FOOD/EXCISE TAX CREDIT</Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="FormN311Type">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:complexType name="FormN311Type">
+    <xsd:sequence>
+	  <!-- REFUNDABLE FOOD/EXCISE TAX CREDIT COMPUTATION -->
+	  <xsd:element name="RefundableFoodExciseTaxCrComp" minOccurs="0">
+		<xsd:complexType>
+          <xsd:sequence>
+			<!-- List of Qualified Exemptions (Taxpayer, Spouse, and Dependents) -->
+			<xsd:element name="QualifiedPerson" minOccurs="0" maxOccurs="unbounded">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>The list of qualified exemptions (a taxpayer, a spouse, and dependents). Do not list minor children receiving more than half of their support from public agencies</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>2</LineNumber>
+				  <ELFFieldNumber>0050, 0055, 0060, 0065, 0070, 0075, 0080, 0085</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			  <xsd:complexType>
+				<xsd:sequence>
+				  <xsd:element name="Name" type="PersonNameType"/>
+				  <xsd:element name="Relationship">
+					<xsd:simpleType>
+					  <xsd:restriction base="StringType">
+						<xsd:enumeration value="SELF"/>
+						<xsd:enumeration value="SPOUSE"/>
+						<xsd:enumeration value="SON"/>
+						<xsd:enumeration value="DAUGHTER"/>
+						<xsd:enumeration value="GRANDCHILD"/>
+						<xsd:enumeration value="GRANDPARENT"/>
+						<xsd:enumeration value="PARENT"/>
+						<xsd:enumeration value="STEPCHILD"/>
+						<xsd:enumeration value="FOSTERCHILD"/>
+						<xsd:enumeration value="SISTER"/>
+						<xsd:enumeration value="BROTHER"/>
+						<xsd:enumeration value="AUNT"/>
+						<xsd:enumeration value="UNCLE"/>
+						<xsd:enumeration value="NIECE"/>
+						<xsd:enumeration value="NEPHEW"/>
+						<xsd:enumeration value="NONE"/>
+						<xsd:enumeration value="HALF BROTHER"/>
+						<xsd:enumeration value="HALF SISTER"/>
+						<xsd:enumeration value="STEPBROTHER"/>
+						<xsd:enumeration value="STEPSISTER"/>
+						<xsd:enumeration value="OTHER"/>
+					  </xsd:restriction>
+					</xsd:simpleType>
+				  </xsd:element>
+				</xsd:sequence>
+			  </xsd:complexType>
+			</xsd:element>
+			<!-- The Number of Qualified Persons -->
+			<xsd:element name="QualifiedPersonsCnt" minOccurs="0">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>The number of qualified persons</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>2</LineNumber>
+				  <ELFFieldNumber>0090</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			  <xsd:simpleType>
+				<xsd:restriction base="IntegerNNType">
+				  <xsd:totalDigits value="2"/>
+				</xsd:restriction>
+			  </xsd:simpleType>
+			</xsd:element>
+			<!-- List of Minor Children Receiving More Than Half of Their Support from Public Agencies -->
+			<xsd:element name="QualifiedChild" type="HIDependentType" minOccurs="0" maxOccurs="unbounded">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>List of minor children receiving more than half of their support from public agencies</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>3</LineNumber>
+				  <ELFFieldNumber>0095, 0100, 0105, 0110, 0120, 0125, 0130, 0135, 0145, 0150, 0155, 0160</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			</xsd:element>
+			<!-- The Number of Qualified Minor Children -->
+			<xsd:element name="QualifiedChildrenCnt" minOccurs="0">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>The number of qualified minor children.</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>3</LineNumber>
+				  <ELFFieldNumber>0170</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			  <xsd:simpleType>
+				<xsd:restriction base="IntegerNNType">
+				  <xsd:totalDigits value="2"/>
+				</xsd:restriction>
+			  </xsd:simpleType>
+			</xsd:element>
+			<!-- Taxpayer's Federal Adjusted Gross Income (AGI) -->
+			<xsd:element name="PrimaryFederalAGI" type="USAmountType" minOccurs="0">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>Taxpayer's federal adjusted gross income</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>4</LineNumber>
+				  <ELFFieldNumber>0175</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			</xsd:element>
+			<!-- Spouse Federal Adjusted Gross Income (AGI) -->
+			<xsd:element name="SpouseFederalAGI" type="USAmountType" minOccurs="0">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>Spouse federal adjusted gross income - if married filing separately</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>5</LineNumber>
+				  <ELFFieldNumber>0180</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			</xsd:element>
+			<!-- Total Federal Adjusted Gross Income (AGI) -->
+			<xsd:element name="TotalFederalAGI" type="USAmountType" minOccurs="0">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>Total federal adjusted gross income - add lines 4 and 5</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>6</LineNumber>
+				  <ELFFieldNumber>0185</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			</xsd:element>
+			<!-- Tax Credit per Qualified Exemption -->
+			<xsd:element name="TaxCreditPerQualifiedExemption" type="USAmountNNType" minOccurs="0">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>Tax credit per qualified exemption</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>7</LineNumber>
+				  <ELFFieldNumber>0190</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			</xsd:element>
+			<!-- Qualified Persons Count by Credit Amount -->
+			<xsd:element name="QualifiedPersonsTaxCredit" type="USAmountNNType" minOccurs="0">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>Add lines 2 and 3. Enter the total here</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>8</LineNumber>
+				  <ELFFieldNumber>0195</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			</xsd:element>
+			<!-- Refundable Food/Excise Tax Credit -->
+			<xsd:element name="RefundableFoodExciseTaxCredit" type="USAmountNNType" minOccurs="0">
+			  <xsd:annotation>
+				<xsd:documentation>
+				  <Description>Refundable food/excise tax credit - add lines 8 and 9</Description>
+				  <FormNumber>FormN311</FormNumber>
+				  <LineNumber>9</LineNumber>
+				  <ELFFieldNumber>0205</ELFFieldNumber>
+				</xsd:documentation>
+			  </xsd:annotation>
+			</xsd:element>
+		  </xsd:sequence>
+		</xsd:complexType>  
+	  </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>

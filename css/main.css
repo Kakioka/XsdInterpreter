@@ -315,13 +315,18 @@ fieldset.group-container legend {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
 }
 
 .field-wrapper input,
 .field-wrapper select {
-  flex: 1;
+  /* flex-basis 320px (not flex:1's implicit 0%) so .field-control's own size
+   * hugs the input instead of being computed from a 0-width hypothetical size
+   * — flex-grow:0 here (and on .field-control above) is what stops the whole
+   * control group from stretching to fill the row and stranding the
+   * documentation tooltip far off to the right of a short input. */
+  flex: 0 1 320px;
   max-width: 320px;
   padding: 4px 6px;
   background: var(--control-background);
@@ -389,6 +394,14 @@ fieldset.group-container.color-yellow,
 }
 
 .field-wrapper .tooltip {
+  /* Forced onto its own line under the label — same flex-basis:100% trick
+   * .field-error already uses below — instead of trailing .field-control on
+   * the same row, where leftover flex space (from a short input in a wide
+   * row) stranded it far to the right with no visible relationship to the
+   * field it documents. Same margin-left as .field-error for the same reason:
+   * roughly under the input, after the color-border strip. */
+  flex: 1 0 100%;
+  margin-left: 11px;
   color: var(--secondary-text);
   font-size: 12px;
   font-style: italic;
@@ -982,11 +995,18 @@ body.layout-wrap .branch-content > *:not(.field-wrapper) {
 /* §20 steps 6/9 — a centered modal offering a dropdown of the detected root
  * schema file / root element candidates. Content is built dynamically by
  * js/ui/chooseRootDialog.js (same pattern as #package-dialog); these rules
- * only style whatever it renders into #choose-root-dialog-overlay. */
+ * only style whatever it renders into #choose-root-dialog-overlay. Must
+ * outrank #loading-overlay (z-index 1000 below): app.js's loadSchema shows
+ * this dialog from INSIDE its withBusyOverlay('Parsing schema…', …) call, so
+ * whenever a schema set has multiple root file/element candidates, the two
+ * overlays are visible at once — without this the loading overlay (which
+ * also has pointer-events: all) sits on top and silently swallows every
+ * click meant for the dialog underneath, so the awaited choice promise never
+ * resolves and the app looks hung forever. */
 #choose-root-dialog-overlay {
   position: fixed;
   inset: 0;
-  z-index: 900;
+  z-index: 1010;
   display: flex;
   align-items: center;
   justify-content: center;

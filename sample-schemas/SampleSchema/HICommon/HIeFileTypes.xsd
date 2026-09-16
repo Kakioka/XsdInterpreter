@@ -1,0 +1,1400 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.irs.gov/efile" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:include schemaLocation="../Common/efileTypes.xsd"/>
+  <xsd:include schemaLocation="../Common/StateeFileTypes.xsd"/>
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii's e-file common type library</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <!-- Filing Status List (HI) -->
+  <xsd:simpleType name="HIFilingStatusType">
+    <xsd:annotation>
+      <xsd:documentation>Hawaii Filing Status enumeration</xsd:documentation>
+    </xsd:annotation>
+    <xsd:restriction base="StringType">
+      <xsd:enumeration value="1">
+        <xsd:annotation>
+          <xsd:documentation>Single (S)</xsd:documentation>
+        </xsd:annotation>
+      </xsd:enumeration>
+      <xsd:enumeration value="2">
+        <xsd:annotation>
+          <xsd:documentation>Married Filing Joint (MFJ)</xsd:documentation>
+        </xsd:annotation>
+      </xsd:enumeration>
+      <xsd:enumeration value="3">
+        <xsd:annotation>
+          <xsd:documentation>Married Filing Separate (MFS)</xsd:documentation>
+        </xsd:annotation>
+      </xsd:enumeration>
+      <xsd:enumeration value="4">
+        <xsd:annotation>
+          <xsd:documentation>Head of Household (HH)</xsd:documentation>
+        </xsd:annotation>
+      </xsd:enumeration>
+      <xsd:enumeration value="5">
+        <xsd:annotation>
+          <xsd:documentation>Qualifying Surviving Spouse</xsd:documentation>
+        </xsd:annotation>
+      </xsd:enumeration>
+    </xsd:restriction>
+  </xsd:simpleType>
+  <!-- Type of Hawaii Exemptions -->
+  <xsd:complexType name="HIExemptionsType">
+    <xsd:sequence>
+      <!-- Exempt Primary Indicator -->
+      <xsd:element name="ExemptPrimaryInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Exempt primary indicator</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Exempt Primary Age 65 or Over Indicator -->
+      <xsd:element name="ExemptPrimaryAge65Ind" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Exempt primary age 65 or over indicator</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Exempt Spouse Indicator -->
+      <xsd:element name="ExemptSpouseInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Exempt spouse indicator</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Exempt Spouse Age 65 or Over Indicator -->
+      <xsd:element name="ExemptSpouseAge65Ind" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Exempt spouse age 65 or over indicator</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Exempt Spouse for Status MFS (Married Filing Separately) Indicator -->
+      <xsd:element name="ExemptSpouseMFSInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Exempt spouse for MFS (married filing separately) indicator</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Total Exempt Primary And Spouse Count -->
+      <xsd:element name="TotalExemptPrimaryAndSpouseCnt" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Total exempt primary and spouse count</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:simpleType>
+          <xsd:restriction base="IntegerNNType">
+            <xsd:totalDigits value="1"/>
+          </xsd:restriction>
+        </xsd:simpleType>
+      </xsd:element>
+      <!-- Dependent Information Repeating Group -->
+      <xsd:element name="DependentInformation" type="HIDependentType" minOccurs="0" maxOccurs="99">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Dependent information</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Number of Dependent Children -->
+      <xsd:element name="NumberOfDependentChildren" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Number of dependent children</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:simpleType>
+          <xsd:restriction base="IntegerNNType">
+            <xsd:totalDigits value="2"/>
+          </xsd:restriction>
+        </xsd:simpleType>
+      </xsd:element>
+      <!-- Number of Other Dependents -->
+      <xsd:element name="NumberOfOtherDependents" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Number of other dependents</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:simpleType>
+          <xsd:restriction base="IntegerNNType">
+            <xsd:totalDigits value="2"/>
+          </xsd:restriction>
+        </xsd:simpleType>
+      </xsd:element>
+      <!-- Total Exemptions Count -->
+      <xsd:element name="TotalNumberOfExemptions" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Total exemptions count</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:simpleType>
+          <xsd:restriction base="IntegerNNType">
+            <xsd:totalDigits value="2"/>
+          </xsd:restriction>
+        </xsd:simpleType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type of Hawaii Dependent - Used to Collect Dependent Data -->
+  <xsd:complexType name="HIDependentType">
+    <xsd:annotation>
+      <xsd:documentation>Used to collect dependent data</xsd:documentation>
+    </xsd:annotation>
+    <xsd:sequence>
+      <!-- Dependent First and Last Name -->
+      <xsd:element name="DependentName" type="PersonNameType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Dependent first and last name</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Dependent SSN -->
+      <xsd:element name="DependentSSN" type="SSNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Dependent SSN</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Dependent Relationship -->
+      <xsd:element name="DependentRelationToTaxpayer">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Dependent relationship</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:simpleType>
+          <xsd:restriction base="StringType">
+            <xsd:enumeration value="SON"/>
+            <xsd:enumeration value="DAUGHTER"/>
+            <xsd:enumeration value="GRANDCHILD"/>
+            <xsd:enumeration value="GRANDPARENT"/>
+            <xsd:enumeration value="PARENT"/>
+            <xsd:enumeration value="STEPCHILD"/>
+            <xsd:enumeration value="FOSTERCHILD"/>
+            <xsd:enumeration value="SISTER"/>
+            <xsd:enumeration value="BROTHER"/>
+            <xsd:enumeration value="AUNT"/>
+            <xsd:enumeration value="UNCLE"/>
+            <xsd:enumeration value="NIECE"/>
+            <xsd:enumeration value="NEPHEW"/>
+            <xsd:enumeration value="NONE"/>
+            <xsd:enumeration value="HALF BROTHER"/>
+            <xsd:enumeration value="HALF SISTER"/>
+            <xsd:enumeration value="STEPBROTHER"/>
+            <xsd:enumeration value="STEPSISTER"/>
+            <xsd:enumeration value="OTHER"/>
+          </xsd:restriction>
+        </xsd:simpleType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type of Hawaii Exemption Amount Computation -->
+  <xsd:complexType name="HIExemptionAmtComputationType">
+    <xsd:sequence>
+      <!-- Exempt Primary Blind, Deaf, or Disabled Indicator -->
+      <xsd:element name="ExemptPrimaryDisabledInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Exempt primary blind, deaf, or disabled indicator</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Exempt Spouse Blind, Deaf, or Disabled Indicator -->
+      <xsd:element name="ExemptSpouseDisabledInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Exempt spouse blind, deaf, or disabled indicator</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Exemption Amount -->
+      <xsd:element name="ExemptionAmt" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Exemption amount</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type for Contributions to Hawaii Scholls, Public Libraries, Domestic and Sexual Violence Funds -->
+  <xsd:complexType name="HIContributionsType">
+    <xsd:sequence>
+      <!-- Primary Taxpayer Contribution to Hawaii Schools Repairs and Maintenance Fund -->
+      <xsd:element name="PrimarySchoolContributionInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Primary taxpayer contributions to Hawaii schools repairs and maintenance fund</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Spouse Contribution to Hawaii Schools Repairs and Maintenance Fund -->
+      <xsd:element name="SpouseSchoolContributionInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Spouse contributions to Hawaii schools repairs and maintenance fund</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Primary Taxpayer Contribution to Hawaii Public Libraries Fund -->
+      <xsd:element name="PrimaryLibraryContributionInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Primary taxpayer contributions to Hawaii public libraries fund</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Spouse Contribution to Hawaii Public Libraries Fund -->
+      <xsd:element name="SpouseLibraryContributionInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Spouse contributions to Hawaii public libraries fund</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Primary Taxpayer Contribution to Domestic and Sexual Violence/Child Abuse and Neglect Funds -->
+      <xsd:element name="PrimaryDomViolContributionInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Primary taxpayer contributions to domestic and sexual violence/child abuse and neglect funds</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Spouse Contribution to Domestic and Sexual Violence/Child Abuse and Neglect Funds -->
+      <xsd:element name="SpouseDomViolContributionInd" type="CheckboxType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Spouse contributions to domestic and sexual violence/child abuse and neglect funds</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Total Special Funds Contributions -->
+      <xsd:element name="TotalSpecialFundsContributions" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Total special funds contributions</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- ITIN Type -->
+  <xsd:simpleType name="HIITINType">
+	<xsd:annotation>
+		<xsd:documentation>Type for Individual Taxpayer I.D. No. - 9 digits</xsd:documentation>
+	</xsd:annotation>
+	<xsd:restriction base="xsd:string">
+		<xsd:pattern value="(9[0-9]{8})"/>
+	</xsd:restriction>  
+  </xsd:simpleType>  
+  <!-- Hawaii Tax I.D. Number Type -->
+  <xsd:simpleType name="HITaxIdNumberType">
+    <xsd:annotation>
+      <xsd:documentation>Type for Hawaii Tax I.D. Number - 10 or 8 digits</xsd:documentation>
+    </xsd:annotation>
+    <xsd:restriction base="xsd:string">
+      <xsd:pattern value="([0-9]{10})|([0-9]{8})"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  <!-- Hawaii General Excise Tax I.D. Number Type -->
+  <xsd:simpleType name="HIGETaxIdNumberType">
+    <xsd:annotation>
+      <xsd:documentation>Type for Hawaii Tax ID number, Hawaii General Excise Tax I.D. Number - GE plus 12 digits</xsd:documentation>
+    </xsd:annotation>
+    <xsd:restriction base="xsd:string">
+      <xsd:pattern value="(GE[0-9]{12})"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  <!-- Hawaii Corporate Income Tax I.D. Number Type -->
+  <xsd:simpleType name="HICOTaxIdNumberType">
+    <xsd:annotation>
+      <xsd:documentation>Type for Hawaii Tax ID number, Corporate Income Tax I.D. Number - CO plus 12 digits or W Number - W plus 8 digits</xsd:documentation>
+    </xsd:annotation>
+    <xsd:restriction base="xsd:string">
+      <xsd:pattern value="(CO[0-9]{12}|W[0-9]{8})"/>
+      </xsd:restriction>
+    </xsd:simpleType>
+  <!-- Hawaii GE Tax I.D. Number Type -->
+  <xsd:simpleType name="HIGEWTaxIdNumberType">
+    <xsd:annotation>
+      <xsd:documentation>Type for Hawaii Tax ID number, Hawaii General Excise Tax I.D. Number - GE plus 12 digits or W Number - W plus 8 digits</xsd:documentation>
+    </xsd:annotation>
+    <xsd:restriction base="xsd:string">
+      <xsd:pattern value="(GE[0-9]{12}|W[0-9]{8})"/>
+      </xsd:restriction>
+    </xsd:simpleType>	
+  <!-- Percent Type -->
+  <xsd:simpleType name="HIPercentType">
+    <xsd:annotation>
+      <xsd:documentation>A number between 0 and 100 that allows up to 5 decimal places</xsd:documentation>
+    </xsd:annotation>
+    <xsd:restriction base="xsd:decimal">
+      <xsd:totalDigits value="8"/>
+      <xsd:fractionDigits value="5"/>
+      <xsd:minInclusive value="0.00000"/>
+      <xsd:maxInclusive value="100.00000"/>
+    </xsd:restriction>
+  </xsd:simpleType>
+  <!-- Large Percent Type -->
+  <xsd:simpleType name="HILargePercentType">
+    <xsd:annotation>
+      <xsd:documentation>A number between 0 and 500 that allows up to 5 decimal places</xsd:documentation>
+    </xsd:annotation>
+    <xsd:restriction base="xsd:decimal">
+      <xsd:totalDigits value="8"/>
+      <xsd:fractionDigits value="5"/>
+      <xsd:minInclusive value="0.00000"/>
+      <xsd:maxInclusive value="500.00000"/>
+    </xsd:restriction>
+  </xsd:simpleType>  
+  <!-- Type for HI Taxpayer Questionnaire About Business, Rental, or Farming Income -->
+  <xsd:complexType name="HITaxpayerQuestionnaireType" >
+    <xsd:sequence>
+      <xsd:element name="FederalSchInd" type="BooleanType"/>
+      <xsd:element name="FederalSchGrossAmt" type="USAmountType" minOccurs="0"/>
+      <xsd:element name="FederalSchActivity" minOccurs="0" type="TextType"/>
+      <xsd:element name="FederalSchProduct" minOccurs="0" type="TextType"/>
+      <xsd:element name="FederalSchHIGETaxIdNo" type="HIGETaxIdNumberType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Tax I.D. number for Federal Schedule activity. 12 digits. "GE" should be included</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type for Designee Information - Hawaii State Designee Section -->
+  <xsd:complexType name="HIDesigneeType">
+    <xsd:sequence>
+      <!-- Third Party Designee's Name -->
+      <xsd:element name="Name" type="PersonNameType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Third Party Designee Name</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Third Party Designee's Telephone Number -->
+      <xsd:choice minOccurs="0">
+        <xsd:element name="Phone" type="PhoneNumberType"/>
+        <xsd:element name="ForeignPhone" type="ForeignPhoneNumberType"/>
+      </xsd:choice>
+      <!-- Third Party Designee's Identification Number - SSN, PTIN, or EIN -->
+      <xsd:choice minOccurs="0">
+        <xsd:element name="SSN" type="SSNType"/>
+        <xsd:element name="PTIN" type="PTINType"/>
+        <xsd:element name="EIN" type="EINType"/>
+      </xsd:choice>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type for Federal/Hawaii Amount -->
+  <xsd:complexType name="HIFedStateAmtType">
+    <xsd:sequence>
+      <xsd:element name="Federal" type="USAmountType" minOccurs="0"/>
+      <xsd:element name="Hawaii" type="USAmountType" minOccurs="0"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type for Federal/Hawaii Non-Negative Amount -->
+  <xsd:complexType name="HIFedStateAmtNNType">
+    <xsd:sequence>
+      <xsd:element name="Federal" type="USAmountNNType" minOccurs="0"/>
+      <xsd:element name="Hawaii" type="USAmountNNType" minOccurs="0"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type for Hawaii Amount -->
+  <xsd:complexType name="HIStateAmtType">
+    <xsd:sequence>
+      <xsd:element name="Hawaii" type="USAmountType" minOccurs="0"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type for Hawaii Non-Negative Amount -->
+  <xsd:complexType name="HIStateAmtNNType">
+    <xsd:sequence>
+      <xsd:element name="Hawaii" type="USAmountNNType" minOccurs="0"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type for Federal Amount -->
+  <xsd:complexType name="HIFedAmtType">
+    <xsd:sequence>
+      <xsd:element name="Federal" type="USAmountType" minOccurs="0"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Type for Federal Non-Negative Amount -->
+  <xsd:complexType name="HIFedAmtNNType">
+    <xsd:sequence>
+      <xsd:element name="Federal" type="USAmountNNType" minOccurs="0"/>
+    </xsd:sequence>
+  </xsd:complexType>  
+  <!-- Schedule K-1 Form N-20. Type for Entering Partner's Percentage as of Before Change or Termination and as of the End of the Partnership's Tax Year -->
+  <xsd:complexType name="HIPartnerPercentageType">
+    <xsd:sequence>
+      <xsd:element name="BeforeChangeOrTermination" minOccurs="0">
+        <xsd:simpleType>
+          <xsd:restriction base="DecimalNNType">
+            <xsd:maxInclusive value="100.00"/>
+          </xsd:restriction>
+        </xsd:simpleType>
+      </xsd:element>
+      <xsd:element name="EndOfYear" minOccurs="0">
+        <xsd:simpleType>
+          <xsd:restriction base="DecimalNNType">
+            <xsd:maxInclusive value="100.00"/>
+          </xsd:restriction>
+        </xsd:simpleType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Attributes to be applied for a Form N-615 -->
+  <xsd:complexType name="HITaxSourceCheckboxes">
+    <xsd:sequence>
+      <xsd:annotation>
+        <xsd:documentation>Checkboxes indicating the source used to figure the tax amount</xsd:documentation>
+      </xsd:annotation>
+      <!--  from Tax Table -->
+      <xsd:element name="TaxTableInd" type="CheckboxType" minOccurs="0"/>
+      <!--  from Tax Rate Schedule -->
+      <xsd:element name="TaxRateScheduleInd" type="CheckboxType" minOccurs="0"/>
+      <!--  from  Capital Gains Tax Worksheet -->
+      <xsd:element name="CapitalGainsTaxInd" type="CheckboxType" minOccurs="0"/>
+      <!--  from Form N-168 -->
+      <xsd:element name="TaxFromSeparateFormsInd" type="CheckboxType" minOccurs="0"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Form N-210. Type for Estimated Tax Underpayment Computation -->
+  <xsd:complexType name="HIEstTaxUnderpaymentComputType">
+    <xsd:sequence>
+      <!--Required Installments -->
+      <xsd:element name="RequiredInstallments" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Required installments</Description>
+            <LineNumber>Part III, 9a-d</LineNumber>
+            <ELFFieldNumber>0115, 0120, 0125, 0130</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Estimated and Other Tax Payments Made -->
+      <xsd:element name="EstimatedAndOtherTaxPmtsMade" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Estimated and other tax payments made</Description>
+            <LineNumber>Part III, 10a-d</LineNumber>
+            <ELFFieldNumber>0135, 0140, 0145, 0150</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Amount, if Any, from Line 17 of Previous Column -->
+      <xsd:element name="PreviousPeriodOverpayment" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Amount, if any, from line 17 of previous column</Description>
+            <LineNumber>Part III, 11b-d</LineNumber>
+            <ELFFieldNumber>0170, 0205, 0240</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Amount to Be Applied -->
+      <xsd:element name="AmountToBeApplied" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Amount to Be Applied. Add lines 10 and 11</Description>
+            <LineNumber>Part III, 12b-d</LineNumber>
+            <ELFFieldNumber>0175, 0210, 0245</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Amount Due. Add amounts on lines 15 and 16 of the previous column -->
+      <xsd:element name="AmountDue" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Amount due. Add amounts on lines 15 and 16 of the previous column</Description>
+            <LineNumber>Part III, 13b-d</LineNumber>
+            <ELFFieldNumber>0180, 0215, 0250</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Applied Overpayment -->
+      <xsd:element name="AppliedOverpayment" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Applied overpayment. Line 12 minus line 13. If zero or less, enter 0. For column (a) only, enter the amount from line 10</Description>
+            <LineNumber>Part III, 14a-b</LineNumber>
+            <ELFFieldNumber>0155, 0185, 0220, 0255</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Applied  Underpayment -->
+      <xsd:element name="AppliedUnderpayment" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Applied  underpayment. If the amount on line 14 is zero, line 13 minus line 12. Otherwise, enter 0</Description>
+            <LineNumber>Part III, 15b-c</LineNumber>
+            <ELFFieldNumber>0190, 0225, 0260</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Underpayment -->
+      <xsd:element name="Underpayment" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Underpayment. If line 9 is equal to or more than line 14, line 9 minus line 14</Description>
+            <LineNumber>Part III, 16a-d</LineNumber>
+            <ELFFieldNumber>0160, 0195, 0230, 0265</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Overpayment -->
+      <xsd:element name="Overpayment" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Overpayment. If line 14 is more than line 9, line 14 minus line 9</Description>
+            <LineNumber>Part III, 17a-c</LineNumber>
+            <ELFFieldNumber>0165, 0200, 0235</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Form N-210. Type for Penalty Computation -->
+  <xsd:complexType name="HIUnderpaymentPenaltyCompType">
+    <xsd:sequence>
+      <!-- Date the Amount on Line 16 was Paid or April 20, Current Year, Whichever is Earlier -->
+      <xsd:element name="DateOfPayment" type="DateType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Date the amount on line 16 was paid or April 20, current year, whichever is earlier</Description>
+            <LineNumber>Part IV, 18a-d</LineNumber>
+            <ELFFieldNumber>0275, 0290, 0305, 0320</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Number of Months from the Payment Due Date Through the Date of Payment on Line 18 -->
+      <xsd:element name="NumberOfMonthsPaymentOverdue" type="IntegerNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Number of months from the payment due date through the date of payment on line 18</Description>
+            <LineNumber>Part IV, 19a-d</LineNumber>
+            <ELFFieldNumber>0280, 0295, 0310, 0325</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Penalty Amount -->
+      <xsd:element name="PenaltyAmount" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Multiply number of months on line 19 x .00667 x underpayment on line 16 for column (a) through (d)</Description>
+            <LineNumber>Part IV, 20a-d</LineNumber>
+            <ELFFieldNumber>0285, 0300, 0315, 0330</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Form N-210. Type for Annualized Income Installment Method Computation -->
+  <xsd:complexType name="HIAnnualizedIncInstMethodType">
+    <xsd:sequence>
+      <!-- Adjusted Gross Income -->
+      <xsd:element name="HawaiiAGI" type="USAmountType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Adjusted gross income for period (a-d)</Description>
+            <LineNumber>Sch A, 1a-d</LineNumber>
+            <ELFFieldNumber>0340, 0440, 0550, 0660</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Annualization Amounts Line 2: (a)4; (b)2.4; (c)1.5; (d)1 -->
+      <!-- Annualized Income -->
+      <xsd:element name="AnnualizedIncome" type="USAmountType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Annualized income. Multiply line 1 by line 2</Description>
+            <LineNumber>Sch A, 3a-d</LineNumber>
+            <ELFFieldNumber>0345, 0445, 0555, 0665</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Itemized Deductions for the Period -->
+      <xsd:element name="ItemizedDeductions" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Itemized deductions for the period (a-d)</Description>
+            <LineNumber>Sch A, 4a-d</LineNumber>
+            <ELFFieldNumber>0350, 0450, 0560, 0670</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Annualization Amounts. Line 5: (a)4; (b)2.4; (c)1.5; (d)1 -->
+      <!-- Annualized Itemized Deductions -->
+      <xsd:element name="AnnualizedItemizedDeductions" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Annualized itemized deductions. Multiply line 4 by line 5 (See Instructions)</Description>
+            <LineNumber>Sch A, 6a-d</LineNumber>
+            <ELFFieldNumber>0355, 0455, 0565, 0675</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Standard Deduction, 0 If Itemized -->
+      <xsd:element name="StandardDeduction" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Standard deduction, 0 if itemized</Description>
+            <LineNumber>Sch A, 7a-d</LineNumber>
+            <ELFFieldNumber>0360, 0460, 0570, 0680</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Installment Deduction -->
+      <xsd:element name="InstallmentDeduction" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Installment deduction. Line 6 or line 7, whichever is larger</Description>
+            <LineNumber>Sch A, 8a-d</LineNumber>
+            <ELFFieldNumber>0365, 0465, 0575, 0685</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Net Income Amount -->
+      <xsd:element name="NetIncomeAmount" type="USAmountType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Net income amount. Line 3 minus line 8</Description>
+            <LineNumber>Sch A, 9a-d</LineNumber>
+            <ELFFieldNumber>0370, 0470, 0580, 0690</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Exemption Claimed Amount -->
+      <xsd:element name="ExemptionClaimedAmount" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Exemption claimed amount</Description>
+            <LineNumber>Sch A, 10a-d</LineNumber>
+            <ELFFieldNumber>0375, 0475, 0585, 0695</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Taxable Income Amount -->
+      <xsd:element name="TaxableIncomeAmount" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Taxable Income Amount. Line 9 minus line 10. If zero or less, enter 0</Description>
+            <LineNumber>Sch A, 11a-d</LineNumber>
+            <ELFFieldNumber>0380, 0480, 0590, 0700</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Tentative Tax Amount -->
+      <xsd:element name="TentativeTaxAmount" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Tentative tax amount. Tax on the amount on line 11</Description>
+            <LineNumber>Sch A, 12a-d</LineNumber>
+            <ELFFieldNumber>0385, 0485, 0595, 0705</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Other Taxes for Period -->
+      <xsd:element name="OtherTaxes" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Other taxes for period (a-d)</Description>
+            <LineNumber>Sch A, 13a-d</LineNumber>
+            <ELFFieldNumber>0390, 0490, 0600, 0710</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Total Tax Before Credits -->
+      <xsd:element name="TotalTaxBeforeCredits" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Total tax before credits. Add lines 12 and 13</Description>
+            <LineNumber>Sch A, 14a-d</LineNumber>
+            <ELFFieldNumber>0395, 0495, 0605, 0715</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Allowed Credits -->
+      <xsd:element name="AllowedCredits" type="USAmountType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Allowed credits. The same type of credits as allowed for Form N-210, Part II, line 2</Description>
+            <LineNumber>Sch A, 15a-d</LineNumber>
+            <ELFFieldNumber>0400, 0500, 0610, 0720</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Total Tax After Credits -->
+      <xsd:element name="TotalTaxAfterCredits" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Total tax after credits. Line 14 minus line 15. If zero or less, enter 0</Description>
+            <LineNumber>Sch A, 16a-d</LineNumber>
+            <ELFFieldNumber>0405, 0505, 0615, 0725</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Applicable Percentage. Line 17: (a)15%, (b)30%; (c)45%; (d)60% -->
+      <!-- Applicable Tax Due -->
+      <xsd:element name="ApplicableTaxDue" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Applicable tax due. Multiply line 16 by line 17</Description>
+            <LineNumber>Sch A, 18a-d</LineNumber>
+            <ELFFieldNumber>0410, 0510, 0620, 0730</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Accumulated Installment Amount -->
+      <xsd:element name="AccumulatedInstallmentAmount" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Accumulated installment amount. Add the amount in all preceding columns of line 24</Description>
+            <LineNumber>Sch A, 19b-d</LineNumber>
+            <ELFFieldNumber>0515, 0625, 0735</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Tax Due -->
+      <xsd:element name="TaxDue" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Tax due. Line 18 minus line 19. If zero or less, enter 0</Description>
+            <LineNumber>Sch A, 20a-d</LineNumber>
+            <ELFFieldNumber>0415, 0520, 0630, 0740</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Installment Tax Amount -->
+      <xsd:element name="InstallmentTaxAmount" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Installment tax amount. 25% of Form N-210, Part II, line 8</Description>
+            <LineNumber>Sch A, 21a-d</LineNumber>
+            <ELFFieldNumber>0420, 0525, 0635, 0745</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Accumulated Adjusted Tax Amount -->
+      <xsd:element name="AccumulatedAdjustedTaxAmount" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Accumulated adjusted tax amount. Subtract line 24 of the previous column from line 23 of the previous column</Description>
+            <LineNumber>Sch A, 22b-d</LineNumber>
+            <ELFFieldNumber>0530, 0640, 0750</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Aggregated Tax Due Amount -->
+      <xsd:element name="AggregatedTaxDueAmount" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Aggregated tax due amount. Add lines 21 and 22</Description>
+            <LineNumber>Sch A, 23a-d</LineNumber>
+            <ELFFieldNumber>0425, 0535, 0645, 0755</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Required Installment Amount -->
+      <xsd:element name="RequiredInstallmentAmount" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Required installment amount. Smaller of line 20 or line 23</Description>
+            <LineNumber>Sch A, 24a-d</LineNumber>
+            <ELFFieldNumber>0435, 0545, 0655, 0760</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Form N-312. Type for Purchase -->
+  <xsd:complexType name="HIPurchaseType">
+    <xsd:sequence>
+      <!-- (a) Description of Property -->
+      <xsd:element name="PptyDescription">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Description of property</Description>
+            <LineNumber>
+              Hawaii: 1a
+              Out-Of-State: 2a(a)
+            </LineNumber>
+            <ELFFieldNumber>
+              Hawaii: 0075, 0090, 0105, 0120, 0135, 0150, 0165
+              Out-Of-State: 0180, 0195, 0210, 0225, 0240
+            </ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:simpleType>
+          <xsd:restriction base="xsd:string">
+            <xsd:maxLength value="60"/>
+          </xsd:restriction>
+        </xsd:simpleType>
+      </xsd:element>
+      <!-- (b) Date Property Was Placed in Service -->
+      <xsd:element name="DatePptyPlacedInService" type="DateType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Date property was placed in service</Description>
+            <LineNumber>
+              Hawaii: 1b
+              Out-Of-State: 2a(b)
+            </LineNumber>
+            <ELFFieldNumber>
+              Hawaii: 0080, 0095, 0110, 0125, 0140, 0155, 0170
+              Out-Of-State: 0185, 0200, 0215, 0230, 0245
+            </ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- (c) Cost of Qualifying Property -->
+      <xsd:element name="QualifyingPptyCost" type="USAmountNNType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Cost of qualifying property</Description>
+            <LineNumber>
+              Hawaii: 1c
+              Out-Of-State: 2a(c)
+            </LineNumber>
+            <ELFFieldNumber>
+              Hawaii: 0085, 0100, 0115, 0130, 0145, 0160, 0175
+              Out-Of-State: 0190, 0205, 0220, 0235, 0250
+            </ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Form N-342, N-342A. Type for Hawaii Solar Energy System Tax Credit Computation -->
+  <xsd:complexType name="HISolarEnergySystemType">
+    <xsd:sequence>
+      <!-- Date System Was Installed and Placed in Service -->
+      <xsd:element name="DateSystemInstalled" type="DateType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Date system was installed and placed in service</Description>
+            <LineNumber>Title Header</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Total Output Capacity -->
+      <xsd:element name="TotalOutputCapacity" type="DecimalNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Total output capacity</Description>
+            <LineNumber>Title Header</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Total Cost of the Qualified Solar Energy System Installed and Placed in Service in Hawaii -->
+      <xsd:element name="TotalSystemCost" type="USAmountNNType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Total cost of the qualified solar energy system installed and placed in service in Hawaii</Description>
+            <LineNumber>1</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Enter the Amount of Consumer Incentive Premiums, Costs Used for Other Credits, and Utility Rebate, if Any, Received for the Qualifying Solar Energy System -->
+      <xsd:element name="AmtOfIncentivesRcvd" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Enter the amount of consumer incentive premiums, costs used for other credits, and utility rebate, if any, received for the qualifying solar energy system</Description>
+            <LineNumber>2</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Actual Cost of the Solar Energy System. (Subtract Line 2 from line 1 and enter result) -->
+      <xsd:element name="SystemActualCost" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Actual cost of the solar energy system. (subtract line 2 from line 1 and enter result)</Description>
+            <LineNumber>3</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Is this Solar Energy System Primarily Used to Heat Water for Household Use? -->
+      <xsd:element name="SystemUsedToHeatWaterInd" type="BooleanType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Is this solar energy system primarily used to heat water for household use?</Description>
+            <LineNumber>4</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- ==== SYSTEM PRIMARILY USED TO HEAT WATER FOR HOUSEHOLD USE ==== -->
+      <xsd:element name="SystemUsedToHeatWater" minOccurs="0" >
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Enter the Amount from Line 3 that is Installed and Placed in Service in Hawaii on Single-Family Residential Property -->
+            <xsd:element name="SngFamSysActualCost" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter the amount from line 3 that is installed and placed in service in Hawaii on single-family residential property</Description>
+                  <LineNumber>5</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter 35% of Line 5 or $2,250, whichever is Less -->
+            <xsd:element name="SngFamSysTaxCredit" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter 35% of line 5 or $2,250, whichever is less</Description>
+                  <LineNumber>6</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter the Amount from Line 3 that is Installed and Placed in Service in Hawaii on Multi-Family Residential Property -->
+            <xsd:element name="MultiFamSysActualCost" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter the amount from line 3 that is installed and placed in service in Hawaii on multi-family residential property</Description>
+                  <LineNumber>7</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Divide the Total Square Feet of Your Unit by the Total Square Feet of All Units in the Multi-Family Residential Property. Enter the Decimal (Rounded to 2 Decimal Places) -->
+            <xsd:element name="PerUnitRatio" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Divide the total square feet of your unit by the total square feet of all units in the multi-family residential property. Enter the decimal (rounded to 2 decimal places)</Description>
+                  <LineNumber>8</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:simpleType>
+                <xsd:restriction base="RatioType">
+                  <xsd:fractionDigits value="2"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:element>
+            <!-- Actual per Unit Cost of the Solar Energy System. (Multiply Line 7 by Line 8 and Enter Result) -->
+            <xsd:element name="PerUnitActualCost" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Actual per unit cost of the solar energy system. (Multiply line 7 by line 8 and enter result)</Description>
+                  <LineNumber>9</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter 35% of line 9 or $350, whichever is Less -->
+            <xsd:element name="PerUnitTaxCredit" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter 35% of line 9 or $350, whichever is Less</Description>
+                  <LineNumber>10</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Multiply Line 10 by the Number of Units Owned to which the Allocated Unit Cost on Line 9 is Applicable -->
+            <xsd:element name="AllocatedCostOfUnitsOwned" minOccurs="0">
+              <xsd:complexType>
+                <xsd:sequence>
+                  <xsd:element name="NumOfUnitsOwned" type="IntegerNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Number of units owned</Description>
+                        <LineNumber>11</LineNumber>
+                        <ELFFieldNumber>None</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <xsd:element name="Amount" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Multiply line 10 by the number of units owned to which the allocated unit cost on line 9 is applicable</Description>
+                        <LineNumber>11</LineNumber>
+                        <ELFFieldNumber>None</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>
+            <!-- Enter the Amount from Line 3 that is Installed and Placed in Service in Hawaii on Commercial Property -->
+            <xsd:element name="CommSysActualCost" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter the amount from line 3 that is installed and placed in service in Hawaii on commercial property</Description>
+                  <LineNumber>12</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter 35% of Line 12 or $250,000, whichever is Less -->
+            <xsd:element name="CommSysTaxCredit" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter 35% of line 12 or $250,000, whichever is less</Description>
+                  <LineNumber>13</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Add Lines 6, 11, and 13, and Enter Result (but not Less than Zero) -->
+            <xsd:element name="TotalCredit" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Add lines 6, 11, and 13, and enter result (but not less than zero)</Description>
+                  <LineNumber>14</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- SYSTEM NOT PRIMARILY USED TO HEAT WATER FOR HOUSEHOLD USE (lines 15 - 26) -->
+      <xsd:element name="SystemNotUsedToHeatWater" minOccurs="0" >
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Enter the Amount from Line 3 that is Installed and Placed in Service in Hawaii on Single-Family Residential Property -->
+            <xsd:element name="SngFamSysActualCost" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter the amount from line 3 that is installed and placed in service in Hawaii on single-family residential property</Description>
+                  <LineNumber>15</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter 35% of Line 15 or $5,000, whichever is Less -->
+            <xsd:element name="SngFamSysTaxCredit" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter 35% of line 15 or $5,000, whichever is less</Description>
+                  <LineNumber>16</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter 35% of Line 15 or $2,250, whichever is Less (If Yes is Checked). Enter Zero (If No is Checked) -->
+            <xsd:element name="SngFamSysTaxCreditAdjustment" minOccurs="0">
+              <xsd:complexType>
+                <xsd:sequence>
+                  <xsd:element name="SolarWaterHeatingSubstituteInd" type="BooleanType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Was this system used as a substitute for a solar water heating system that is required for new single-family residential property constructed on or after January 1, 2010?</Description>
+                        <LineNumber>17</LineNumber>
+                        <ELFFieldNumber>None</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <xsd:element name="Amount" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Yes. Enter 35% of line 15 or $2,250, whichever is less. No. Enter zero</Description>
+                        <LineNumber>17</LineNumber>
+                        <ELFFieldNumber>None</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>
+            <!-- Line 16 Minus Line 17 -->
+            <xsd:element name="SngFamSysAdjustedTaxCredit" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Line 16 Minus Line 17</Description>
+                  <LineNumber>18</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter the Amount from Line 3 that is Installed and Placed in Service in Hawaii on Multi-Family Residential Property -->
+            <xsd:element name="MultiFamSysActualCost" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter the amount from line 3 that is installed and placed in service in Hawaii on multi-family residential property</Description>
+                  <LineNumber>19</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Divide the Total Square Feet of Your Unit by the Total Square Feet of All Units in the Multi-Family Residential Property. Enter the Decimal (Rounded to 2 Decimal Places) -->
+            <xsd:element name="PerUnitRatio" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Divide the total square feet of your unit by the total square feet of all units in the multi-family residential property. Enter the decimal (rounded to 2 decimal places)</Description>
+                  <LineNumber>20</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:simpleType>
+                <xsd:restriction base="RatioType">
+                  <xsd:fractionDigits value="2"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:element>
+            <!-- Actual per Unit Cost of the Solar Energy System. (Multiply Line 19 by Line 20 and Enter Result) -->
+            <xsd:element name="ActualPerUnitCost" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Actual per unit cost of the solar energy system. (Multiply line 19 by line 20 and enter result)</Description>
+                  <LineNumber>21</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter 35% of line 21 or $350, whichever is Less -->
+            <xsd:element name="PerUnitTaxCredit" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter 35% of line 21 or $350, whichever is Less</Description>
+                  <LineNumber>22</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Multiply Line 22 by the Number of Units Owned to which the Allocated Unit Cost on Line 21 is Applicable -->
+            <xsd:element name="AllocatedCostOfUnitsOwned" minOccurs="0">
+              <xsd:complexType>
+                <xsd:sequence>
+                  <xsd:element name="NumOfUnitsOwned" type="IntegerNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Number of units owned</Description>
+                        <LineNumber>23</LineNumber>
+                        <ELFFieldNumber>None</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <xsd:element name="Amount" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Multiply line 22 by the number of units owned to which the allocated unit cost on line 21 is applicable</Description>
+                        <LineNumber>23</LineNumber>
+                        <ELFFieldNumber>None</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>
+            <!-- Enter the Amount from Line 3 that is Installed and Placed in Service in Hawaii on Commercial Property -->
+            <xsd:element name="CommSysActualCost" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter the amount from line 3 that is installed and placed in service in Hawaii on commercial property</Description>
+                  <LineNumber>24</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Enter 35% of Line 24 or $500,000, whichever is Less -->
+            <xsd:element name="CommSysTaxCredit" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter 35% of line 24 or $500,000, whichever is less</Description>
+                  <LineNumber>25</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Add Lines 18, 23, and 25, and Enter Result (but not Less than Zero) -->
+            <xsd:element name="TotalCredit" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Add lines 18, 23, and 25, and enter result (but not less than zero)</Description>
+                  <LineNumber>26</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  <!-- Form N-342, N-342A. Type for Hawaii Wind-Powered Energy System Tax Credit Computation -->
+  <xsd:complexType name="HIWindPoweredEnergySystemType">
+    <xsd:sequence>
+      <!-- Date System Was Installed and Placed in Service -->
+      <xsd:element name="DateSystemInstalled" type="DateType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Date system was installed and placed in service</Description>
+            <LineNumber>Title Header</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Total Cost of the Qualified Wind-Powered Energy System Installed and Placed in Service in Hawaii -->
+      <xsd:element name="TotalSystemCost" type="USAmountNNType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Total cost of the qualified solar energy system installed and placed in service in Hawaii</Description>
+            <LineNumber>27</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Enter the Amount of Consumer Incentive Premiums, Costs Used for Other Credits, and Utility Rebate, if Any, Received for the Qualifying Wind-Powered Energy System -->
+      <xsd:element name="AmtOfIncentivesRcvd" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Enter the amount of consumer incentive premiums, costs used for other credits, and utility rebate, if any, received for the qualifying wind-powered energy system</Description>
+            <LineNumber>28</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Actual Cost of the Wind-Powered Energy System (Subtract Line 28 from line 27 and Enter Result) -->
+      <xsd:element name="SystemActualCost" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Actual cost of the wind-powered energy system (subtract line 28 from line 27 and enter result)</Description>
+            <LineNumber>29</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Enter the Amount from Line 29 that is Installed and Placed in Service in Hawaii on Single-Family Residential Property -->
+      <xsd:element name="SngFamSysActualCost" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Enter the amount from line 29 that is installed and placed in service in Hawaii on single-family residential property</Description>
+            <LineNumber>30</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Enter 20% of Line 30 or $1,500, whichever is Less -->
+      <xsd:element name="SngFamSysTaxCredit" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Enter 35% of line 5 or $2,250, whichever is less</Description>
+            <LineNumber>31</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Enter the Amount from Line 29 that is Installed and Placed in Service in Hawaii on Multi-Family Residential Property -->
+      <xsd:element name="MultiFamSysActualCost" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Enter the amount from line 29 that is installed and placed in service in Hawaii on multi-family residential property</Description>
+            <LineNumber>32</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Divide the Total Square Feet of Your Unit by the Total Square Feet of All Units in the Multi-Family Residential Property. Enter the Decimal (Rounded to 2 Decimal Places) -->
+      <xsd:element name="PerUnitRatio" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Divide the total square feet of your unit by the total square feet of all units in the multi-family residential property. Enter the decimal (rounded to 2 decimal places)</Description>
+            <LineNumber>33</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:simpleType>
+          <xsd:restriction base="RatioType">
+            <xsd:fractionDigits value="2"/>
+          </xsd:restriction>
+        </xsd:simpleType>
+      </xsd:element>
+      <!-- Actual Per Unit Cost of the Wind-Powered Energy System. (Multiply Line 32 by Line 33 and Enter Result) -->
+      <xsd:element name="PerUnitActualCost" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Actual per unit cost of the wind-powered energy system. (Multiply line 32 by line 33 and enter result)</Description>
+            <LineNumber>34</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Enter 20% of Line 34 or $200, whichever is Less -->
+      <xsd:element name="PerUnitTaxCredit" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Enter 20% of line 34 or $200, whichever is less</Description>
+            <LineNumber>35</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Multiply Line 35 by the Number of Units You Own to Which the Allocated Unit Cost on Line 34 is Applicable -->
+      <xsd:element name="AllocatedCostOfUnitsOwned" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="NumOfUnitsOwned" type="IntegerNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Number of units owned</Description>
+                  <LineNumber>36</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <xsd:element name="Amount" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Multiply line 35 by the number of units you own to which the allocated unit cost on line 34 is applicable</Description>
+                  <LineNumber>36</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- Enter the Amount from Line 29 that is Installed and Placed in Service in Hawaii on Commercial Property -->
+      <xsd:element name="CommSysActualCost" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Enter the amount from line 29 that is installed and placed in service in Hawaii on commercial property</Description>
+            <LineNumber>37</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Enter 20% of Line 37 or $500,000, whichever is Less -->
+      <xsd:element name="CommSysTaxCredit" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Enter 20% of line 37 or $500,000, whichever is less</Description>
+            <LineNumber>38</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Add Lines 31, 36, and 38, and Enter Result (but not Less than Zero) -->
+      <xsd:element name="TotalCredit" type="USAmountNNType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Add lines 31, 36, and 38, and enter result (but not less than zero)</Description>
+            <LineNumber>39</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>

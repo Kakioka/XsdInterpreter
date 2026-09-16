@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:annotation>
+		<xsd:documentation>
+			<Description>Estandards version of IRS Form 1099G</Description>
+			<TaxYear>2022</TaxYear>
+			<ReleaseDate>July 12, 2022</ReleaseDate>
+		</xsd:documentation>
+	</xsd:annotation>
+	<xsd:include schemaLocation="../../Common/efileTypes.xsd"/>
+	<xsd:include schemaLocation="../../Common/StateeFileTypes.xsd"/>
+	<xsd:element name="State1099G">
+		<xsd:complexType>
+			<xsd:complexContent>
+				<xsd:extension base="State1099GType">
+					<xsd:attributeGroup ref="DocumentAttributes">
+						<xsd:annotation>
+							<xsd:documentation>Common return document attributes</xsd:documentation>
+						</xsd:annotation>
+					</xsd:attributeGroup>
+				</xsd:extension>
+			</xsd:complexContent>
+		</xsd:complexType>
+	</xsd:element>
+	<xsd:complexType name="State1099GType">
+		<xsd:sequence>
+			<!-- Corrected Indicator -->
+			<xsd:element name="CorrectedInd" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Corrected Indicator</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Void Indicator -->
+			<xsd:element name="VoidInd" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Void Indicator</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Payer Name -->
+			<xsd:element name="PayerName">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Payer name</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:complexType>
+					<xsd:complexContent>
+						<xsd:extension base="BusinessNameType">
+							<xsd:attribute name="payerNameControl" type="BusinessNameControlType" use="required"/>
+						</xsd:extension>
+					</xsd:complexContent>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Payer Address -->
+			<xsd:choice minOccurs="0">
+				<!-- Payer US Address -->
+				<xsd:element name="PayerUSAddress" type="USAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Payer US address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+				<!-- Employer Foreign Address -->
+				<xsd:element name="PayerForeignAddress" type="ForeignAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Payer foreign address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+			</xsd:choice>
+			<!-- Payer Phone Number -->
+			<xsd:choice minOccurs="0">
+				<xsd:element name="PayerPhone" type="PhoneNumberType"/>
+				<xsd:element name="PayerForeignPhone" type="ForeignPhoneNumberType"/>
+			</xsd:choice>
+			<!-- Payer EIN -->
+			<xsd:element name="PayerEIN" type="EINType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Payer Identification Number</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Recipient Identification Number -->
+			<xsd:element name="RecipientSSN" type="SSNType">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Recipient SSN</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Recipient Name -->
+			<xsd:element name="RecipientName" type="PersonNameType">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Recipient name</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Recipient Address -->
+			<xsd:choice minOccurs="0">
+				<!-- Recipient US Address -->
+				<xsd:element name="RecipientUSAddress" type="USAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Recipient US address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+				<!-- Recipient Foreign Address -->
+				<xsd:element name="RecipientForeignAddress" type="ForeignAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Recipient foreign address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+			</xsd:choice>
+			<!-- Account Number -->
+			<xsd:element name="AccountNumber" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Account Number</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:simpleType>
+					<xsd:restriction base="StringType">
+						<xsd:maxLength value="30"/>
+					</xsd:restriction>
+				</xsd:simpleType>
+			</xsd:element>
+			<!-- Unemployment Compensation -->
+			<xsd:element name="UnemploymentCompensation" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Unemployment Compensation</Description>
+						<LineNumber>1</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- State or local income tax, refunds, credits, or offsets -->
+			<xsd:element name="TaxRefundsCreditsOffsets" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>State or local income tax, refunds, credits, or offsets</Description>
+						<LineNumber>2</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Tax year for box 2 amount -->
+			<xsd:element name="TaxYear" type="YearType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Tax year for box 2 amount</Description>
+						<LineNumber>3</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Federal income tax withheld -->
+			<xsd:element name="FederalTaxWithheld" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Federal income tax withheld</Description>
+						<LineNumber>4</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- RTAA payments -->
+			<xsd:element name="RTAAPayments" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>RTAA payments</Description>
+						<LineNumber>5</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Taxable grants -->
+			<xsd:element name="TaxableGrants" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Taxable grants</Description>
+						<LineNumber>6</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Agriculture payments -->
+			<xsd:element name="AgriculturePayments" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Agriculture payments</Description>
+						<LineNumber>7</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Box 2 is trade or business income -->
+			<xsd:element name="TradeOrBusinessIncome" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Box 2 is trade or business income</Description>
+						<LineNumber>8</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="MarketGain" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Market Gain</Description>
+						<LineNumber>9</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Additional information not part of the IRS version of 1099G -->
+			<xsd:element name="RepaymentAmount" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Repayment amount</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="State1099GStateLocalTaxGrp" type="StateLocalTaxGrpType" minOccurs="0" maxOccurs="unbounded">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>State1099G State Local Tax Group</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+</xsd:schema>

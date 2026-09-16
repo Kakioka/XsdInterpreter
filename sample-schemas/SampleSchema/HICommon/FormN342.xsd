@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN342" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii State Form N-342</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="FormN342">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>RENEWABLE ENERGY TECHNOLOGIES INCOME TAX CREDIT (for systems installed and placed in service on or after July 1, 2009)</Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="FormN342Type">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:complexType name="FormN342Type">
+    <xsd:sequence>
+      <!-- Name and I.D. -->
+      <xsd:choice>
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Individual or Corporation Name and I.D.</Description>
+            <FormNumber>FormN342</FormNumber>
+            <LineNumber>Header</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:element name="Individual">
+          <xsd:complexType>
+            <xsd:sequence>
+              <xsd:element name="NameOfIndividual" type="PersonNameType"/>
+              <xsd:element name="SSN" type="SSNType"/>
+            </xsd:sequence>
+          </xsd:complexType>
+        </xsd:element>
+        <xsd:element name="Corporation">
+          <xsd:complexType>
+            <xsd:sequence>
+              <xsd:element name="NameOfCorporation" type="BusinessNameType"/>
+              <xsd:element name="FEIN" type="EINType"/>
+            </xsd:sequence>
+          </xsd:complexType>
+        </xsd:element>
+      </xsd:choice>
+      <xsd:choice>
+        <!-- Physical Property Address where the System was Installed and Placed in Service -->
+        <xsd:element name="PhysicalPropertyAddress" type="USAddressType">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>Physical property address where the system was installed and placed in service</Description>
+              <FormNumber>FormN342</FormNumber>
+              <LineNumber>Header</LineNumber>
+              <ELFFieldNumber>None</ELFFieldNumber>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- To Be Used for Carryover Claims Regardless if there is One Physical Property Address or More -->
+        <xsd:element name="CarryoverAddressAlternative" type="StringType" fixed="CARRYOVER"/>
+      </xsd:choice>
+      <!-- ==== SOLAR ENERGY SYSTEM ==== -->
+      <xsd:element name="SolarEnergySystem" type="HISolarEnergySystemType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Computation of tax credit for solar energy system</Description>
+            <FormNumber>FormN342</FormNumber>
+            <LineNumber>Section title header, 1-26</LineNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- ==== WIND-POWERED ENERGY SYSTEM ==== -->
+      <xsd:element name="WindPoweredEnergySystem" type="HIWindPoweredEnergySystemType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Computation of tax credit for wind-powered energy system</Description>
+            <FormNumber>FormN342</FormNumber>
+            <LineNumber>Section title header, 27-39</LineNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- ==== DISTRIBUTIVE SHARE OF TAX CREDIT ==== -->
+      <xsd:element name="DistributiveShareOfTaxCredit" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Distributive Share of Solar Energy Tax Credit From Attached Form N-342A -->
+            <xsd:element name="SolarEnergyTaxCrDistrShare" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Distributive share of solar energy tax credit from attached Form N-342A</Description>
+                  <FormNumber>FormN342</FormNumber>
+                  <LineNumber>40</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:complexType>
+                <xsd:simpleContent >
+                  <xsd:extension base="USAmountNNType">
+                    <xsd:attribute name="referenceDocumentId" type="IdListType"/>
+                    <xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN342A"/>
+                  </xsd:extension>
+                </xsd:simpleContent>
+              </xsd:complexType>
+            </xsd:element>
+            <!-- Distributive Share of Wind-Powered Energy Tax Credit from Attached Form N-342A -->
+            <xsd:element name="WindPwrdEnergyTaxCrDistrShare" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Distributive share of wind-powered energy tax credit from attached Form N-342A</Description>
+                  <FormNumber>FormN342</FormNumber>
+                  <LineNumber>41</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:complexType>
+                <xsd:simpleContent >
+                  <xsd:extension base="USAmountNNType">
+                    <xsd:attribute name="referenceDocumentId" type="IdListType"/>
+                    <xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN342A"/>
+                  </xsd:extension>
+                </xsd:simpleContent>
+              </xsd:complexType>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:choice minOccurs="0">
+        <!-- ==== REFUNDABLE TAX CREDIT ==== -->
+        <xsd:element name="RefundableRnwblEnrgyTechTaxCr">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>Refundable tax credit</Description>
+              <FormNumber>FormN342</FormNumber>
+              <LineNumber>42-46</LineNumber>
+              <ELFFieldNumber>None</ELFFieldNumber>
+            </xsd:documentation>
+          </xsd:annotation>
+          <xsd:complexType>
+            <xsd:sequence>
+              <xsd:choice>
+                <!-- I Elect to Treat the Tax Credit for a Solar Energy System as Refundable. The Amount of the Tax Credit will be Reduced by 30% -->
+                <xsd:element name="ReducedTaxCreditInd" type="CheckboxType">
+                  <xsd:annotation>
+                    <xsd:documentation>
+                      <Description>I elect to treat the tax credit for a solar energy system as refundable. The amount of the tax credit will be reduced by 30%</Description>
+                      <FormNumber>FormN342</FormNumber>
+                      <LineNumber>42a</LineNumber>
+                      <ELFFieldNumber>None</ELFFieldNumber>
+                    </xsd:documentation>
+                  </xsd:annotation>
+                </xsd:element>
+                <!-- I Elect to Treat the Tax Credit for a Solar Energy System or a Wind-Powered Energy System as Refundable. All of My Income is Exempt from Hawaii Taxation under a Public Retirement System or Received in the Form of a Pension for Past Services, or My Adjusted Gross Income is $20,000 or Less ($40,000 or Less if Filing Jointly) -->
+                <xsd:element name="NonReducedTaxCreditInd" type="CheckboxType">
+                  <xsd:annotation>
+                    <xsd:documentation>
+                      <Description>
+                        I elect to treat the tax credit for a solar energy system or a wind-powered energy system as refundable.
+                        ALL of my income is exempt from Hawaii taxation under a public retirement system or received in the form of a pension for past services or my Hawaii adjusted gross income is $20,000 or less ($40,000 or less if filing jointly)
+                      </Description>
+                      <FormNumber>FormN342</FormNumber>
+                      <LineNumber>42b</LineNumber>
+                      <ELFFieldNumber>None</ELFFieldNumber>
+                    </xsd:documentation>
+                  </xsd:annotation>
+                </xsd:element>
+              </xsd:choice>
+              <!-- If You Checked the Box on Line 43(a), Enter the Amount from Line 14, 26, or 40 -->
+              <xsd:element name="TaxCreditBeforeReduction" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>If you checked the box on line 42(a), enter the amount from line 14, 26, or 40</Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>43</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- Multiply Line 43 by 30% (.30) -->
+              <xsd:element name="TaxCreditReduction" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>Multiply line 43 by 30% (.30)</Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>44</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- Refundable Renewable Energy Technologies Income Tax Credit -->
+              <xsd:element name="ReducedTaxCreditAmt" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>
+                      Line 43 minus line 44. This is your refundable renewable energy technologies income tax credit
+                    </Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>45</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- If You Checked the Box on Line 42(b), Enter the Amount from Line 14, 26, 39, 40, or 41. This is Your Refundable Renewable Energy Technologies Income Tax Credit -->
+              <xsd:element name="NonReducedTaxCreditAmt" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>
+                      If you checked the box on line 42(b), enter the amount from line 14, 26, 39, 40, or 41.
+                      This is your refundable renewable energy technologies income tax credit
+                    </Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>46</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+            </xsd:sequence>
+          </xsd:complexType>
+        </xsd:element>
+        <!-- ==== NONREFUNDABLE TAX CREDIT ==== -->
+        <xsd:element name="NonRefundblRnwblEnrgyTechTaxCr">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>Nonrefundable tax credit</Description>
+              <FormNumber>FormN342</FormNumber>
+              <LineNumber>47-54</LineNumber>
+              <ELFFieldNumber>None</ELFFieldNumber>
+            </xsd:documentation>
+          </xsd:annotation>
+          <xsd:complexType>
+            <xsd:sequence>
+              <!-- Carryover of Unused Renewable Energy Technologies Income Tax Credit (See Instructions) -->
+              <xsd:element name="CarryoverOfUnusedCredit" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>Carryover of unused renewable energy technologies income tax credit (for systems installed and placed in service on or after July 1, 2009) from prior years. (See Instructions)</Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>47</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- Enter the Amount from Line 14, 26, 39, 40, or 41 -->
+              <xsd:element name="TentativeTaxCreditAmt" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>Enter the amount from line 14, 26, 39, 40, or 41</Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>48</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- Add Lines 48 and 49 and Enter Result -->
+              <xsd:element name="CarryoverAndTentativeTaxCredit" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>Add lines 47 and 48 and enter result</Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>49</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- Tax Liability -->
+              <xsd:element name="TaxLiability" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>
+                      Individuals — Enter the amount from Form N-11, line 34; or Form N-15, line 51.
+                      Corporations — Enter the amount from Form N-30, line 13.
+                      Other filers — Enter the amount from Form F-1, line 71; Form N-40, Schedule G, line 3; or Form N-70NP, line 18
+                    </Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>50</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- If You are Claiming Other Nonrefundable Credits, Including the Nonrefundable Renewable Energy Technologies Income Tax Credit for Another System, Complete the Credit Worksheet in the Instructions and Enter the Total Here -->
+              <xsd:element name="OtherCredits" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>
+                      If you are claiming other nonrefundable credits, including the nonrefundable renewable energy technologies income tax credit for another system,
+                      complete the credit worksheet in the instructions and enter the total here
+                    </Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>51</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- Adjusted Tax Liability -->
+              <xsd:element name="AdjustedTaxLiability" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>Line 50 minus line 51. This represents your tax liability, as adjusted. If the result is zero or less than zero, enter zero</Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>52</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- Total Credit Allowed — The Smaller of Line 49 or Line 52 -->
+              <xsd:element name="TotalCreditAllowed" type="USAmountNNType">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>
+                      Total credit allowed — Enter the smaller of line 49 or line 52. This is your nonrefundable renewable energy technologies income tax credit allowable for the year
+                    </Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>53</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+              <!-- Carryforward of Unused Credit. Line 49 Minus Line 53 -->
+              <xsd:element name="CarryforwardOfUnusedCredit" type="USAmountNNType" minOccurs="0">
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>
+                      Line 49 minus line 53. This represents your carryover of unused credit. The amount of any unused tax credit may be carried over and used as a credit against your tax liability in subsequent years until exhausted
+                    </Description>
+                    <FormNumber>FormN342</FormNumber>
+                    <LineNumber>54</LineNumber>
+                    <ELFFieldNumber>None</ELFFieldNumber>
+                  </xsd:documentation>
+                </xsd:annotation>
+              </xsd:element>
+            </xsd:sequence>
+          </xsd:complexType>
+        </xsd:element>
+      </xsd:choice>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>

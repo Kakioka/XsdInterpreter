@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2015 (http://www.altova.com) by DEPARTMENT OF REVENUE DEPARTMENT OF REVENUE (DEPARTMENT OF REVENUE) -->
+<xsd:schema xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xsd:annotation>
+		<xsd:documentation>
+			<Description>Data for income and tax reported to other states.  Modeled after the federal Form 1040 income and adjustments to income sections.</Description>
+			<ReleaseDate>July 7, 2021</ReleaseDate>
+		</xsd:documentation>
+	</xsd:annotation>
+	<xsd:include schemaLocation="../Common/efileTypes.xsd"/>
+	<xsd:include schemaLocation="../Common/StateeFileTypes.xsd"/>
+	<!-- Root Element -->
+	<xsd:element name="TaxPaidOtherStates" type="TaxPaidOtherStatesType"/>
+	<!--Structure for Other State Tax Credit schema-->
+	<xsd:complexType name="TaxPaidOtherStatesType">
+		<xsd:sequence>
+			<xsd:element name="StateName" type="StateType">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Abbreviation of state name for credit for tax paid to another state</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="StateFormName" type="String20Type" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>The primary state form from which the data was acquired</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="OtherStateFilingStatus" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Other state return filing status; single, married joint, etc.</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:simpleType>
+					<xsd:restriction base="TextType">
+						<xsd:enumeration value="Single"/>
+						<xsd:enumeration value="MarriedJoint"/>
+						<xsd:enumeration value="MarriedSeparate"/>
+						<xsd:enumeration value="HeadOfHousehold"/>
+						<xsd:enumeration value="SurvivingSpouse"/>
+						<xsd:enumeration value="MarriedCombined"/>
+						<xsd:enumeration value="UndefinedOrOther"/>
+					</xsd:restriction>
+				</xsd:simpleType>
+			</xsd:element>
+			<xsd:element name="IncomeDetail" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<xsd:element name="FederalTaxableIncome" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Federal taxable income reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="WagesSalariesTips" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Wages, salaries, tips, etc., earned in the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="TaxableInterest" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Taxable interest reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="OrdinaryDividends" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Ordinary dividends reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="BusinessIncomeOrLoss" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Business income or loss reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="CapitalGainOrLoss" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Capital gain or loss reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="OtherGainOrLoss" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Other gain or loss reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="IRADistributions" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>IRA distributions reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="PensionAnnuity" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Pension and annuity income reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="RentRoyaltyPassThrough" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Rental, royalty, pass-through, and trust income reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="FarmIncomeOrLoss" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Farm income or loss reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="UnemploymentCompensation" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Unemployment compensation reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="SocialSecurity" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Social security income reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="Addbacks" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Addbacks to taxable income reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="OtherAddedIncome" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Other additional income reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<xsd:element name="DeductionsDetail" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<xsd:element name="EducatorExpenseDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Educator expense deduction reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="MSAOrHealthSavingsDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Archer MSA or health savings account deduction reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="BusinessExpensesDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Business expenses of reservists, performing artists, and fee-basis government officials reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="MovingExpensesDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Moving expenses reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="SelfEmploymentTaxDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Deductible part of self-employment tax reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="SelfEmployedPlansDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Self-employed SEP, SIMPLE, and qualified plans reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="SelfEmployedHealthInsDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Self-employed health insurance deduction reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="PenaltyEarlyWithdrawalDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Penalty on early withdrawal of savings reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="AlimonyPaidDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Alimony paid reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="IRADeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>IRA deduction reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="StudentLoanIntDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Student loan interest deduction reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="TuitionAndFeesDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Tuition and fees deduction reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="DomesticProductionDeduction" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Domestic production activity deduction reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="OtherAdjustmentsToIncome" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Other adjustments to income reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<xsd:element name="TaxCredit">
+				<xsd:complexType>
+					<xsd:sequence>
+						<xsd:element name="TotalIncomeOtherState" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total income reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="TotalAdjustmentsToIncome" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total adjustments to income reported to the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="AdjustedIncomeTaxedByOtherState" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total adjusted income taxed by the other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="TotalTaxOtherState" type="USAmountType">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>"Total income tax and alternative minumum tax before credits for the other state"</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="IncomeTaxedByBothStates" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Income taxed both by the filing state and other state</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="NetTaxOtherState" type="USAmountType">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Net amount of income tax liability to other state after nonrefundable and refundable credits</Description>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+		</xsd:sequence>
+		<xsd:attribute name="DataSoftwareGenerated" type="BooleanType" use="required"/>
+		<!-- Indicator to verify that the data provided in this schema was generated by the software versus manually entered-->
+	</xsd:complexType>
+</xsd:schema>

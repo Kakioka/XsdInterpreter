@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2006 sp2 U (http://www.altova.com) by Robin Barnett-Wake (Comptroller of Maryland Information Technology Division) -->
+<xsd:schema xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:annotation>
+		<xsd:documentation>
+			<Description>Estandards version of IRS Form 1099Misc</Description>
+			<TaxYear>2025</TaxYear>
+			<ReleaseDate>April 14, 2025</ReleaseDate>
+		</xsd:documentation>
+	</xsd:annotation>
+	<xsd:include schemaLocation="../../Common/efileTypes.xsd"/>
+	<xsd:include schemaLocation="../../Common/StateeFileTypes.xsd"/>
+	<xsd:element name="State1099Misc">
+		<xsd:complexType>
+			<xsd:complexContent>
+				<xsd:extension base="State1099MiscType">
+					<xsd:attributeGroup ref="DocumentAttributes">
+						<xsd:annotation>
+							<xsd:documentation>Common return document attributes</xsd:documentation>
+						</xsd:annotation>
+					</xsd:attributeGroup>
+				</xsd:extension>
+			</xsd:complexContent>
+		</xsd:complexType>
+	</xsd:element>
+	<xsd:complexType name="State1099MiscType">
+		<xsd:sequence>
+			<!-- Corrected Indicator -->
+			<xsd:element name="CorrectedInd" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Corrected Indicator</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Void Indicator -->
+			<xsd:element name="VoidInd" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Void Indicator</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Payer Name -->
+			<xsd:element name="PayerName">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Payer name</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:complexType>
+					<xsd:complexContent>
+						<xsd:extension base="BusinessNameType">
+							<xsd:attribute name="payerNameControl" type="BusinessNameControlType" use="required"/>
+						</xsd:extension>
+					</xsd:complexContent>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- Payer Address -->
+			<xsd:choice minOccurs="0">
+				<!-- Payer US Address -->
+				<xsd:element name="PayerUSAddress" type="USAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Payer US address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+				<!-- Employer Foreign Address -->
+				<xsd:element name="PayerForeignAddress" type="ForeignAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Payer foreign address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+			</xsd:choice>
+			<!-- Payer Phone Number -->
+			<xsd:choice minOccurs="0">
+				<xsd:element name="PayerPhone" type="PhoneNumberType"/>
+				<xsd:element name="PayerForeignPhone" type="ForeignPhoneNumberType"/>
+			</xsd:choice>
+			<!-- Payer EIN -->
+			<xsd:element name="PayerEIN" type="EINType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Payer Identification Number</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:choice>
+				<xsd:element name="IndividualRecipient">
+					<xsd:complexType>
+						<xsd:sequence>
+							<!-- Recipient SSN -->
+							<xsd:element name="SSN" type="SSNType">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Recipient SSN</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+							</xsd:element>
+							<!-- Recipient Name -->
+							<xsd:element name="Name" type="PersonNameType">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Recipient name</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+							</xsd:element>
+						</xsd:sequence>
+						<!-- Recipient is an Individual -->
+					</xsd:complexType>
+				</xsd:element>
+				<xsd:element name="BusinessRecipient">
+					<xsd:complexType>
+						<xsd:sequence>
+							<!-- Recipient EIN -->
+							<xsd:element name="EIN" type="EINType">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Recipient EIN</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+							</xsd:element>
+							<!-- Recipient Name -->
+							<xsd:element name="Name">
+								<xsd:annotation>
+									<xsd:documentation>
+										<Description>Payer name</Description>
+									</xsd:documentation>
+								</xsd:annotation>
+								<xsd:complexType>
+									<xsd:complexContent>
+										<xsd:extension base="BusinessNameType">
+											<xsd:attribute name="NameControl" type="BusinessNameControlType" use="required"/>
+										</xsd:extension>
+									</xsd:complexContent>
+								</xsd:complexType>
+							</xsd:element>
+						</xsd:sequence>
+						<!-- Recipient is a Business -->
+					</xsd:complexType>
+				</xsd:element>
+			</xsd:choice>
+			<!-- Recipient Address -->
+			<xsd:choice minOccurs="0">
+				<!-- Recipient US Address -->
+				<xsd:element name="RecipientUSAddress" type="USAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Recipient US address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+				<!-- Recipient Foreign Address -->
+				<xsd:element name="RecipientForeignAddress" type="ForeignAddressType">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Recipient foreign address</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+				</xsd:element>
+			</xsd:choice>
+			<!-- Account Number -->
+			<xsd:element name="AccountNumber" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Account Number</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+				<xsd:simpleType>
+					<xsd:restriction base="StringType">
+						<xsd:maxLength value="30"/>
+					</xsd:restriction>
+				</xsd:simpleType>
+			</xsd:element>
+			<xsd:element name="FATCAFilingReqInd" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>FATCA Filing Requirement</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="TINNot" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>2nd TIN not.</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Rents -->
+			<xsd:element name="Rents" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Rents</Description>
+						<LineNumber>1</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Royalties -->
+			<xsd:element name="Royalties" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Royalties</Description>
+						<LineNumber>2</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Other Income -->
+			<xsd:element name="OtherIncome" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Other Income</Description>
+						<LineNumber>3</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Federal income tax withheld -->
+			<xsd:element name="FederalTaxWithheld" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Federal income tax withheld</Description>
+						<LineNumber>4</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Fishing Boat Proceeds -->
+			<xsd:element name="FishingBoatProceeds" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Fishing boat proceeds</Description>
+						<LineNumber>5</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Medical and health care payments -->
+			<xsd:element name="MedicalAndHealthCarePayments" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Medical and health care payments</Description>
+						<LineNumber>6</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Payer made direct sales totaling $5,000 or more of consumer products to recipient for resale -->
+			<xsd:element name="DirectSalesExceedMinimum" type="CheckboxType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Payer made direct sales totaling $5,000 or more of consumer products to recipient for resale</Description>
+						<LineNumber>7</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Substitute payments in lieu of dividends or interest -->
+			<xsd:element name="SubstitutePayments" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Substitute payments in lieu of dividends or interest</Description>
+						<LineNumber>8</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Crop insurance proceeds -->
+			<xsd:element name="CropInsuranceProceeds" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Crop Insurance Proceeds</Description>
+						<LineNumber>9</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Gross proceeds paid to an attorney -->
+			<xsd:element name="GrossProceedsPaidToAttorney" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Gross proceeds paid to an attorney</Description>
+						<LineNumber>10</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="FishPurchasedResale" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Fish purchased for resale</Description>
+						<LineNumber>11</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Section 409A deferrals -->
+			<xsd:element name="Section409ADeferrals" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Section 409A deferrals</Description>
+						<LineNumber>12</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Nonqualified deferred compensation -->
+			<xsd:element name="NonqualDeferComp" type="AmountType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Nonqualified deferred compensation</Description>
+						<LineNumber>15</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<xsd:element name="State1099MiscStateLocalTaxGrp" type="StateLocalTaxGrpType" minOccurs="0" maxOccurs="unbounded">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>State1099Misc State Local Tax Group</Description>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+</xsd:schema>

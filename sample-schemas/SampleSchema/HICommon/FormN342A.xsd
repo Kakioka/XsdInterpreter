@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN342A" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii State Form N-342A</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="FormN342A">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>
+          INFORMATION STATEMENT CONCERNING RENEWABLE ENERGY TECHNOLOGIES INCOME TAX CREDIT (for systems installed and placed in service on or after July 1, 2009)
+        </Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="FormN342AType">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:complexType name="FormN342AType">
+    <xsd:sequence>
+      <xsd:element name="Header">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Name (S Corporation, Partnership, Estate, or Trust, or Condominium Apartment Association) -->
+            <xsd:element name="Name" type="BusinessNameType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Name (S Corporation, Partnership, Estate, or Trust, or Condominium Apartment Association)</Description>
+                  <FormNumber>FormN342A</FormNumber>
+                  <LineNumber>Header</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Social Security Number or Fed. Employer I.D. Number -->
+            <xsd:choice>
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Social security number or Fed. Employer I.D. number</Description>
+                  <FormNumber>FormN342A</FormNumber>
+                  <LineNumber>Header</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:element name="SSN" type="SSNType"/>
+              <xsd:element name="FEIN" type="EINType"/>
+            </xsd:choice>
+            <!-- Address (S Corporation, Partnership, Estate, or Trust, or Condominium Apartment Association) -->
+            <xsd:choice>
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Address (S Corporation, Partnership, Estate, or Trust, or Condominium Apartment Association)</Description>
+                  <FormNumber>FormN342A</FormNumber>
+                  <LineNumber>Header</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:element name="USAddress" type="USAddressType"/>
+              <xsd:element name="ForeignAddress" type="ForeignAddressType"/>
+            </xsd:choice>
+            <!-- Entity Type -->
+            <xsd:element name="TypeOfEntity" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Entity type</Description>
+                  <FormNumber>FormN342A</FormNumber>
+                  <LineNumber>Header</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:simpleType>
+                <xsd:restriction base="IntegerType">
+                  <!-- 1="S Corporation" -->
+                  <xsd:enumeration value="1"/>
+                  <!-- 2="Partnership" -->
+                  <xsd:enumeration value="2"/>
+                  <!-- 3="Estate or Trust" -->
+                  <xsd:enumeration value="3"/>
+                  <!-- 4="Condominium Apartment Association" -->
+                  <xsd:enumeration value="4"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:element>
+            <!-- Name of Individual or Corporation for Whom this Statement is Being Prepared -->
+            <xsd:choice>
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Name of individual or corporation for whom this statement is being prepared</Description>
+                  <FormNumber>FormN342A</FormNumber>
+                  <LineNumber>Header</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:element name="NameOfIndividual" type="PersonNameType"/>
+              <xsd:element name="NameOfCorporation" type="BusinessNameType"/>
+            </xsd:choice>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- Physical Property Address where the System Was Installed and Placed in Service -->
+      <xsd:element name="PhysicalPropertyAddress" type="USAddressType">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Physical property address where the system was installed and placed in service</Description>
+            <FormNumber>FormN342A</FormNumber>
+            <LineNumber>Header</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- ==== SOLAR ENERGY SYSTEM ==== -->
+      <xsd:element name="SolarEnergySystem" type="HISolarEnergySystemType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Computation of tax credit for solar energy system</Description>
+            <FormNumber>FormN342A</FormNumber>
+            <LineNumber>Section title header, 1-26</LineNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- ==== WIND-POWERED ENERGY SYSTEM ==== -->
+      <xsd:element name="WindPoweredEnergySystem" type="HIWindPoweredEnergySystemType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Computation of tax credit for wind-powered energy system</Description>
+            <FormNumber>FormN342A</FormNumber>
+            <LineNumber>Section title header, 27-39</LineNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- ==== DISTRIBUTIVE SHARE OF TAX CREDIT ==== -->
+      <xsd:element name="DistributiveShareOfTaxCredit" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Distributive Share of Solar Energy Tax Credit From Another Form N-342A -->
+            <xsd:element name="DistrShareOfSolarEnergyTaxCr" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Distributive share of solar energy tax credit from another Form N-342A</Description>
+                  <FormNumber>FormN342A</FormNumber>
+                  <LineNumber>40</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Distributive Share of Wind-Powered Energy Tax Credit from Another Form N-342A -->
+            <xsd:element name="DistrShareOfWindPwrdTaxCr" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Distributive share of wind-powered energy tax credit from another Form N-342A</Description>
+                  <FormNumber>FormN342A</FormNumber>
+                  <LineNumber>41</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>	  
+      <!-- ==== TOTAL AND DISTRIBUTIVE SHARE OF RENEWABLE ENERGY TECHNOLOGIES INCOME TAX CREDIT ==== -->
+      <!-- Total Tax Credit Claimed -->
+      <xsd:element name="TotalTaxCreditClaimed" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Total tax credit claimed. Enter the amount from line 14, 26, or 39, and 40 and 41</Description>
+            <FormNumber>FormN342A</FormNumber>
+            <LineNumber>42</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Distributive Share of Solar Energy Tax Credit -->
+      <xsd:element name="SolarEnergyTaxCrDistrShare" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>
+              Distributive share of solar energy tax credit. Each shareholder, partner, member, or beneficiary shall enter this amount on Form N-342, line 40
+            </Description>
+            <FormNumber>FormN342A</FormNumber>
+            <LineNumber>43</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Distributive Share of Wind-Powered Energy Tax Credit -->
+      <xsd:element name="WindPwrdEnergyTaxCrDistrShare" type="USAmountNNType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>
+              Distributive share of wind-powered energy tax credit. Each shareholder, partner, member, or beneficiary shall enter this amount on Form N-342, line 41
+            </Description>
+            <FormNumber>FormN342A</FormNumber>
+            <LineNumber>44</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>

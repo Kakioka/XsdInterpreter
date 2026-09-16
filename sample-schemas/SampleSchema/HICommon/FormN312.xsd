@@ -1,0 +1,449 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN312" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii State Form N-312</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="FormN312">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>CAPITAL GOODS EXCISE TAX CREDIT</Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="FormN312Type">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:complexType name="FormN312Type">
+    <xsd:sequence>
+      <!-- Name -->
+      <xsd:choice>
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Name</Description>
+            <FormNumber>FormN312</FormNumber>
+            <LineNumber>Header</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:element name="PersonName" type="PersonNameType"/>
+        <xsd:element name="BusinessName" type="BusinessNameType"/>
+      </xsd:choice>
+      <!-- SSN or FEIN  -->
+      <xsd:choice>
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>SSN or FEIN</Description>
+            <FormNumber>FormN312</FormNumber>
+            <LineNumber>Header</LineNumber>
+            <ELFFieldNumber>None</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+        <xsd:element name="SSN" type="SSNType"/>
+        <xsd:element name="FEIN" type="EINType"/>
+      </xsd:choice>
+      <!-- Hawaii General Excise Tax Identification Number-->
+      <xsd:element name="HawaiiGETaxIdNo" type="HIGETaxIdNumberType" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>Hawaii General Excise tax identification number</Description>
+            <FormNumber>FormN312</FormNumber>
+            <LineNumber>Header</LineNumber>
+            <ELFFieldNumber>0070</ELFFieldNumber>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- ==== PART I COMPUTATION OF TAX CREDIT ==== -->
+      <xsd:element name="PartITaxCreditComputation" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Hawaii Purchases -->
+            <xsd:element name="HawaiiPurchase" type="HIPurchaseType" minOccurs="0" maxOccurs="unbounded">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Hawaii purchase</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>1</LineNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Purchases from Out-Of-State Sellers -->
+            <xsd:element name="OutOfStatePurchase" type="HIPurchaseType" minOccurs="0" maxOccurs="unbounded">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Purchases from out-of-state sellers</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>2a</LineNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Was 4% Use Tax Paid on These Purchases? -->
+            <xsd:element name="WasQlfdPctUseTaxPaid" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Was 4% Use Tax paid on these purchases? 1=Yes  2=No  3=Some</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>2b</LineNumber>
+                  <ELFFieldNumber>0255</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:simpleType>
+                <xsd:annotation>
+                  <xsd:documentation>
+                    <Description>1=Yes  2=No  3=Some</Description>
+                  </xsd:documentation>
+                </xsd:annotation>
+                <xsd:restriction base="IntegerType">
+                  <xsd:enumeration value="1"/>
+                  <xsd:enumeration value="2"/>
+                  <xsd:enumeration value="3"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:element>
+            <!-- Total Cost of Eligible Property -->
+            <xsd:element name="TotalEligiblePptyCost" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total qualifying cost of eligible property. Add amounts in column (c), lines 1 and 2. (Estates, trusts, and cooperatives, see Instructions)</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>3</LineNumber>
+                  <ELFFieldNumber>0260</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- 4. Tax credit percentage: 4% -->
+            <!-- Multiply Line 3 by Line 4 -->
+            <xsd:element name="TtlEligiblePptyCostPercentage" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Property basis percentage. Multiply line 3 by line 4</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>5</LineNumber>
+                  <ELFFieldNumber>0265</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Amount of Sales or Use Taxes Paid to Another State -->
+            <xsd:element name="UseTaxesPaidOutOfState" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Amount of sales or use taxes paid to another state</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>6</LineNumber>
+                  <ELFFieldNumber>0270</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Capital Goods Excise Tax Credit — Line 5 minus line 6 -->
+            <xsd:element name="CapitalGoodsExciseTaxCredit" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Capital goods excise tax credit — Line 5 minus line 6 rounded to nearest dollar</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>7</LineNumber>
+                  <ELFFieldNumber>0275</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <xsd:element name="ListedPropertiesQuestionnaire" minOccurs="0">
+              <xsd:complexType>
+                <xsd:sequence>
+                  <!-- Was a Deduction Taken Under Internal Revenue Code Section 179? -->
+                  <xsd:element name="IRCSec179DeductionInd" type="BooleanType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Was a deduction taken under Internal Revenue Code Section 179?</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>A</LineNumber>
+                        <ELFFieldNumber>0280</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Was Any Property Listed on Lines 1 or 2a Acquired from a Related Company or Person? -->
+                  <xsd:element name="FromRelatedPartyInd" type="BooleanType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Was any property listed on lines 1 or 2a acquired from a related company or person?</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>B</LineNumber>
+                        <ELFFieldNumber>0285</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Is Any Property Listed on Lines 1 or 2a Subject to the Limitation on Capital Goods Excise Tax Credit and the Depreciation Deduction? -->
+                  <xsd:element name="IRCSec280FDeductionInd" type="BooleanType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Is any property listed on lines 1 or 2a subject to the limitation on capital goods excise tax credit and the depreciation deduction?</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>C</LineNumber>
+                        <ELFFieldNumber>0290</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Is Any Property Listed on Lines 1 or 2a an Integral Part of a Building or Structure? -->
+                  <xsd:element name="PartOfBuildingOrStructureInd" type="BooleanType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Is any property listed on lines 1 or 2a an integral part of a building or structure?</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>D</LineNumber>
+                        <ELFFieldNumber>0295</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Does Any of the Property Listed on Lines 1 or 2a Have a Useful Life of Less than 3 Years? -->
+                  <xsd:element name="LessThanThreeYearLifeInd" type="BooleanType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Does any of the property listed on lines 1 or 2a have a useful life of less than 3 years?</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>E</LineNumber>
+                        <ELFFieldNumber>0300</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== PART II — RECAPTURE OF CAPITAL GOODS EXCISE TAX CREDIT ==== -->
+      <xsd:element name="PartIITaxCreditRecapture" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:choice minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Name(s) as shown on return or of individual or entity for whom this statement is being prepared</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>Part II, Header</LineNumber>
+                  <ELFFieldNumber>0305</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:element name="IndividualName" type="PersonNameType"/>
+              <xsd:element name="EntityName" type="BusinessNameType"/>
+            </xsd:choice>
+            <xsd:choice minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>FEIN or SSN</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>Part II, Header</LineNumber>
+                  <ELFFieldNumber>0310</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:element name="IndividualSSN" type="SSNType"/>
+              <xsd:element name="EntityFEIN" type="EINType"/>
+            </xsd:choice>
+            <!-- Name of Pass-Through Entity -->
+            <xsd:element name="PassThroughEntityName" type="BusinessNameType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Name of pass-through entity</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>Part II, Header</LineNumber>
+                  <ELFFieldNumber>0315</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Pass-Through Entity FEIN or SSN -->
+            <xsd:choice minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Pass-through entity FEIN or SSN</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>Part II, Header</LineNumber>
+                  <ELFFieldNumber>0320</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:element name="PassThroughEntityFEIN" type="EINType"/>
+              <xsd:element name="PassThroughEntitySSN" type="SSNType"/>
+            </xsd:choice>
+            <!-- ==== Properties ==== -->
+            <xsd:element name="EligibleDepreciableProperty" minOccurs="0" maxOccurs="unbounded">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Property</Description>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:complexType>
+                <xsd:sequence>
+                  <!-- Property Description -->
+                  <xsd:element name="PptyDescription" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Property description</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, Property Header</LineNumber>
+                        <ELFFieldNumber>0325, 0330, 0335, 0340, 0345</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                    <xsd:simpleType>
+                      <xsd:restriction base="TextType">
+                        <xsd:maxLength value="80"/>
+                      </xsd:restriction>
+                    </xsd:simpleType>
+                  </xsd:element>
+                  <!-- ==== RECAPTURE COMPUTATION ==== -->
+                  <!-- 1. Original rate of credit (4%) -->
+                  <!-- Date Recapture Period Begins -->
+                  <xsd:element name="RecapturePeriodBeginDate" type="DateType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Date recapture period begins</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 2</LineNumber>
+                        <ELFFieldNumber>0350, 0355, 0360, 0365, 0370</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Date Property Ceased to Be Eligible Capital Goods Excise Tax Credit Property -->
+                  <xsd:element name="DatePptyCeasedToBeEligible" type="DateType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Date property ceased to be eligible capital goods excise tax credit property</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 3</LineNumber>
+                        <ELFFieldNumber>0375, 0380, 0385, 0390, 0395</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Number of Full Years Between the Date on Line 2 and the Date on Line 3 -->
+                  <xsd:element name="NumberOfYearsPptyWasHeld" type="IntegerNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Number of full years between the date on line 2 and the date on line 3</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 4</LineNumber>
+                        <ELFFieldNumber>0400, 0405, 0410, 0415, 0420</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Original Apportioned Cost of Qualifying Property -->
+                  <xsd:element name="QualifyingPptyOrgnlApprtndCost" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Original apportioned cost of qualifying property</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 5</LineNumber>
+                        <ELFFieldNumber>0425, 0430, 0435, 0440, 0445</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Original Apportioned Amount of the Deduction Allowed Under IRC Section 179 -->
+                  <xsd:element name="IRCSec179DeductionAllowed" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Original apportioned amount of the deduction allowed under IRC section 179</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 6</LineNumber>
+                        <ELFFieldNumber>0450, 0455, 0460, 0465, 0470</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Original Apportioned Sales or Use Tax Credit Claimed under Section 238-3(i), HRS -->
+                  <xsd:element name="OrgnlApprtndSalesOrUseTxCrClmd" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Original apportioned sales or use tax credit claimed under section 238-3(i), HRS</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 7</LineNumber>
+                        <ELFFieldNumber>0475, 0480, 0485, 0490, 0495</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Original or Previously Recomputed Credit Claimed -->
+                  <xsd:element name="OrgnlOrPrevRecomptdCreditClmd" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Original or previously recomputed credit claimed</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 8</LineNumber>
+                        <ELFFieldNumber>0500, 0505, 0510, 0515, 0520</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Recomputed credit -->
+                  <xsd:element name="RecomputedCredit" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Recomputed credit</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 9</LineNumber>
+                        <ELFFieldNumber>0525, 0530, 0535, 0540, 0545</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Decrease in Credit Due to Disposition -->
+                  <xsd:element name="CreditDecreaseDueToDisposition" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Decrease in credit due to disposition. Line 8 minus line 9</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 10</LineNumber>
+                        <ELFFieldNumber>0550, 0555, 0560, 0565, 0570</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                  <!-- Recapture Percentage -->
+                  <xsd:element name="RecapturePercentage" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Recapture percentage</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 11</LineNumber>
+                        <ELFFieldNumber>0575, 0580, 0585, 0590, 0595</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                    <xsd:simpleType>
+                      <xsd:restriction base="IntegerNNType">
+                        <xsd:enumeration value="0"/>
+                        <xsd:enumeration value="33"/>
+                        <xsd:enumeration value="66"/>
+                        <xsd:enumeration value="100"/>
+                      </xsd:restriction>
+                    </xsd:simpleType>
+                  </xsd:element>
+                  <!-- Recapture Tax -->
+                  <xsd:element name="RecaptureTax" type="USAmountNNType" minOccurs="0">
+                    <xsd:annotation>
+                      <xsd:documentation>
+                        <Description>Recapture tax. (Line 10 multiplied by line 11)</Description>
+                        <FormNumber>FormN312</FormNumber>
+                        <LineNumber>Part II, 12</LineNumber>
+                        <ELFFieldNumber>0600, 0605, 0610, 0615, 0620</ELFFieldNumber>
+                      </xsd:documentation>
+                    </xsd:annotation>
+                  </xsd:element>
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>
+            <!-- Total Increase in Tax -->
+            <xsd:element name="TotalTaxIncrease" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total increase in tax</Description>
+                  <FormNumber>FormN312</FormNumber>
+                  <LineNumber>Part II, 13</LineNumber>
+                  <ELFFieldNumber>0625</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>

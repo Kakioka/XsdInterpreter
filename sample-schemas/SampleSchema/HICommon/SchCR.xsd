@@ -1,0 +1,737 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="SchCR" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:annotation>
+		<xsd:documentation>
+			<Description>Hawaii Schedule CR</Description>
+		</xsd:documentation>
+	</xsd:annotation>
+	<xsd:include schemaLocation="HIeFileTypes.xsd"/>
+	<xsd:element name="SchCR">
+		<xsd:annotation>
+			<xsd:documentation>
+				<Description>SCHEDULE OF TAX CREDITS</Description>
+			</xsd:documentation>
+		</xsd:annotation>
+		<xsd:complexType>
+			<xsd:complexContent>
+				<xsd:extension base="SchCRType">
+					<xsd:attributeGroup ref="StateDocumentAttributes">
+						<xsd:annotation>
+							<xsd:documentation>Common return document attributes</xsd:documentation>
+						</xsd:annotation>
+					</xsd:attributeGroup>
+				</xsd:extension>
+			</xsd:complexContent>
+		</xsd:complexType>
+	</xsd:element>
+	<xsd:complexType name="SchCRType">
+		<xsd:sequence>
+			<!-- ==== PART I: REFUNDABLE TAX CREDITS ==== -->
+			<xsd:element name="RefundableTaxCredits" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Capital Goods Excise Tax Credit (Attach Form N-312) -->
+						<xsd:element name="CapitalGoodsExciseTaxCredit" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Capital goods excise tax credit (attach Form N-312)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>1</LineNumber>
+									<ELFFieldNumber>0140</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN312"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Fuel Tax Credit for Commercial Fishers -->
+						<xsd:element name="FuelTaxCreditForCommFishers" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Fuel tax credit for commercial fishers (attach Form N-163)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>2</LineNumber>
+									<ELFFieldNumber>0145</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN163"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Motion Picture, Digital Media, and Film Production Income Tax Credit -->
+						<xsd:element name="MotionPictureIncomeTaxCredit" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Motion picture, digital media, and film production income tax credit (attach Form N-340)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>3</LineNumber>
+									<ELFFieldNumber>0172</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN340"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Renewable Energy Technologies Income Tax Credit (For Systems Installed and Placed in Service on or After July 1, 2009) (Attach Form N-342) -->
+						<xsd:element name="RnwblEnrgyTechIncTaxCr070109" minOccurs="0">
+							<xsd:complexType>
+								<xsd:sequence>
+									<!-- Solar Energy System Indicator -->
+									<xsd:element name="SolarInd" type="CheckboxType"  minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>Solar energy system indicator</Description>
+												<FormNumber>SchCR</FormNumber>
+												<LineNumber>4</LineNumber>
+												<ELFFieldNumber>None</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+									</xsd:element>
+									<!-- Wind Energy System Indicator -->
+									<xsd:element name="WindInd" type="CheckboxType"  minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>Wind energy system indicator</Description>
+												<FormNumber>SchCR</FormNumber>
+												<LineNumber>4</LineNumber>
+												<ELFFieldNumber>None</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+									</xsd:element>
+									<xsd:element name="Amount" minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>Renewable energy technologies income tax credit amount (must attach Form N-342)</Description>
+												<FormNumber>SchCR</FormNumber>
+												<LineNumber>4</LineNumber>
+												<ELFFieldNumber>None</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+										<xsd:complexType>
+											<xsd:simpleContent>
+												<xsd:extension base="USAmountNNType">
+													<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+													<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN342"/>
+												</xsd:extension>
+											</xsd:simpleContent>
+										</xsd:complexType>
+									</xsd:element>
+								</xsd:sequence>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Important Agricultural Land Qualified Agricultural Cost Tax Credit -->
+						<xsd:element name="ImpAgLandQualifiedAgCostTaxCr" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Important agricultural land qualified agricultural cost tax credit (attach Form N-344)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>5</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN344"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Tax Credit for Research Activities -->
+						<xsd:element name="ResearchActivitiesTaxCredit" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Tax credit for research activities (attach Form N-346)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>6</LineNumber>
+									<ELFFieldNumber>0160</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN346"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Renewable Fuels Production Tax Credit (For Systems Installed and Placed in Service After December 31, 2021) -->
+						<xsd:element name="RnwblFuelsProdTaxCr010122" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Renewable Fuels Production Tax Credit (attach Form N-360)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>7</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN360"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Earned Income Tax Credit -->
+						<xsd:element name="EarnedIncomeTaxCr" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Earned Income Tax Credit (attach Form N-356)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>8</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+										<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+										<xsd:attribute name="referenceDocumentName" type="StringType" fixed="FormN356"/>
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Credit From Claim of Right -->
+						<xsd:element name="ClaimOfRightCredit"
+									   minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Credit for repayment of amounts included in income from earlier years</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>9</LineNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+							<xsd:complexType>
+								<xsd:simpleContent>
+									<xsd:extension base="USAmountNNType">
+									</xsd:extension>
+								</xsd:simpleContent>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Other Refundable Credits -->
+						<xsd:element name="OtherRefundableCredits" minOccurs="0">
+							<xsd:complexType>
+								<xsd:sequence>
+									<!-- Pro Rata Share of Taxes Withheld and Paid by a Partnership or S Corporation on the Sale of Hawaii Real Property Interests -->
+									<xsd:element name="TaxesWithheldOnHIPptySale" minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>Pro rata share of taxes withheld and paid by a partnership or S corporation on the sale of Hawaii real property interests</Description>
+												<FormNumber>SchCR</FormNumber>
+												<LineNumber>10a</LineNumber>
+												<ELFFieldNumber>0175</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+										<xsd:complexType>
+											<xsd:simpleContent>
+												<xsd:extension base="USAmountNNType">
+													<xsd:attribute name="referenceDocumentId" type="IdListType"/>
+													<xsd:attribute name="referenceDocumentName" type="StringType" fixed="SchK1FormN20 SchK1FormN35"/>
+												</xsd:extension>
+											</xsd:simpleContent>
+										</xsd:complexType>
+									</xsd:element>
+									<!-- Credit From a Regulated Investment Company -->
+									<xsd:element name="RegulatedInvestCompanyCredit" minOccurs="0">
+										<xsd:complexType>
+											<xsd:sequence>
+												<xsd:element name="RegInvCrExplanation" type="ShortExplanationType"  minOccurs="0">
+													<xsd:annotation>
+														<xsd:documentation>
+															<Description>A shareholder of a regulated investment company is allowed a credit for the tax paid to the State by the company on the amount of capital gains. Explain why the credit applies</Description>
+															<FormNumber>SchCR</FormNumber>
+															<LineNumber>10b</LineNumber>
+															<ELFFieldNumber>None</ELFFieldNumber>
+														</xsd:documentation>
+													</xsd:annotation>
+												</xsd:element>
+												<xsd:element name="Amount" type="USAmountNNType" minOccurs="0">
+													<xsd:annotation>
+														<xsd:documentation>
+															<Description>Credit From a regulated investment company</Description>
+															<FormNumber>SchCR</FormNumber>
+															<LineNumber>10b</LineNumber>
+															<ELFFieldNumber>0180</ELFFieldNumber>
+														</xsd:documentation>
+													</xsd:annotation>
+												</xsd:element>
+											</xsd:sequence>
+										</xsd:complexType>
+									</xsd:element>
+									<!-- Total Other Refundable Credits -->
+									<xsd:element name="TotalOtherRefundableCredits" type="USAmountNNType" minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>Total other refundable credits - add lines 10a, and 10b</Description>
+												<FormNumber>SchCR</FormNumber>
+												<LineNumber>10c</LineNumber>
+												<ELFFieldNumber>0185</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+									</xsd:element>
+								</xsd:sequence>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Total Refundable Credits -->
+						<xsd:element name="TotalRefundableCredits" type="USAmountNNType">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total refundable credits. Add lines 1 through 9 and line 10c</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>11</LineNumber>
+									<ELFFieldNumber>0190</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- ==== PART II: NONREFUNDABLE TAX CREDITS ==== -->
+			<xsd:element name="NonrefundableTaxCredits" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Income Tax Paid to Another State or Foreign Country -->
+						<xsd:element name="IncTaxPaidToOtherStateOrCntry" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Income tax paid to another state or foreign country</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>12</LineNumber>
+									<ELFFieldNumber>0060</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Enterprise Zone Tax Credit -->
+						<xsd:element name="EnterpriseZoneTaxCredit" type="USAmountNNType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Enterprise zone tax credit (attach Form N-756)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>13</LineNumber>
+									<ELFFieldNumber>0070</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Energy Conservation Tax Credit -->
+						<xsd:element name="EnergyCnsrvTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Carryover of the energy conservation tax credit (attach Form N-323)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>14</LineNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- High Technology Business Investment Tax Credit -->
+						<xsd:element name="HighTechInvestmentTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>High technology business investment tax credit (attach Form N-323)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>15</LineNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Carryover Cesspool Upgrade, Conversion or Connection Income Tax Credit -->
+						<xsd:element name="CesspoolUpgradeTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Carryover Cesspool Upgrade, Conversion or Connection Income Tax Credit (attach Form N-323)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>16</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Technology Infrastructure Renovation Tax Credit -->
+						<xsd:element name="TechInfraRnvtionTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Technology infrastructure renovation tax credit (attach Form N-323)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>17</LineNumber>
+									<ELFFieldNumber>0095</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Carryover of the Hotel Construction and Remodeling Tax Credit -->
+						<xsd:element name="HotelConstrTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Hotel construction and remodeling tax credit (attach Form N-323)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>18</LineNumber>
+									<ELFFieldNumber>0105</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Residential Construction and Remodeling Tax Credit -->
+						<xsd:element name="ResConstrTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Residential construction and remodeling tax credit (attach Form N-323)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>19</LineNumber>
+									<ELFFieldNumber>0110</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Renewable Energy Technologies Income Tax Credit (For Systems Installed and Placed in Service Before July 1, 2009) -->
+						<xsd:element name="RnwblEnrgyTechIncTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Renewable energy technologies income tax credit (attach Form N-323)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>20</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Organic Foods Production Tax Credit -->
+						<xsd:element name="OrganicFoodsProdTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Carryover of Organic Foods Production Tax Credit (attach Form N-323)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>21</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Renewable Fuels Production Tax Credit -->
+						<xsd:element name="RnwblFuelsProdTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Carryover of Renewable Fuels Production Tax Credit (attach Form N-323)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>22</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Capital Infrastructure Tax Credit -->
+						<xsd:element name="CapitalInfrastructureTaxCr" type="HISchCRNonRefCRType2Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Capital infrastructure tax credit (attach Form N-348)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>23</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Earned Income Tax Credit -->
+						<xsd:element name="CrryOvrEarnedIncomeTaxCr" type="HISchCRNonRefCRType5Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Earned Income Tax Credit (N-11 and N-15 filers) (attach Form N-356)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>24</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Low-Income Housing Tax Credit (Attach Form N-586) -->
+						<xsd:element name="LowIncomeHousingTaxCr" type="HISchCRNonRefCRType3Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Low-income housing tax credit (attach Form N-586)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>25</LineNumber>
+									<ELFFieldNumber>0075</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Credit for Employment of Vocational Rehabilitation Referrals (Attach Form N-884) -->
+						<xsd:element name="EmpVocRehabReferralsCr" type="HISchCRNonRefCRType3Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Credit for employment of vocational rehabilitation referrals (attach Form N-884)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>26</LineNumber>
+									<ELFFieldNumber>0080</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Credit for School Repair and Maintenance -->
+						<xsd:element name="SchoolRepairAndMaintCr" type="HISchCRNonRefCRType3Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Credit for school repair and maintenance (attach Form N-330)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>27</LineNumber>
+									<ELFFieldNumber>0100</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Renewable Energy Technologies Income Tax Credit (For Systems Installed and Placed in Service on or After July 1, 2009) (Attach Form N-342) -->
+						<xsd:element name="RnwblEnrgyTechIncTaxCr070109" minOccurs="0">
+							<xsd:complexType>
+								<xsd:sequence>
+									<!-- Solar Energy System Indicator -->
+									<xsd:element name="SolarInd" type="CheckboxType" minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>Solar energy system indicator</Description>
+												<FormNumber>SchCR</FormNumber>
+												<LineNumber>28</LineNumber>
+												<ELFFieldNumber>None</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+									</xsd:element>
+									<!-- Wind Energy System Indicator -->
+									<xsd:element name="WindInd" type="CheckboxType" minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>Wind energy system indicator</Description>
+												<FormNumber>SchCR</FormNumber>
+												<LineNumber>28</LineNumber>
+												<ELFFieldNumber>None</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+									</xsd:element>
+									<!-- Tax Credit Amount -->
+									<xsd:element name="Amount" type="HISchCRNonRefCRType3Col" minOccurs="0">
+										<xsd:annotation>
+											<xsd:documentation>
+												<Description>Renewable energy technologies income tax credit amount (must attach Form N-342)</Description>
+												<FormNumber>SchCR</FormNumber>
+												<LineNumber>28</LineNumber>
+												<ELFFieldNumber>None</ELFFieldNumber>
+											</xsd:documentation>
+										</xsd:annotation>
+									</xsd:element>
+								</xsd:sequence>
+							</xsd:complexType>
+						</xsd:element>
+						<!-- Healthcare Preceptor Income Tax Credit -->
+						<xsd:element name="HealthCarePreceptorTaxCr" type="HISchCRNonRefCRType3Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Healthcare Preceptor Income Tax Credit (N-11 and N-15 filers) (attach Form N-358)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>29</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Historic Preservation Income Tax Credit -->
+						<xsd:element name="HistPreservationIncomeTaxCr" type="HISchCRNonRefCRType3Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Historic Preservation Income Tax Credit (attach Form N-325)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>30</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Renewable Fuels Production Tax Credit (For Systems Installed and Placed in Service After December 31, 2021) -->
+						<xsd:element name="RnwblFuelsProdTaxCr010122" type="HISchCRNonRefCRType3Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Renewable Fuels Production Tax Credit (attach Form N-360)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>31</LineNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Pass-Through Entity Tax Credit -->
+						<xsd:element name="PassThroughEntityTaxCredit" type="HISchCRNonRefCRType3Col" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Pass-Through Entity Tax Credit (attach Form N-362)</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>32</LineNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Total Nonrefundable Credits -->
+						<xsd:element name="TotalNonrefundableCredits" type="USAmountNNType">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Total nonrefundable credits - add lines 12, 13 and Column (c) of lines 14 through 32.</Description>
+									<FormNumber>SchCR</FormNumber>
+									<LineNumber>33</LineNumber>
+									<ELFFieldNumber>0135</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+	<!-- Type for SchCR Non-Refundable credits with Col A, Col C and Col D-->
+	<xsd:complexType name="HISchCRNonRefCRType2Col">
+		<xsd:sequence>
+			<!-- Non-Refundable Schedule CR Unused Carryover Credit from Prior Tax Year Non-Refundable Credit -->
+			<xsd:element name="CreditPriorYear" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total Unused Carryover Credit From Prior Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (a)</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+
+			<!-- Non-Refundable Schedule CR Credits Applied Non-Refundable Credit -->
+			<xsd:element name="CreditApplied" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total Credit Applied to Current Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (c)</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+
+			<!-- Non-Refundable Schedule CR Credits Forwarded Non-Refundable Credit -->
+			<xsd:element name="CreditNextYear" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Unused Credit to Carryover to Next Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (d)</LineNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+	<!-- Type for SchCR Non-Refundable credits with Col A, Col B, Col C, and Col D-->
+	<xsd:complexType name="HISchCRNonRefCRType3Col">
+		<xsd:sequence>
+			<!-- Non-Refundable Schedule CR Unused Carryover Credit from Prior Tax Year Non-Refundable Credit -->
+			<xsd:element name="CreditPriorYear" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total Unused Carryover Credit from Prior Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (a)</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Non-Refundable Schedule CR Credits Claimed Non-Refundable Credit -->
+			<xsd:element name="TotalNewCredit" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total new Credit Calimed for Current Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (b)</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Non-Refundable Schedule CR Credits Applied Non-Refundable Credit -->
+			<xsd:element name="CreditApplied" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total Credit Applied to Current Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (c)</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+
+			<!-- Non-Refundable Schedule CR Credits Forwarded Non-Refundable Credit -->
+			<xsd:element name="CreditNextYear" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Unused Credit to Carryover to Next Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (d)</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+
+		</xsd:sequence>
+	</xsd:complexType>
+	<!-- Type for SchCR Non-Refundable credits with Col B, Col C and Col D -->
+	<xsd:complexType name="HISchCRNonRefCRType4Col">
+		<xsd:sequence>
+			<!-- Non-Refundable Schedule CR Credits Claimed Non-Refundable Credit -->
+			<xsd:element name="TotalNewCredit" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total new Credit Calimed for Current Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (b)</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Non-Refundable Schedule CR Credits Applied Non-Refundable Credit -->
+			<xsd:element name="CreditApplied" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total Credit Applied to Current Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (c)</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Non-Refundable Schedule CR Credits Forwarded Non-Refundable Credit -->
+			<xsd:element name="CreditNextYear" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Unused Credit to Carryover to Next Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (d)</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+	<!-- Type for SchCR Non-Refundable credits with Col A and Col C-->
+	<xsd:complexType name="HISchCRNonRefCRType5Col">
+		<xsd:sequence>
+			<!-- Non-Refundable Schedule CR Unused Carryover Credit from Prior Tax Year Non-Refundable Credit -->
+			<xsd:element name="CreditPriorYear" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total Unused Carryover Credit from Prior Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (a)</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+			<!-- Non-Refundable Schedule CR Credits Applied Non-Refundable Credit -->
+			<xsd:element name="CreditApplied" type="USAmountNNType" minOccurs="0">
+				<xsd:annotation>
+					<xsd:documentation>
+						<Description>Total Credit Applied to Current Tax Year</Description>
+						<FormNumber>SchCR</FormNumber>
+						<LineNumber>Col. (c)</LineNumber>
+						<ELFFieldNumber>None</ELFFieldNumber>
+					</xsd:documentation>
+				</xsd:annotation>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+</xsd:schema>

@@ -188,9 +188,27 @@ function extractValidationRules(restrictionEl) {
   return rules;
 }
 
+/**
+ * MeF/e-file schemas commonly model an optional checkbox as a string type
+ * restricted to the single enumeration value "X" (e.g. Common/efileTypes.xsd's
+ * CheckboxType, reused ~150 times across the sample schema set) rather than a
+ * real xsd:boolean — checked is the element present with value "X", unchecked
+ * is the element simply omitted from the XML entirely (never a literal blank
+ * value). A one-option "(blank) / X" dropdown is technically faithful to that
+ * but reads as meaningless to a user; a real checkbox is what they expect, as
+ * long as the false→omit / true→"X" translation happens at the XML boundary
+ * instead of writing a "true"/"false" that would violate the enumeration —
+ * see xmlWriter.js's buildNodes/formatValue and xmlReader.js's parseValue,
+ * which branch on xsdDataType !== 'xs:boolean' to do exactly that.
+ */
+function isXEnumCheckboxType(enumerationValues) {
+  return enumerationValues.length === 1 && enumerationValues[0].value.trim().toUpperCase() === 'X';
+}
+
 function assignLeafKind(xsdDataType, enumerationValues) {
   const local = stripPrefix(xsdDataType || 'xs:string');
   if (local === 'boolean') return 'Checkbox';
+  if (isXEnumCheckboxType(enumerationValues)) return 'Checkbox';
   if (enumerationValues.length > 0) return 'Dropdown';
   if (local === 'date' || local === 'dateTime') return 'DatePicker';
   if (NUMERIC_INTEGER_TYPES.has(local)) return 'NumericInput';

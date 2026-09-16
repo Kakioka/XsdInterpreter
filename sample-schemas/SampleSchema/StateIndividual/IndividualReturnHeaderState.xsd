@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2006 rel. 3 sp2 (http://www.altova.com) by Terry Garber (SC DEPT OF REVENUE & TAXATION) -->
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.irs.gov/efile" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.06">
+	<xsd:include schemaLocation="../Common/efileTypes.xsd"/>
+	<xsd:include schemaLocation="../Common/ReturnHeader.xsd"/>
+	<xsd:include schemaLocation="IndividualStateEnumerations.xsd"/>
+	<xsd:annotation>
+		<xsd:documentation>Header for Individual Return</xsd:documentation>
+	</xsd:annotation>
+	<xsd:element name="ReturnHeaderState" type="ReturnHeaderStateType"/>
+	<xsd:complexType name="ReturnHeaderStateType">
+		<xsd:complexContent>
+			<xsd:extension base="ReturnHeaderType">
+				<xsd:sequence>
+					<xsd:element name="ReturnType" type="ReturnTypeType"/>
+					<xsd:element name="SpecialProgram" type="SpecialProgramType" minOccurs="0" maxOccurs="5">
+						<xsd:annotation>
+							<xsd:documentation>Typically used for FFA</xsd:documentation>
+						</xsd:annotation>
+					</xsd:element>
+					<xsd:element name="Filer">
+						<xsd:complexType>
+							<xsd:sequence>
+								<xsd:element name="Primary" type="IndividualTaxpayerType"/>
+								<xsd:element name="Secondary" type="SecondaryTaxpayerType" minOccurs="0"/>
+								<xsd:element name="InCareOfNm" type="InCareOfNameType" minOccurs="0"/>
+								<xsd:choice>
+									<xsd:element name="USAddress" type="USAddressType"/>
+									<xsd:element name="ForeignAddress" type="ForeignAddressType"/>
+								</xsd:choice>
+							</xsd:sequence>
+						</xsd:complexType>
+					</xsd:element>
+					<xsd:element name="DiscussWithPaidPreparerInd" type="BooleanType" minOccurs="0">
+						<xsd:annotation>
+							<xsd:documentation>May the State discuss return with preparer?</xsd:documentation>
+						</xsd:annotation>
+					</xsd:element>
+				</xsd:sequence>
+			</xsd:extension>
+		</xsd:complexContent>
+	</xsd:complexType>
+	<xsd:complexType name="IndividualTaxpayerType">
+		<xsd:sequence>
+			<xsd:element name="TaxpayerName" type="IndividualNameType"/>
+			<xsd:element name="TaxpayerSSN" type="SSNType"/>
+			<xsd:element name="DateOfBirth" type="DateType" minOccurs="0"/>
+			<xsd:element name="DateOfDeath" type="DateType" minOccurs="0"/>
+			<xsd:element name="TaxpayerPIN" type="PINType" minOccurs="0"/>
+			<xsd:element name="DateSigned" type="DateType" minOccurs="0"/>
+			<xsd:choice minOccurs="0">
+				<xsd:element name="USPhone" type="PhoneNumberType"/>
+				<xsd:element name="ForeignPhone" type="ForeignPhoneNumberType"/>
+			</xsd:choice>
+		</xsd:sequence>
+	</xsd:complexType>
+	<xsd:complexType name="SecondaryTaxpayerType">
+		<xsd:sequence>
+			<xsd:element name="TaxpayerName" type="IndividualNameType"/>
+			<xsd:choice>
+				<xsd:element name="TaxpayerSSN" type="SSNType"/>
+				<xsd:element name="NRALiteralCd">
+					<xsd:annotation>
+						<xsd:documentation>
+							<Description>Non-Resident Alien Literal Code</Description>
+						</xsd:documentation>
+					</xsd:annotation>
+					<xsd:simpleType>
+						<xsd:restriction base="TextType">
+							<xsd:enumeration value="NRA"/>
+						</xsd:restriction>
+					</xsd:simpleType>
+				</xsd:element>
+			</xsd:choice>
+			<xsd:element name="DateOfBirth" type="DateType" minOccurs="0"/>
+			<xsd:element name="DateOfDeath" type="DateType" minOccurs="0"/>
+			<xsd:element name="TaxpayerPIN" type="PINType" minOccurs="0"/>
+			<xsd:element name="DateSigned" type="DateType" minOccurs="0"/>
+			<xsd:choice minOccurs="0">
+				<xsd:element name="USPhone" type="PhoneNumberType"/>
+				<xsd:element name="ForeignPhone" type="ForeignPhoneNumberType"/>
+			</xsd:choice>
+		</xsd:sequence>
+	</xsd:complexType>
+</xsd:schema>

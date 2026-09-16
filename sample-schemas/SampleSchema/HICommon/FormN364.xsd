@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN364" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+	<xsd:annotation>
+		<xsd:documentation>
+			<Description>Hawaii Claim Of Right Tax Credit</Description>
+		</xsd:documentation>
+	</xsd:annotation>
+	<xsd:include schemaLocation="HIeFileTypes.xsd"/>
+	<xsd:element name="FormN364">
+		<xsd:annotation>
+			<xsd:documentation>
+				<Description>CLAIM OF RIGHT TAX CREDIT</Description>
+			</xsd:documentation>
+		</xsd:annotation>
+		<xsd:complexType>
+			<xsd:complexContent>
+				<xsd:extension base="FormN364Type">
+					<xsd:attributeGroup ref="StateDocumentAttributes">
+						<xsd:annotation>
+							<xsd:documentation>Common return document attributes</xsd:documentation>
+						</xsd:annotation>
+					</xsd:attributeGroup>
+				</xsd:extension>
+			</xsd:complexContent>
+		</xsd:complexType>
+	</xsd:element>
+	<xsd:complexType name="FormN364Type">
+		<xsd:sequence>
+			<!-- ==== PART I: GENERAL INFORMATION ==== -->
+			<xsd:element name="GeneralInformation" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Repaid Income Included Under Claim Of Right -->
+						<xsd:element name="RepaidIncomeClaimOfRight" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Enter the total amount of income that you repaid during the tax year that was included in income under a claim of right.</Description>
+									<FormNumber>N364</FormNumber>
+									<LineNumber>1</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Deduction Claimed On Federal Return -->
+						<xsd:element name="DeductOnFedRtn" type="BooleanType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Did you take a deduction instead of a credit for the claim of right on your federal income tax return?</Description>
+									<FormNumber>N364</FormNumber>
+									<LineNumber>2</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+			<!-- ==== PART II: DECREASE IN PRIOR YEAR'S TAX ==== -->
+			<xsd:element name="DecreasePriorYearsTax" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<!-- Prior Taxable Year End -->
+						<xsd:element name="PriorTaxYearEnd" type="DateType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Prior Taxable Year End</Description>
+									<FormNumber>N364</FormNumber>
+									<LineNumber>3</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Prior Year Hawaii Tax -->
+						<xsd:element name="PriorHawaiiTax" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Enter the amount of tax from the Hawaii tax return filed for the prior tax year</Description>
+									<FormNumber>N364</FormNumber>
+									<LineNumber>4</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Refigured Prior Year's Tax Without Income Repaid This Tax Year -->
+						<xsd:element name="RefiguredTax" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>For the year listed on line 3, refigure your tax for the prior tax year without the income that you repaid this tax year</Description>
+									<FormNumber>N364</FormNumber>
+									<LineNumber>5</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<!-- Federal Adjusted Gross Income -->
+						<xsd:element name="ClaimOfRightCredit" type="USAmountType" minOccurs="0">
+							<xsd:annotation>
+								<xsd:documentation>
+									<Description>Subtract line 5 from 4. Enter the difference. This is your claim of right credit for the current tax year</Description>
+									<FormNumber>N364</FormNumber>
+									<LineNumber>6</LineNumber>
+									<ELFFieldNumber>None</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+			</xsd:element>
+		</xsd:sequence>
+	</xsd:complexType>
+</xsd:schema>

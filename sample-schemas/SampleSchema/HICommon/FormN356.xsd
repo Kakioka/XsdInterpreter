@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN356" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii Earned Income Tax Credit</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="FormN356">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>EARNED INCOME TAX CREDIT</Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="FormN356Type">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:complexType name="FormN356Type">
+    <xsd:sequence>
+      <!-- ==== PART I: QUALIFYING INDIVIDUAL TAXPAYER ==== -->
+      <xsd:element name="QualifyIndivTaxpayer" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Claiming Federal Earned Income Credit -->
+            <xsd:element name="ClaimFedEIC" type="BooleanType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Are you filing a federal income tax return and claiming the federal earned income credit?</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>1a</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Claiming Same Federal Filing Status -->
+            <xsd:element name="SameFedFilingStatus" type="BooleanType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Are you using the same filing status on your Form N-11 or Form N-15 as used on your federal income tax return?</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>1b</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Claiming Same Federal Dependents -->
+            <xsd:element name="FedDependentsClaimed" type="BooleanType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Are you claiming the same dependents on your Form N-11 or Form N-15 as claimed on your federal income tax return? Check "Yes" if you are not claiming any dependents on your Hawaii and federal income tax returns</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>1c</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>  
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== PART II: ALLOWABLE TAX CREDIT FOR TAX YEAR AND CARRYOVER COMPUTATION ==== -->
+      <xsd:element name="AllowTaxCreditAndCarryover" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Federal Earned Income Credit Claimed -->
+            <xsd:element name="FedEICClaimed" type="USAmountNNType" minOccurs="0">              
+              <xsd:annotation>
+                <xsd:documentation>
+                 <Description>Enter the amount of your federal earned income credit claimed on your federal income tax return for this tax year</Description>
+                 <FormNumber>N356</FormNumber>
+                 <LineNumber>2</LineNumber>
+                 <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+               </xsd:annotation>
+              </xsd:element>                 
+            <!-- Qualified Federal Earned Income Credit  -->
+            <xsd:element name="QualFedEIC" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Multiply line 2 by 40%</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>3</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Hawaii Adjusted Gross Income -->
+            <xsd:element name="HIAGI" type="USAmountType" minOccurs="0">         
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter your Hawaii adjusted gross income from Form N-15 column B</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>4</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+               </xsd:annotation>
+              </xsd:element>                 
+            <!-- Federal Adjusted Gross Income -->
+            <xsd:element name="FedAGI" type="USAmountType" minOccurs="0">              
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter your federal adjusted gross income from Form N-15</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>5</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+             </xsd:element>                  
+            <!-- Hawaii and Federal Adjusted Gross Income Ratio  -->
+            <xsd:element name="HIFedAGIRatio" type="RatioType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Divide line 4 by line 5. (Compute to 3 decimal places and round to 2 decimal places)</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>6</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Qualified Federal Earned Income Credit to Adjusted Gross Income  -->
+            <xsd:element name="QualFedEICToAGI" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total New Credit Claimed - Multiply line 3 by line 6 also enter this amount on Schedule CR in Column (a) of the appropriate line for this tax credit.</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>7</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- N-11 or N-15 Hawaii Adjusted Tax Liability -->
+            <xsd:element name="N11OrN15HIAdjTaxLiab" type="USAmountType" minOccurs="0">              
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Adjusted Tax Liability - Enter the amount from Form N-11 or N-15</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>8</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+             </xsd:element>                 
+            <!-- Other Nonrefundable Tax Credits Claimed -->
+            <xsd:element name="OtherNonrefundTaxCredClaimed" type="USAmountNNType" minOccurs="0">             
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>If you are claiming other nonrefundable tax credits, complete the worksheet in the instructions and enter the total here. If you are not claiming other nonrefundable credits, enter zero</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>9</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+             </xsd:element>                 
+            <!-- Hawaii Adjusted Tax Liability -->
+            <xsd:element name="HIAdjTaxLiab" type="USAmountNNType" minOccurs="0">              
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Line 10 minus line 11. This represents your adjusted tax liability. If the result is zero or less, enter zero</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>10</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+             </xsd:element>  
+			<!-- Carryover of Unused Tax Credit -->
+            <xsd:element name="PriorEITCCarryover" type="USAmountNNType" minOccurs="0">              
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Carryover of unused earned income tax credit from prior YEAR</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>11</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+             </xsd:element> 			 
+            <!-- Total Credit Allowed -->
+            <xsd:element name="TotalCredAllowed" type="USAmountNNType" minOccurs="0">              
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Total credit applied - Enter the smaller of line 10 or line 11. This is your earned income tax credit to be applied for the year. Enter this amount, rounded to the narest dollar, on the appropriate line for the credit on Schedule CR</Description>
+                  <FormNumber>N356</FormNumber>
+                  <LineNumber>12</LineNumber>
+                  <ELFFieldNumber>None</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+             </xsd:element>                                   
+                </xsd:sequence>
+              </xsd:complexType>
+            </xsd:element>            
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>

@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>Hawaii State N-11 Return Data</xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIForms/FormN11.xsd"/>  
+  <xsd:include schemaLocation="../HICommon/FormN158.xsd"/>
+  <xsd:include schemaLocation="../HICommon/FormN210.xsd"/>
+  <xsd:include schemaLocation="../HICommon/FormN342A.xsd"/>
+  <xsd:include schemaLocation="../HICommon/FormN615.xsd"/>  
+  <xsd:include schemaLocation="../HICommon/FormN311.xsd"/>
+  <xsd:include schemaLocation="../HICommon/FormN312.xsd"/>
+  <xsd:include schemaLocation="../HICommon/FormN342.xsd"/>
+  <xsd:include schemaLocation="../HICommon/FormN356.xsd"/>
+  <xsd:include schemaLocation="../HICommon/FormN362.xsd"/>
+  <xsd:include schemaLocation="../HICommon/FormN364.xsd"/>
+  <xsd:include schemaLocation="../HICommon/SchCR.xsd"/>
+  <xsd:include schemaLocation="../HICommon/SchX.xsd"/>
+  <xsd:include schemaLocation="../HICommon/SchAMD.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/IRS1099R.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/IRSW2.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/IRSW2G.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/State1099B.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/State1099Div.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/State1099G.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/State1099K.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/State1099Int.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/State1099Misc.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/State1099Nec.xsd"/>
+  <xsd:include schemaLocation="../StateIndividual/IRSForms/State1099Oid.xsd"/>
+  <xsd:element name="ReturnDataState">
+    <xsd:complexType>
+      <xsd:sequence>
+        <!-- Form N-11 -->
+        <xsd:element ref="FormN11">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>INDIVIDUAL INCOME TAX RETURN RESIDENT</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- Schedule CR -->
+        <xsd:element ref="SchCR" minOccurs="0">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>SCHEDULE OF TAX CREDITS</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- Schedule X -->
+        <xsd:element ref="SchX" minOccurs="0">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>TAX CREDITS FOR HAWAII RESIDENTS</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- Schedule AMD -->
+        <xsd:element ref="SchAMD" minOccurs="0">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>SCHEDULE AMENDED RETURN</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+      <!-- Form N-158 -->
+      <xsd:element ref="FormN158" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>INVESTMENT INTEREST EXPENSE DEDUCTION</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Form N-210 -->
+      <xsd:element ref="FormN210" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>UNDERPAYMENT OF ESTIMATED TAX BY INDIVIDUALS, ESTATES, AND TRUSTS</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Form N-342a -->
+      <xsd:element ref="FormN342A" minOccurs="0" maxOccurs="unbounded">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>INFORMATION STATEMENT CONCERNING RENEWABLE ENERGY TECHNOLOGIES INCOME TAX CREDIT FOR SYSTEMS INSTALLED AND PLACED IN SERVICE ON OR AFTER JULY 1, 2009</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+      <!-- Form N-615 -->
+      <xsd:element ref="FormN615" minOccurs="0">
+        <xsd:annotation>
+          <xsd:documentation>
+            <Description>COMPUTATION OF TAX FOR CHILDREN UNDER AGE 14 WHO HAVE UNEARNED INCOME OF MORE THAN $1,000</Description>
+          </xsd:documentation>
+        </xsd:annotation>
+      </xsd:element>
+		<!-- Form N-311 -->
+        <xsd:element ref="FormN311" minOccurs="0">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>REFUNDABLE FOOD/EXCISE TAX CREDIT</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- Form N-312 -->
+        <xsd:element ref="FormN312" minOccurs="0" maxOccurs="1">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>CAPITAL GOODS FORM EXCISE TAX CREDIT</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- Form N-342 -->
+        <xsd:element ref="FormN342" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>RENEWABLE ENERGY TECHNOLOGIES INCOME TAX CREDIT (for systems installed and placed in service on or after July 1, 2009)</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- Form N-356 -->
+        <xsd:element ref="FormN356" minOccurs="0">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>EARNED INCOME TAX CREDIT</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+		<!-- Form N-362 -->
+        <xsd:element ref="FormN362" minOccurs="0">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>PASS-THROUGH ENTITY TAX CREDIT</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+	    <!-- Form N-364 -->
+        <xsd:element ref="FormN364" minOccurs="0">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>CLAIM OF RIGHT TAX CREDIT</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- IRS 1099-R -->
+        <xsd:element ref="IRS1099R" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>IRS E-FILE INDIVIDUAL INCOME TAX SCHEMA - IRS FORM 1099-R DISTRIBUTIONS FROM PENSIONS, ANNUITIES, ...</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- IRS W-2 -->
+        <xsd:element ref="IRSW2" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>IRS E-FILE INCOME TAX SCHEMA - IRS FORM W2</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- IRS W-2G -->
+        <xsd:element ref="IRSW2G" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>IRS E-FILE INDIVIDUAL INCOME TAX SCHEMA - IRS FORM W2G CERTAIN GAMBLINGS AND WINNINGS</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+		<!-- State 1099-B -->
+        <xsd:element ref="State1099B" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>TIGERS VERSION OF THE IRS FORM 1099B</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- State 1099-DIV -->
+        <xsd:element ref="State1099Div" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>TIGERS VERSION OF THE IRS 1099-DIV</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- State 1099-G -->
+        <xsd:element ref="State1099G" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>TIGERS VERSION OF IRS FORM 1099G</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+		<!-- State 1099-K -->
+        <xsd:element ref="State1099K" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>TIGERS VERSION OF THE IRS FORM 1099K</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- State 1099-Int -->
+        <xsd:element ref="State1099Int" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>TIGERS VERSION OF IRS FORM 1099-INT</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- State 1099-Misc -->
+        <xsd:element ref="State1099Misc" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>TIGERS VERSION OF IRS FORM 1099MISC</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- State 1099-NEC -->
+        <xsd:element ref="State1099Nec" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>TIGERS VERSION OF IRS FORM 1099NEC</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+        <!-- State 1099-OID -->
+        <xsd:element ref="State1099Oid" minOccurs="0" maxOccurs="unbounded">
+          <xsd:annotation>
+            <xsd:documentation>
+              <Description>TIGERS VERSION OF THE IRS 1099-OID</Description>
+            </xsd:documentation>
+          </xsd:annotation>
+        </xsd:element>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+</xsd:schema>

@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema id="FormN615" xmlns="http://www.irs.gov/efile" xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.irs.gov/efile" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0">
+  <xsd:annotation>
+    <xsd:documentation>
+      <Description>Hawaii State Form N-615</Description>
+    </xsd:documentation>
+  </xsd:annotation>
+  <xsd:include schemaLocation="HIeFileTypes.xsd"/>
+  <xsd:element name="FormN615">
+    <xsd:annotation>
+      <xsd:documentation>
+        <Description>Computation of Tax for Children under Age 14 Who Have Unearned Income of More than $1,000</Description>
+      </xsd:documentation>
+    </xsd:annotation>
+    <xsd:complexType>
+      <xsd:complexContent>
+        <xsd:extension base="FormN615Type">
+          <xsd:attributeGroup ref="StateDocumentAttributes">
+            <xsd:annotation>
+              <xsd:documentation>Common return document attributes</xsd:documentation>
+            </xsd:annotation>
+          </xsd:attributeGroup>
+        </xsd:extension>
+      </xsd:complexContent>
+    </xsd:complexType>
+  </xsd:element>
+  <xsd:complexType name="FormN615Type">
+    <xsd:sequence>
+      <xsd:element name="Header">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Parent's Name (First, Initial, Last) -->
+            <xsd:element name="ParentName" type="PersonNameType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Parent's name - first name, initial, last name</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>A</LineNumber>
+                  <ELFFieldNumber>0060</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Parent's Social Security Number -->
+            <xsd:element name="ParentSSN" type="SSNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Parent's social security number</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>B</LineNumber>
+                  <ELFFieldNumber>0065</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Parent's Filing Status -->
+            <xsd:element name="ParentFilingStatus" type="HIFilingStatusType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Parent's filing status</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>C</LineNumber>
+                  <ELFFieldNumber>0070</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== Step 1 Child's Net Unearned Income ==== -->
+      <xsd:element name="ChildNetInvIncomeComputation">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Child's Unearned Income -->
+            <xsd:element name="InvestmentIncome">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Enter the child's unearned income. If this amount is $1,000 or less, do not file this form</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>1</LineNumber>
+                  <ELFFieldNumber>0080</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+              <xsd:simpleType>
+                <xsd:restriction base="USAmountType">
+                  <xsd:minExclusive value="1000"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:element>
+            <!-- Deductions -->
+            <xsd:element name="Deductions" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Deductions. If the child DID NOT itemize deductions on Form N-11 or Form N-15, enter $1,000. If the child ITEMIZED deductions, see Instructions</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>2</LineNumber>
+                  <ELFFieldNumber>0085</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Child's Adjusted Investment Income. Line 1 minus Line 2 -->
+            <xsd:element name="InvestmentIncomeLessDeductions" type="USAmountType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Child's adjusted investment income. Line 1 minus line 2</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>3</LineNumber>
+                  <ELFFieldNumber>0090</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Child's Taxable Income -->
+            <xsd:element name="TaxableIncome" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Child's taxable income</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>4</LineNumber>
+                  <ELFFieldNumber>0095</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Child Net Investment Income. The smaller of Line 3 or Line 4 -->
+            <xsd:element name="NetInvestmentIncome" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Child net investment income. The smaller of line 3 or line 4. If zero, stop here</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>5</LineNumber>
+                  <ELFFieldNumber>0100</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- ==== Step 2 Tentative Tax Based on the Parent’s Tax Rate ==== -->
+      <xsd:element name="ChildTentativeTaxComputation" minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Parent's Taxable Income -->
+            <xsd:element name="ParentTaxableIncome" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Parent's taxable income</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>6</LineNumber>
+                  <ELFFieldNumber>0105</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Other Children Net Investment Income Total -->
+            <xsd:element name="OtherChildrenNetInvIncomeTtl" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Other children net investment income total</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>7</LineNumber>
+                  <ELFFieldNumber>0110</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Combined Income. Add the amounts on lines 5, 6, and 7 -->
+            <xsd:element name="CombinedIncome" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Combined income. Add the amounts on lines 5, 6, and 7</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>8</LineNumber>
+                  <ELFFieldNumber>0115</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Tax on the Amount on Line 8 Based on the Parent’s Filing Status -->
+            <xsd:element name="TaxOnCombinedIncAtParentRate" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<xsd:element name="TaxOnCombinedIncParentRateAmt" type="USAmountNNType">
+							<xsd:annotation>
+								<xsd:documentation>
+								  <Description>Tax on the amount on line 8 based on the parent's filing status</Description>
+								  <FormNumber>FormN615</FormNumber>
+								  <LineNumber>9</LineNumber>
+								  <ELFFieldNumber>0125</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="HITaxSource" type="HITaxSourceCheckboxes">
+							<xsd:annotation>
+								<xsd:documentation>
+								  <Description>Source used to figure tax on combined income at parent rate</Description>
+								  <FormNumber>FormN615</FormNumber>
+								  <LineNumber>9</LineNumber>
+								  <ELFFieldNumber>0125</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>  
+            </xsd:element>
+            <!-- Parent Tax -->
+            <xsd:element name="ParentTax" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<xsd:element name="ParentTaxAmt" type="USAmountNNType">
+							<xsd:annotation>
+								<xsd:documentation>
+								  <Description>Parent Tax</Description>
+								  <FormNumber>FormN615</FormNumber>
+								  <LineNumber>10</LineNumber>
+								  <ELFFieldNumber>0130</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="HITaxSource" type="HITaxSourceCheckboxes">
+							<xsd:annotation>
+								<xsd:documentation>
+								  <Description>Source used to figure parent tax amount</Description>
+								  <FormNumber>FormN615</FormNumber>
+								  <LineNumber>10</LineNumber>
+								  <ELFFieldNumber>0130</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>  
+            </xsd:element>
+            <!-- Adjusted Tax -->
+            <xsd:element name="TotalChildrenTax" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Adjusted tax. line 9 minus line 10</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>11</LineNumber>
+                  <ELFFieldNumber>0135</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Combined Children Net Investment Income. Add the Amounts on Lines 5 and 7 -->
+            <xsd:element name="CombinedChildrenNetInvIncome" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Combined children net investment income. Add the amounts on lines 5 and 7</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>12a</LineNumber>
+                  <ELFFieldNumber>0140</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Child Tentative Tax Percentage. Divide the Amount on Line 5 by the Amount on Line 12a -->
+            <xsd:element name="ChildTentativeTaxShare" type="RatioType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Child tentative tax percentage. Divide the amount on line 5 by the amount on line 12a. Enter the decimal (rounded to at least three places)</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>12b</LineNumber>
+                  <ELFFieldNumber>0145</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Child Tentative Tax. Multiply the Amount on Line 11 by the Amount on Line 12b -->
+            <xsd:element name="ChildTentativeTax" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Child tentative tax. Multiply the amount on line 11 by the amount on line 12b</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>13</LineNumber>
+                  <ELFFieldNumber>0150</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <!-- Step 3 Figure Child's Tax — If the Amounts on Lines 4 and 5 Are the Same, Enter -0- on Line 15 and Go to Line 16 -->
+      <xsd:element name="ChildTaxComputation"  minOccurs="0">
+        <xsd:complexType>
+          <xsd:sequence>
+            <!-- Child Taxable Unearned Income -->
+            <xsd:element name="ChildTaxableUnearnedIncome" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Child taxable unearned income. Line 4 minus line 5</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>14</LineNumber>
+                  <ELFFieldNumber>0155</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Unearned Income Tax at Child Rate. Tax on the Amount on Line 14 Based on the Child's Filing Status -->
+            <xsd:element name="TaxAtChildRate" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<xsd:element name="TaxAtChildRateAmt" type="USAmountNNType">
+							<xsd:annotation>
+								<xsd:documentation>
+								  <Description>Unearned income tax at child rate. Tax on the amount on line 14 based on the child's filing status</Description>
+								  <FormNumber>FormN615</FormNumber>
+								  <LineNumber>15</LineNumber>
+								  <ELFFieldNumber>0165</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="HITaxSource" type="HITaxSourceCheckboxes">
+							<xsd:annotation>
+								<xsd:documentation>
+								  <Description>Source used to figure unearned income tax at child rate</Description>
+								  <FormNumber>FormN615</FormNumber>
+								  <LineNumber>15</LineNumber>
+								  <ELFFieldNumber>0165</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>  
+            </xsd:element>
+            <!-- Child Tentative Investment Tax. Add the Amounts on Lines 13 and 15 -->
+            <xsd:element name="ChildTentativeInvestmentTax" type="USAmountNNType" minOccurs="0">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Child tentative investment tax. Add the amounts on lines 13 and 15</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>16</LineNumber>
+                  <ELFFieldNumber>0170</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+            <!-- Child Income Tax. Tax on the Amount on Line 4 Based on the Child's Filing Status -->
+            <xsd:element name="ChildIncomeTax" minOccurs="0">
+				<xsd:complexType>
+					<xsd:sequence>
+						<xsd:element name="ChildIncomeTaxAmt" type="USAmountNNType">
+							<xsd:annotation>
+								<xsd:documentation>
+								  <Description>Child income tax. Tax on the amount on line 4 based on the child's filing status</Description>
+								  <FormNumber>FormN615</FormNumber>
+								  <LineNumber>17</LineNumber>
+								  <ELFFieldNumber>0180</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+						<xsd:element name="HITaxSource" type="HITaxSourceCheckboxes">
+							<xsd:annotation>
+								<xsd:documentation>
+								  <Description>Source used to figure child income tax amount</Description>
+								  <FormNumber>FormN615</FormNumber>
+								  <LineNumber>17</LineNumber>
+								  <ELFFieldNumber>0180</ELFFieldNumber>
+								</xsd:documentation>
+							</xsd:annotation>
+						</xsd:element>
+					</xsd:sequence>
+				</xsd:complexType>
+            </xsd:element>
+            <!-- Form N-615 Tax -->
+            <xsd:element name="FormN615Tax" type="USAmountNNType">
+              <xsd:annotation>
+                <xsd:documentation>
+                  <Description>Form N-615 tax. Larger of line 16 or line 17</Description>
+                  <FormNumber>FormN615</FormNumber>
+                  <LineNumber>18</LineNumber>
+                  <ELFFieldNumber>0185</ELFFieldNumber>
+                </xsd:documentation>
+              </xsd:annotation>
+            </xsd:element>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:schema>
