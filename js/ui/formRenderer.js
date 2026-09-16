@@ -280,6 +280,25 @@ function buildRadioGroup(element, formEngine, depth, undoService) {
   wrapper.appendChild(header);
 
   const branches = element.children.map((option) => {
+    // A branch that's just one bare field (e.g. `<xsd:element name="..."
+    // type="CheckboxType"/>` directly inside the xsd:choice, no sibling
+    // fields of its own) reads far better labeled with THAT field's own
+    // label than with the synthetic "...Option1" wrapper name humanizeLabel
+    // would otherwise produce (createSchemaElement's default for the
+    // generated option in parser.js's _parseChoiceGroup).
+    const isBareFieldOption = option.children.length === 1;
+    const soleChild = isBareFieldOption ? option.children[0] : null;
+    // The X/blank-enum checkbox idiom (parser.js's isXEnumCheckboxType) has
+    // no valid "unchecked but still present" state — its enumeration only
+    // ever allows the literal "X" — so when it's a choice branch's ENTIRE
+    // content, selecting that radio option already fully specifies it: there
+    // is no meaningful "I picked this reason, but leave its one checkbox
+    // unchecked" state for the schema to even represent. Rendering a second,
+    // separately-toggleable control here would just invite that
+    // contradiction, so none is rendered — the radio's own `change` handler
+    // below sets the field directly.
+    const isXEnumCheckboxOption = !!soleChild && soleChild.kind === 'Checkbox' && soleChild.xsdDataType !== 'xs:boolean';
+
     const optionLabel = document.createElement('label');
     optionLabel.classList.add('radio-option-label');
 
@@ -288,19 +307,22 @@ function buildRadioGroup(element, formEngine, depth, undoService) {
     radioInput.name = element.elementPath; // shared name → mutually exclusive; arbitrary strings are valid here
     radioInput.dataset.optionPath = option.elementPath;
 
-    optionLabel.append(radioInput, document.createTextNode(` ${option.resolvedLabel || option.elementName}`));
+    const displayLabel = isBareFieldOption ? soleChild.resolvedLabel || option.resolvedLabel : option.resolvedLabel || option.elementName;
+    optionLabel.append(radioInput, document.createTextNode(` ${displayLabel}`));
     wrapper.appendChild(optionLabel);
 
     const contentDiv = document.createElement('div');
     contentDiv.classList.add('branch-content');
     contentDiv.style.display = 'none';
     contentDiv.dataset.path = option.elementPath;
-    for (const child of option.children) {
-      contentDiv.appendChild(renderForm(child, formEngine, depth + 1, undoService));
+    if (!isXEnumCheckboxOption) {
+      for (const child of option.children) {
+        contentDiv.appendChild(renderForm(child, formEngine, depth + 1, undoService));
+      }
     }
     wrapper.appendChild(contentDiv);
 
-    return { radioInput, contentDiv, option };
+    return { radioInput, contentDiv, option, isXEnumCheckboxOption, checkboxPath: isXEnumCheckboxOption ? soleChild.elementPath : null };
   });
 
   function showBranch(optionPath) {
@@ -339,6 +361,10 @@ function buildRadioGroup(element, formEngine, depth, undoService) {
       const oldBranch = wrapper.dataset.selectedBranch ?? null;
       showBranch(b.option.elementPath);
       formEngine.setRadioSelection(wrapper.dataset.choicePath, b.option.elementPath);
+      // See the option-building comment above: this branch's one field IS what
+      // choosing it means, with no separately-rendered control of its own to
+      // set it instead.
+      if (b.isXEnumCheckboxOption) formEngine.setValue(b.checkboxPath, true);
       recordSwap(oldBranch, b.option.elementPath);
     });
   }
