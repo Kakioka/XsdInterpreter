@@ -138,6 +138,27 @@ export function buildNodes(parentEl, schemaElement, state, path = '') {
     return;
   }
 
+  if (schemaElement.isRepeating && schemaElement.isGeneratedWrapper) {
+    // Same anonymous-repeating-<xs:sequence> idiom as isRepeatingContentContainer
+    // above, but this Entry wrapper is only ONE of several structural siblings
+    // under its parent, so that check's "parent's ONLY child" gate fails (e.g.
+    // AuthenticationHeader.xsd's Submission: a maxOccurs="3" sequence sitting
+    // next to a separate xs:choice for NoFinancialProduct/RefundProductCd).
+    // There's no "outer element's tag repeats" trick available here — the
+    // parent's own tag must appear exactly once — so instead each repetition's
+    // fields are appended directly to `parentEl` (the Entry wrapper never
+    // emits a tag of its own either way, same as above), one after another at
+    // successively `[i]`-indexed paths, in schema order.
+    const entryPath = joinPath(path, schemaElement.elementName);
+    const count = state.repeatingInstanceCounts[schemaElement.elementName.toLowerCase()] ?? 0;
+    for (let i = 0; i < count; i++) {
+      for (const grandchild of schemaElement.children) {
+        buildNodes(parentEl, grandchild, state, `${entryPath}[${i}]`);
+      }
+    }
+    return;
+  }
+
   if (isChoiceOnlyContainer(schemaElement)) {
     // A named element whose entire content model is a bare xs:choice (e.g.
     // EntityTypeChoice) never emits its own tag either — see isChoiceOnlyContainer
@@ -195,13 +216,19 @@ export function buildChoiceNodes(parentEl, choiceElement, state, path) {
     for (const option of choiceElement.children) {
       const optionPath = joinPath(choicePath, option.elementName);
       if (hasDataUnder(optionPath, state.fieldValues)) {
-        selectedBranch = optionPath;
+        // Stored as the option's own STATIC elementPath, matching the format
+        // state.radioSelections values already use (set by formRenderer.js's
+        // setRadioSelection call) — never the runtime, index-bearing
+        // `optionPath` computed just above, which the comparison below would
+        // never match once an index is involved (this RadioGroup sitting
+        // inside a repeating instance).
+        selectedBranch = option.elementPath;
         break;
       }
     }
   }
   if (!selectedBranch) return;
-  const selectedOption = choiceElement.children.find((c) => pathsMatch(joinPath(choicePath, c.elementName), selectedBranch));
+  const selectedOption = choiceElement.children.find((c) => pathsMatch(c.elementPath, selectedBranch));
   if (!selectedOption) return;
   // The option wrapper emits no XML tag of its own (still transparent — see
   // isTransparent), but its NAME still contributes a path segment for field

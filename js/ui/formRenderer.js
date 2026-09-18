@@ -363,8 +363,16 @@ function buildRadioGroup(element, formEngine, depth, undoService) {
       formEngine.setRadioSelection(wrapper.dataset.choicePath, b.option.elementPath);
       // See the option-building comment above: this branch's one field IS what
       // choosing it means, with no separately-rendered control of its own to
-      // set it instead.
-      if (b.isXEnumCheckboxOption) formEngine.setValue(b.checkboxPath, true);
+      // set it instead. b.checkboxPath is the STATIC schema-tree path (shared
+      // across every repeating instance's rendering of this same RadioGroup
+      // node), but field VALUES live at the runtime, index-bearing path — so
+      // it's rewritten here the same way rewritePathPrefix rewrites DOM
+      // dataset paths: swap the static choicePath prefix for the live,
+      // possibly-indexed wrapper.dataset.choicePath.
+      if (b.isXEnumCheckboxOption) {
+        const runtimeCheckboxPath = wrapper.dataset.choicePath + b.checkboxPath.slice(element.elementPath.length);
+        formEngine.setValue(runtimeCheckboxPath, true);
+      }
       recordSwap(oldBranch, b.option.elementPath);
     });
   }

@@ -187,7 +187,9 @@ function generateLeafValue(element) {
       return minRule ? String(minRule.value) : '0.00';
     }
     case 'DatePicker':
-      return element.xsdDataType === 'xs:dateTime' ? '2024-01-01T00:00:00' : '2024-01-01';
+      // xs:dateTime patterns (e.g. MeF's) require a trailing Z/offset
+      // designator — see controlFactory.js's isDateTimePicker conversion.
+      return element.xsdDataType === 'xs:dateTime' ? '2024-01-01T00:00:00Z' : '2024-01-01';
     case 'Checkbox':
       return true;
     case 'Dropdown':
@@ -230,11 +232,17 @@ function fillRadioGroup(element, path, values, radioSelections, options) {
 
   let targetOption;
   if (existing) {
-    targetOption = element.children.find((o) => joinPath(choicePath, o.elementName).toLowerCase() === String(existing).toLowerCase());
+    // `existing` is the option's own STATIC elementPath (the format
+    // formRenderer.js's setRadioSelection call uses — see its comment), not a
+    // runtime index-bearing path, even though `choicePath` itself IS
+    // index-bearing whenever this RadioGroup sits inside a repeating
+    // instance. Compare against `o.elementPath` directly, matching
+    // coloringService.js/validation.js's own fix for the same mismatch.
+    targetOption = element.children.find((o) => o.elementPath.toLowerCase() === String(existing).toLowerCase());
     if (!targetOption) return; // stale/unresolvable selection — defensive, not expected in practice
   } else {
     targetOption = firstOption;
-    radioSelections[choicePath.toLowerCase()] = joinPath(choicePath, targetOption.elementName);
+    radioSelections[choicePath.toLowerCase()] = targetOption.elementPath;
   }
 
   // §22 invariant 29: the option wrapper emits no XML tag but its NAME still
@@ -258,7 +266,22 @@ function fillRepeatingContentContainer(element, path, values, radioSelections, o
 
   for (const attr of element.children.filter(isAttribute)) walkElement(attr, outerPath, values, radioSelections, options);
 
-  const entryPath = joinPath(outerPath, entryWrapper.elementName);
+  fillRepeatingEntry(entryWrapper, outerPath, values, radioSelections, options);
+}
+
+/**
+ * A repeating, synthetic Entry wrapper's own fill — shared by
+ * fillRepeatingContentContainer (when the wrapper is its parent's ONLY
+ * structural child, e.g. PriorNameList → PriorNameListEntry) and
+ * walkElement's own dispatch (when it's one of SEVERAL siblings under its
+ * parent, e.g. AuthenticationHeader.xsd's Submission: a maxOccurs="3"
+ * sequence sitting next to a separate xs:choice — see coloringService.js's
+ * colorOfNode for the fuller explanation of why the parent-shape gate alone
+ * is too narrow). Either way, `entryWrapper` is always the repeating node
+ * itself and `parentPath` is ITS OWN parent's path.
+ */
+function fillRepeatingEntry(entryWrapper, parentPath, values, radioSelections, options) {
+  const entryPath = joinPath(parentPath, entryWrapper.elementName);
   const count = options.instanceCounts?.[entryWrapper.elementName.toLowerCase()] ?? 0;
   for (let i = 0; i < count; i++) {
     for (const child of entryWrapper.children) walkElement(child, `${entryPath}[${i}]`, values, radioSelections, options);
@@ -268,6 +291,7 @@ function fillRepeatingContentContainer(element, path, values, radioSelections, o
 function walkElement(element, path, values, radioSelections, options) {
   if (element.kind === 'RadioGroup') return fillRadioGroup(element, path, values, radioSelections, options);
   if (isRepeatingContentContainer(element)) return fillRepeatingContentContainer(element, path, values, radioSelections, options);
+  if (element.isRepeating && element.isGeneratedWrapper) return fillRepeatingEntry(element, path, values, radioSelections, options);
 
   if (isTransparent(element)) {
     for (const child of element.children) walkElement(child, path, values, radioSelections, options);

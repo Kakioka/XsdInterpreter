@@ -41,6 +41,10 @@ export function parseValue(rawText, schemaElement) {
  * every one of ITS options' descendant leaf names is a possible direct child
  * instead, recursively (a branch can itself contain a nested choice-only
  * container, e.g. IdTypeChoice inside EntityTypeChoice's Individual branch).
+ * Likewise a repeating, synthetic Entry wrapper (isGeneratedWrapper, e.g.
+ * AuthenticationHeader.xsd's Submission's own repeating group) never emits a
+ * tag of its own either — its children's own possible tag names are possible
+ * direct children of ITS parent instead, same recursive treatment.
  */
 function possibleDirectChildTagNames(children) {
   const names = new Set();
@@ -51,6 +55,8 @@ function possibleDirectChildTagNames(children) {
       for (const option of radioGroup.children) {
         for (const name of possibleDirectChildTagNames(option.children)) names.add(name);
       }
+    } else if (isTransparent(child)) {
+      for (const name of possibleDirectChildTagNames(child.children)) names.add(name);
     } else {
       names.add(child.elementName.toLowerCase());
     }
@@ -143,7 +149,13 @@ export function walkElement(xmlEl, schemaElement, path, state) {
       const firstRealChild = option.children.find((c) => !isAttribute(c));
       if (firstRealChild && xmlEl.querySelector(`:scope > ${firstRealChild.elementName}`)) {
         const optionPath = joinPath(choicePath, option.elementName);
-        state.radioSelections[choicePath.toLowerCase()] = optionPath;
+        // radioSelections stores the option's own STATIC elementPath (the
+        // format formRenderer.js's setRadioSelection call uses, and what
+        // showBranch/selectRadioGroupBranches compare against to restore the
+        // UI) — never the runtime `optionPath` computed above, which is
+        // index-bearing whenever this RadioGroup sits inside a repeating
+        // instance and would never match that static comparison.
+        state.radioSelections[choicePath.toLowerCase()] = option.elementPath;
         // Option wrapper emits no XML tag (still transparent), but its name
         // still contributes a path segment for field keys — see the matching
         // note in xmlWriter.js's buildChoiceNodes; must mirror it exactly so
@@ -167,6 +179,11 @@ export function walkElement(xmlEl, schemaElement, path, state) {
         walkElement(inst, grandchild, `${entryPath}[${i}]`, state);
       }
     });
+    return;
+  }
+
+  if (schemaElement.isRepeating && schemaElement.isGeneratedWrapper) {
+    readRepeatingEntrySiblings(xmlEl, schemaElement, path, state);
     return;
   }
 
@@ -203,4 +220,55 @@ export function walkElement(xmlEl, schemaElement, path, state) {
   // Container
   const childEl = xmlEl.querySelector(`:scope > ${schemaElement.elementName}`);
   if (childEl) walkContainerBody(childEl, schemaElement, currentPath, state);
+}
+
+/**
+ * The counterpart, on the READ side, of xmlWriter.js's buildNodes fix for the
+ * same shape: a repeating Entry wrapper (isRepeating + isGeneratedWrapper)
+ * that's only ONE of several structural siblings under its parent, so
+ * isRepeatingContentContainer's "parent's ONLY child" gate above doesn't
+ * catch it (e.g. AuthenticationHeader.xsd's Submission: a maxOccurs="3"
+ * sequence sitting next to a separate xs:choice). There's no repeated OUTER
+ * tag to count here — the wrapper never emits a tag of its own, and neither
+ * does its parent repeat — so each repetition's fields are direct siblings of
+ * `xmlEl`'s other children, interleaved among them in document order.
+ *
+ * Instances are found by scanning xmlEl's direct children and starting a new
+ * occurrence every time a tag reappears that could only be the entry's OWN
+ * FIRST field — this assumes that field is always present once per
+ * occurrence (true for every schema this idiom is currently used for; a
+ * repeating group whose first particle is itself optional would need a
+ * fuller content-model matcher than this to detect occurrence boundaries,
+ * which nothing in the sample schema set currently exercises).
+ */
+function readRepeatingEntrySiblings(xmlEl, entryWrapper, path, state) {
+  const entryPath = joinPath(path, entryWrapper.elementName);
+  const entryTagNames = possibleDirectChildTagNames(entryWrapper.children);
+  const startTagNames = possibleDirectChildTagNames([entryWrapper.children[0]]);
+
+  const groups = [];
+  let current = null;
+  for (const domChild of xmlEl.children) {
+    const tag = domChild.tagName.toLowerCase();
+    if (startTagNames.has(tag)) {
+      current = [];
+      groups.push(current);
+    }
+    if (current && entryTagNames.has(tag)) current.push(domChild);
+    else current = null; // a tag outside the entry's own shape ends the current run
+  }
+
+  state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] = groups.length;
+  groups.forEach((groupEls, i) => {
+    // A scratch element scoped to just this one occurrence's own tags, so the
+    // `:scope > Tag` lookups walkElement/walkContainerBody do below see only
+    // THIS repetition's data — never a neighboring occurrence's, or the
+    // trailing sibling content that follows the whole repeating group.
+    const scratch = xmlEl.ownerDocument.createElementNS(xmlEl.namespaceURI, 'scratch');
+    for (const el of groupEls) scratch.appendChild(el.cloneNode(true));
+    const instancePath = `${entryPath}[${i}]`;
+    for (const grandchild of entryWrapper.children) {
+      walkElement(scratch, grandchild, instancePath, state);
+    }
+  });
 }

@@ -141,6 +141,14 @@ export function validateSchema(orderedInstanceKeys, allFormStates, schemaParser)
 function validateNode(element, state, path, errors, formName, instanceKeyStr) {
   if (element.kind === 'RadioGroup') return validateRadioGroup(element, state, path, errors, formName, instanceKeyStr);
   if (isRepeatingContentContainer(element)) return validateRepeatingContentContainer(element, state, path, errors, formName, instanceKeyStr);
+  // isRepeatingContentContainer only catches a repeating Entry wrapper when
+  // it's its parent's ONLY structural child. A schema can just as validly
+  // place an anonymous repeating <xsd:sequence> ALONGSIDE other sibling
+  // content in the same parent (e.g. AuthenticationHeader.xsd's Submission: a
+  // maxOccurs="3" sequence sitting next to a separate xs:choice) — see
+  // coloringService.js's colorOfNode for the matching fix and fuller
+  // explanation of why the parent-shape gate is too narrow here.
+  if (element.isRepeating && element.isGeneratedWrapper) return validateRepeatingEntry(element, state, path, errors, formName, instanceKeyStr);
 
   if (isTransparent(element)) {
     for (const child of element.children) validateNode(child, state, path, errors, formName, instanceKeyStr);
@@ -190,7 +198,15 @@ function validateRadioGroup(element, state, path, errors, formName, instanceKeyS
   }
 
   if (selected) {
-    const opt = element.children.find((c) => joinPath(choicePath, c.elementName).toLowerCase() === String(selected).toLowerCase());
+    // `selected` is the option's own STATIC elementPath (see formRenderer.js's
+    // setRadioSelection call), not a runtime index-bearing path — even when
+    // `choicePath` itself is index-bearing because this RadioGroup sits
+    // inside a repeating instance. Compare against `c.elementPath` directly
+    // (matching coloringService.js's colorOfRadioGroup and formRenderer.js's
+    // own showBranch/selectRadioGroupBranches) rather than reconstructing an
+    // indexed candidate via joinPath(choicePath, c.elementName), which would
+    // never match once an index is involved.
+    const opt = element.children.find((c) => c.elementPath.toLowerCase() === String(selected).toLowerCase());
     if (opt) {
       // §22 invariant 29: the option wrapper emits no XML tag but its NAME
       // still contributes a path segment to its children's field keys.
@@ -208,17 +224,35 @@ function validateRadioGroup(element, state, path, errors, formName, instanceKeyS
 
 function validateRepeatingContentContainer(element, state, path, errors, formName, instanceKeyStr) {
   const entryWrapper = element.children.find((c) => !isAttribute(c));
-  const count = state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] ?? 0;
   const outerPath = joinPath(path, element.elementName);
+  validateRepeatingEntry(entryWrapper, state, outerPath, errors, formName, instanceKeyStr);
+}
 
-  if (count < element.minOccurs) {
-    errors.push(makeError(formName, instanceKeyStr, outerPath, 'occurrence', `At least ${element.minOccurs} required, found ${count}`));
+/**
+ * A repeating, synthetic Entry wrapper's own occurrence-count check and
+ * per-instance validation — shared by validateRepeatingContentContainer (when
+ * the wrapper is its parent's ONLY structural child, e.g. PriorNameList →
+ * PriorNameListEntry) and validateNode's own dispatch (when it's one of
+ * SEVERAL siblings under its parent — see validateNode's comment). Either
+ * way, `entryWrapper` is always the repeating node itself and `parentPath` is
+ * ITS OWN parent's path. The occurrence check uses entryWrapper's OWN
+ * minOccurs/maxOccurs (the true repeat cardinality, from the underlying
+ * <xs:sequence> particle) rather than any outer element's — see
+ * parser.js's _parseSequenceGroup comment on why those two numbers are
+ * independent and the outer's was never the right one to check `count`
+ * against.
+ */
+function validateRepeatingEntry(entryWrapper, state, parentPath, errors, formName, instanceKeyStr) {
+  const entryPath = joinPath(parentPath, entryWrapper.elementName);
+  const count = state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] ?? 0;
+
+  if (count < entryWrapper.minOccurs) {
+    errors.push(makeError(formName, instanceKeyStr, entryPath, 'occurrence', `At least ${entryWrapper.minOccurs} required, found ${count}`));
   }
-  if (element.maxOccurs != null && count > element.maxOccurs) {
-    errors.push(makeError(formName, instanceKeyStr, outerPath, 'occurrence', `At most ${element.maxOccurs} allowed, found ${count}`));
+  if (entryWrapper.maxOccurs != null && count > entryWrapper.maxOccurs) {
+    errors.push(makeError(formName, instanceKeyStr, entryPath, 'occurrence', `At most ${entryWrapper.maxOccurs} allowed, found ${count}`));
   }
 
-  const entryPath = joinPath(outerPath, entryWrapper.elementName);
   for (let i = 0; i < count; i++) {
     for (const grandchild of entryWrapper.children) validateNode(grandchild, state, `${entryPath}[${i}]`, errors, formName, instanceKeyStr);
   }

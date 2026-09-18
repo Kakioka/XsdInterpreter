@@ -105,6 +105,21 @@ export function computeAllColors(schemaElement, state) {
 function colorOfNode(element, parentPath, state, result) {
   if (element.kind === 'RadioGroup') return colorOfRadioGroup(element, parentPath, state, result);
   if (isRepeatingContentContainer(element)) return colorOfRepeatingContentContainer(element, parentPath, state, result);
+  // isRepeatingContentContainer only catches a repeating Entry wrapper when
+  // it's its parent's ONLY structural child (e.g. PriorNameList wrapping
+  // nothing but PriorNameListEntry). A schema can just as validly place an
+  // anonymous repeating <xsd:sequence> ALONGSIDE other sibling content in the
+  // same parent (e.g. AuthenticationHeader.xsd's Submission: a maxOccurs="3"
+  // sequence sitting next to a separate xs:choice) — the parent then fails
+  // the "sole child" test and falls through to the generic branch below,
+  // which would walk the entry wrapper's fields ONCE at an un-indexed path
+  // that no actual field value is ever stored under (every real value lives
+  // under an `[i]`-indexed path — see formRenderer.js's rewriteInstancePaths),
+  // permanently reading every required field inside it as empty. Matching
+  // formRenderer.js's own dispatch rule (`if (schemaElement.isRepeating)
+  // return buildRepeatingSection(...)`, checked per-child regardless of
+  // siblings) instead of gating on the PARENT's shape fixes that.
+  if (element.isRepeating && element.isGeneratedWrapper) return colorOfRepeatingEntry(element, parentPath, state, result);
 
   const path = joinPath(parentPath, element.elementName);
 
@@ -148,7 +163,15 @@ function colorOfRadioGroup(element, parentPath, state, result) {
     // required, Yellow if this choice is optional to leave alone.
     color = element.isRequired ? 'Red' : 'Yellow';
   } else {
-    const option = element.children.find((o) => joinPath(choicePath, o.elementName).toLowerCase() === String(selectedTarget).toLowerCase());
+    // `selectedTarget` is the option's own STATIC elementPath (that's what
+    // formRenderer.js's setRadioSelection call stores — see its comment), not
+    // an index-bearing runtime path, even when this RadioGroup sits inside a
+    // repeating instance and `choicePath` itself IS index-bearing. Comparing
+    // against `o.elementPath` directly (rather than reconstructing an indexed
+    // candidate via joinPath(choicePath, o.elementName), which would never
+    // match once an index is involved) is what showBranch/selectRadioGroupBranches
+    // already do in formRenderer.js.
+    const option = element.children.find((o) => o.elementPath.toLowerCase() === String(selectedTarget).toLowerCase());
     if (option) {
       const optionPath = joinPath(choicePath, option.elementName);
       const childColors = colorOfChildren(option, optionPath, state, result);
@@ -176,14 +199,47 @@ function colorOfRepeatingContentContainer(element, parentPath, state, result) {
   const path = joinPath(parentPath, element.elementName);
   const attributes = element.children.filter(isAttribute);
   const entryWrapper = element.children.find((c) => !isAttribute(c));
-  const entryPath = joinPath(path, entryWrapper.elementName);
-  const count = state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] ?? 0;
 
   const outerChildColors = [];
   for (const attr of attributes) {
     const c = colorOfNode(attr, path, state, result);
     if (c !== null) outerChildColors.push(c);
   }
+
+  // The OUTER's own isRequired (e.g. PriorNameList's own minOccurs) is a
+  // DIFFERENT, independent number from the entry particle's minOccurs (e.g.
+  // "PriorNameList itself is minOccurs=0" while its inner sequence defaults
+  // to minOccurs=1 — see parser.js's _parseSequenceGroup comment) — an
+  // optional list with zero entries should still color Yellow (optional,
+  // empty, fine to leave), not Green, so this level of the aggregate must
+  // keep using the OUTER's requiredness, not the entry wrapper's.
+  const entryOverallColor = colorOfRepeatingEntry(entryWrapper, path, state, result, element.isRequired);
+  if (entryOverallColor !== null) outerChildColors.push(entryOverallColor);
+
+  const color = computeContainerColor(element.isRequired, outerChildColors);
+  result.set(path.toLowerCase(), color);
+  return color;
+}
+
+/**
+ * A repeating, synthetic Entry wrapper's own color, indexed per its actual
+ * `repeatingInstanceCounts` — shared by colorOfRepeatingContentContainer
+ * (when the wrapper is its parent's ONLY structural child, e.g. PriorNameList
+ * → PriorNameListEntry) and colorOfNode's own dispatch (when it's one of
+ * SEVERAL siblings under its parent, e.g. AuthenticationHeader.xsd's
+ * Submission: a maxOccurs="3" anonymous sequence sitting next to a separate
+ * xs:choice — see colorOfNode's comment). Either way, `entryWrapper` is
+ * always the repeating node itself and `parentPath` is ITS OWN parent's path,
+ * matching colorOfNode's `(element, parentPath)` contract exactly so both
+ * call sites can hand it off identically.
+ *
+ * `overallRequired` (default entryWrapper.isRequired) lets
+ * colorOfRepeatingContentContainer roll the zero-instances case up using the
+ * OUTER container's own requiredness instead — see its call site.
+ */
+function colorOfRepeatingEntry(entryWrapper, parentPath, state, result, overallRequired = entryWrapper.isRequired) {
+  const entryPath = joinPath(parentPath, entryWrapper.elementName);
+  const count = state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] ?? 0;
 
   const instanceColors = [];
   for (let i = 0; i < count; i++) {
@@ -194,11 +250,7 @@ function colorOfRepeatingContentContainer(element, parentPath, state, result) {
     if (instanceColor !== null) instanceColors.push(instanceColor);
   }
 
-  const entryOverallColor = computeContainerColor(element.isRequired, instanceColors);
-  result.set(entryPath.toLowerCase(), entryOverallColor); // matches entryWrapper.elementPath, in case anything keys off it directly
-  if (entryOverallColor !== null) outerChildColors.push(entryOverallColor);
-
-  const color = computeContainerColor(element.isRequired, outerChildColors);
-  result.set(path.toLowerCase(), color);
-  return color;
+  const entryOverallColor = computeContainerColor(overallRequired, instanceColors);
+  result.set(entryPath.toLowerCase(), entryOverallColor);
+  return entryOverallColor;
 }
