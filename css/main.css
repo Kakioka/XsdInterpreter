@@ -211,11 +211,11 @@ body.resizing-splitter * {
 }
 
 #nav-tree li {
-  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 14px;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 #nav-tree li:hover {
@@ -226,6 +226,39 @@ body.resizing-splitter * {
   background: var(--selection-background);
   color: var(--selection-text);
   font-weight: bold;
+}
+
+#nav-tree .nav-tree-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Optional/repeatable forms only (see sidebar.js's isRemovable) — hidden until
+ * the row is hovered so the nav tree doesn't look cluttered with "x"s. */
+#nav-tree .nav-tree-remove-btn {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--secondary-text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 3px;
+  opacity: 0;
+}
+
+#nav-tree li:hover .nav-tree-remove-btn,
+#nav-tree li.active .nav-tree-remove-btn {
+  opacity: 1;
+}
+
+#nav-tree .nav-tree-remove-btn:hover {
+  background: color-mix(in srgb, red 20%, transparent);
+  color: red;
 }
 
 /* §13 "Resizable Sidebar Splitter" — width is set inline by toolbar.js's

@@ -622,20 +622,45 @@ export class SchemaParser {
 /**
  * Root candidates are global elements never targeted by any xs:element ref=
  * anywhere in the flat document — no naming convention (§5, §20).
+ *
+ * Extension beyond the literal spec algorithm: a global element declared as
+ * `type="SomeType"` is ALSO excluded when SomeType is reused as an
+ * xs:extension/xs:restriction base elsewhere. That pattern (e.g. IRS MeF's
+ * ReturnHeader/ReturnHeaderType, extended by each state's own
+ * ReturnHeaderState element) declares the base element only so other schemas
+ * can inherit its type — it's a template, never `ref=`'d, but also never
+ * meant to be instantiated as a standalone root — so without this it wrongly
+ * shows up as a second "root candidate" alongside the real root.
  * @param {Document} flatDoc
  * @returns {string[]}
  */
 export function findRootElementCandidates(flatDoc) {
   const globalNames = new Set();
+  const typeByGlobalName = new Map();
   for (const child of flatDoc.documentElement.children) {
-    if (child.localName === 'element' && child.hasAttribute('name')) globalNames.add(child.getAttribute('name'));
+    if (child.localName === 'element' && child.hasAttribute('name')) {
+      globalNames.add(child.getAttribute('name'));
+      if (child.hasAttribute('type')) typeByGlobalName.set(child.getAttribute('name'), stripPrefix(child.getAttribute('type')));
+    }
   }
   const referenced = new Set();
   for (const el of flatDoc.getElementsByTagNameNS(XS_NS, 'element')) {
     const ref = el.getAttribute('ref');
     if (ref) referenced.add(stripPrefix(ref));
   }
-  return [...globalNames].filter((n) => !referenced.has(n));
+  const extendedBaseTypes = new Set();
+  for (const tag of ['extension', 'restriction']) {
+    for (const el of flatDoc.getElementsByTagNameNS(XS_NS, tag)) {
+      const base = el.getAttribute('base');
+      if (base) extendedBaseTypes.add(stripPrefix(base));
+    }
+  }
+  return [...globalNames].filter((n) => {
+    if (referenced.has(n)) return false;
+    const type = typeByGlobalName.get(n);
+    if (type && extendedBaseTypes.has(type)) return false;
+    return true;
+  });
 }
 
 function buildSection(particleEl, flatDoc) {

@@ -10,10 +10,10 @@
 
 import { scanForBom, stripBom, findRootFileCandidates, flattenFromRoot } from '../core/flattener.js';
 import { SchemaParser, findRootElementCandidates, analyzePacket, joinPath } from '../core/parser.js';
-import { FormEngine, FormInstanceKey } from '../core/formEngine.js';
+import { FormEngine, FormInstanceKey, createEmptyFormState } from '../core/formEngine.js';
 import { readPacket } from '../core/xmlReader.js';
 import { buildPacketXml } from '../core/xmlWriter.js';
-import { UndoService, FormAddAction, FillTestDataAction, ContainerFillAction, ContainerClearAction, ClearAllAction } from '../core/undoService.js';
+import { UndoService, FormAddAction, FormRemoveAction, FillTestDataAction, ContainerFillAction, ContainerClearAction, ClearAllAction } from '../core/undoService.js';
 import { generateValues } from '../core/testDataFiller.js';
 import * as formRenderer from './formRenderer.js';
 import * as toolbar from './toolbar.js';
@@ -199,7 +199,7 @@ function switchToForm(instanceKey, mutateState) {
 }
 
 function rebuildNavTree() {
-  sidebar.buildNavTree(document.getElementById('nav-tree'), appState.instanceKeys, appState.currentInstanceKey, switchToForm);
+  sidebar.buildNavTree(document.getElementById('nav-tree'), appState.instanceKeys, appState.currentInstanceKey, switchToForm, appState.manifest, removeFormInstance);
 }
 
 function addFormInstance(sectionName) {
@@ -211,6 +211,45 @@ function addFormInstance(sectionName) {
   rebuildNavTree();
   switchToForm(key);
   appState.undoService.recordAction(new FormAddAction({ instanceKey: key, priorInstanceKey, insertPosition, oldDirty: false, newDirty: true }));
+}
+
+/** Sidebar nav-tree "×" button — the counterpart to addFormInstance above, for
+ *  optional forms (§14 FormRemoveAction). sidebar.js only shows the button for
+ *  removable entries (repeatable instances, or non-repeatable optional
+ *  sections), so no removability check is needed here. */
+function removeFormInstance(instanceKey) {
+  if (appState.undoService.isReplaying) return; // §22 invariant 13
+  const originalPosition = appState.instanceKeys.findIndex((k) => k.equals(instanceKey));
+  if (originalPosition === -1) return;
+
+  const wasActive = !!appState.currentInstanceKey && appState.currentInstanceKey.equals(instanceKey);
+  const existingState = appState.formEngine.getFormState(instanceKey);
+  const stateSnapshot = JSON.parse(JSON.stringify(existingState || createEmptyFormState()));
+  const oldDirty = existingState ? existingState.isDirty : false;
+
+  appState.instanceKeys = appState.instanceKeys.filter((k) => !k.equals(instanceKey));
+  const postRemovalActiveKey = wasActive
+    ? appState.instanceKeys[originalPosition] || appState.instanceKeys[originalPosition - 1] || appState.instanceKeys[0] || null
+    : null;
+
+  rebuildNavTree();
+  // Switch away BEFORE purging: setActiveForm's flush would otherwise silently
+  // recreate the FormState we're about to delete (same ordering fix as
+  // FormRemoveAction.redo() in undoService.js).
+  if (wasActive) {
+    if (postRemovalActiveKey) {
+      switchToForm(postRemovalActiveKey);
+    } else {
+      appState.currentInstanceKey = null;
+      document.getElementById('form-content-host').innerHTML = '';
+      refreshSaveStatus();
+    }
+  }
+  appState.formEngine.purgeFormState(instanceKey);
+
+  appState.undoService.recordAction(
+    new FormRemoveAction({ instanceKey, stateSnapshot, originalPosition, wasActive, postRemovalActiveKey, oldDirty, newDirty: true })
+  );
 }
 
 // ---------------------------------------------------------------------------
