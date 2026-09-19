@@ -291,7 +291,10 @@ function fillRepeatingEntry(entryWrapper, parentPath, values, radioSelections, o
 function walkElement(element, path, values, radioSelections, options) {
   if (element.kind === 'RadioGroup') return fillRadioGroup(element, path, values, radioSelections, options);
   if (isRepeatingContentContainer(element)) return fillRepeatingContentContainer(element, path, values, radioSelections, options);
-  if (element.isRepeating && element.isGeneratedWrapper) return fillRepeatingEntry(element, path, values, radioSelections, options);
+  // Covers both the generated-Entry idiom and a REAL repeating element (e.g.
+  // HI's "DependentInformation") — fillRepeatingEntry only reads
+  // elementName/children and options.instanceCounts, unaffected either way.
+  if (element.isRepeating) return fillRepeatingEntry(element, path, values, radioSelections, options);
 
   if (isTransparent(element)) {
     for (const child of element.children) walkElement(child, path, values, radioSelections, options);

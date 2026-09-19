@@ -46,6 +46,12 @@ export function renderForm(schemaElement, formEngine, depth = 0, undoService = n
 // ---------------------------------------------------------------------------
 
 function buildGroupContainer(element, formEngine, depth, undoService) {
+  // A real (non-synthetic) repeating group, e.g. HI's "DependentInformation"
+  // (maxOccurs=99) — see parser.js's _finishComplexType. Same delegation
+  // buildSequenceContainer already does for the anonymous-sequence idiom;
+  // buildRepeatingSection itself doesn't care which idiom produced the node.
+  if (element.isRepeating) return buildRepeatingSection(element, formEngine, depth, undoService);
+
   const fieldset = document.createElement('fieldset');
   fieldset.classList.add('group-container', `depth-${Math.min(depth, 4)}`);
   fieldset.dataset.path = element.elementPath;

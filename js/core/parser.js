@@ -41,8 +41,13 @@ export function joinPath(prefix, name) {
   return prefix ? `${prefix}.${name}` : name;
 }
 
+/** Every kind==='SequenceContainer' node this parser has ever produced (the
+ *  repeating-Entry idiom, a choice-option wrapper) is ALSO isGeneratedWrapper —
+ *  so checking isGeneratedWrapper alone is equivalent for those, and correctly
+ *  excludes a REAL, non-synthetic repeating element (kind==='GroupContainer',
+ *  isRepeating=true — see _finishComplexType) from being treated as tagless. */
 export function isTransparent(el) {
-  return el.isGeneratedWrapper || el.kind === 'RadioGroup' || el.kind === 'SequenceContainer';
+  return el.isGeneratedWrapper || el.kind === 'RadioGroup';
 }
 
 export function isAttribute(el) {
@@ -155,8 +160,13 @@ function findTopLevelModelGroup(containerEl) {
  * Resolves to the element actually holding attributes/content-model particles.
  * NOTE: does not merge a complexContent/extension base type's own attributes or
  * model — only what's declared directly on the extension/restriction node itself.
- * Full xs:extension inheritance chains are flagged as unverified/TODO pending a
- * real schema — see web-implementation-spec.md §25.
+ * Only used for the packet-analysis section walk (analyzePacket) and the
+ * packet root's own inline-declaration search (_findInlineDeclaration) — a
+ * packet's wrapper/root elements aren't themselves extension-based in any
+ * schema seen so far, so the gap doesn't reach them. A real MeF *leaf form*
+ * almost always IS extension-based, which is why SchemaParser._finishComplexType
+ * uses _resolveEffectiveParticles/_resolveEffectiveAttributeEls below instead
+ * of this function, to actually follow the base-type chain when rendering.
  */
 function getStructuralContainer(complexTypeEl) {
   const wrapper = firstChild(complexTypeEl, 'complexContent') || firstChild(complexTypeEl, 'simpleContent');
@@ -253,6 +263,7 @@ export class TypeLookupTable {
     this.complexTypes = new Map();
     this.simpleTypes = new Map();
     this.groups = new Map();
+    this.attributeGroups = new Map();
     this._build(flatDoc);
   }
 
@@ -263,6 +274,7 @@ export class TypeLookupTable {
       if (child.localName === 'complexType') this.complexTypes.set(name.toLowerCase(), child);
       else if (child.localName === 'simpleType') this.simpleTypes.set(name.toLowerCase(), child);
       else if (child.localName === 'group') this.groups.set(name.toLowerCase(), child);
+      else if (child.localName === 'attributeGroup') this.attributeGroups.set(name.toLowerCase(), child);
     }
   }
 
@@ -276,6 +288,10 @@ export class TypeLookupTable {
 
   getGroup(name) {
     return name ? this.groups.get(name.toLowerCase()) : undefined;
+  }
+
+  getAttributeGroup(name) {
+    return name ? this.attributeGroups.get(name.toLowerCase()) : undefined;
   }
 
   /**
@@ -435,19 +451,91 @@ export class SchemaParser {
   }
 
   _finishComplexType(base, complexTypeEl) {
-    const container = getStructuralContainer(complexTypeEl);
-    const attributes = this._collectAttributes(container, base.elementPath);
-    const topGroup = findTopLevelModelGroup(container);
-    const modelChildren = topGroup ? this._parseModelGroup(topGroup, base.elementPath) : [];
+    const attributeEls = this._resolveEffectiveAttributeEls(complexTypeEl);
+    const attributes = this._collectAttributes(attributeEls, base.elementPath);
+    const particles = this._resolveEffectiveParticles(complexTypeEl);
+    const modelChildren = this._parseParticlesFromList(particles, base.elementPath);
+    // A real (non-synthetic) repeating GROUP — e.g. MeF's very common
+    // `<xsd:element name="DependentInformation" type="HIDependentType"
+    // minOccurs="0" maxOccurs="99"/>` idiom, one of several siblings in its
+    // parent's sequence. base.maxOccurs is already the resolved numeric value
+    // from the REFERENCING particle's own maxOccurs (occurs.maxOccurs from
+    // parseOccurs — null means unbounded, matching _parseSequenceGroup's own
+    // isRepeatingSeq check). Distinct from the anonymous-inline-sequence
+    // idiom (kind: 'SequenceContainer', isGeneratedWrapper: true): this
+    // element keeps its own tag/kind and is never transparent — see
+    // isTransparent and buildGroupContainer/xmlWriter/xmlReader's handling of
+    // "isRepeating && !isGeneratedWrapper".
+    const isRepeating = base.maxOccurs == null || base.maxOccurs > 1;
     return createSchemaElement({
       ...base,
       kind: 'GroupContainer',
+      isRepeating,
       children: [...attributes, ...modelChildren], // attributes prepended — see §4
     });
   }
 
-  _collectAttributes(containerEl, ownerPath) {
-    return children(containerEl, 'attribute').map((attrEl) => {
+  /**
+   * A complexType's OWN top-level particles — a plain sequence/all's .children
+   * (its actual field declarations), or a bare choice/group ref kept as a
+   * single particle so callers always get a flat, uniform particle list.
+   */
+  _ownParticles(containerEl) {
+    const topGroup = findTopLevelModelGroup(containerEl);
+    if (!topGroup) return [];
+    if (topGroup.localName === 'sequence' || topGroup.localName === 'all') {
+      return Array.from(topGroup.children).filter((c) => c.localName !== 'annotation');
+    }
+    return [topGroup]; // bare xs:choice or xs:group ref as the entire content model
+  }
+
+  /**
+   * Resolves a complexType's EFFECTIVE particle list, following
+   * complexContent/xs:extension base chains: the base type's own particles
+   * come first, then this type's own local additions (XSD extension
+   * semantics). This is what lets a MeF-style form declared as
+   * `<extension base="FormN11Type">` — where every field lives on the
+   * separately-named base complexType and the extension itself only adds
+   * attributes — actually render its fields; without following the chain,
+   * `_ownParticles` on the extension node alone finds nothing and the form
+   * renders empty. xs:restriction at the complex-type level isn't exercised
+   * by any schema this parser has been run against; kept as the old,
+   * unmerged (own-particles-only) fallback.
+   */
+  _resolveEffectiveParticles(complexTypeEl) {
+    const complexContent = firstChild(complexTypeEl, 'complexContent');
+    if (!complexContent) return this._ownParticles(complexTypeEl);
+    const extensionEl = firstChild(complexContent, 'extension');
+    if (!extensionEl) return this._ownParticles(firstChild(complexContent, 'restriction') || complexTypeEl);
+    const baseComplexType = this.types.getComplexType(extensionEl.getAttribute('base'));
+    const baseParticles = baseComplexType ? this._resolveEffectiveParticles(baseComplexType) : [];
+    return [...baseParticles, ...this._ownParticles(extensionEl)];
+  }
+
+  /** Direct xs:attribute children plus every xs:attributeGroup ref's own
+   *  attributes (resolved recursively, in case a group references another). */
+  _ownAttributeEls(containerEl) {
+    const direct = children(containerEl, 'attribute');
+    const fromGroups = children(containerEl, 'attributeGroup').flatMap((refEl) => {
+      const groupDecl = this.types.getAttributeGroup(stripPrefix(refEl.getAttribute('ref') || ''));
+      return groupDecl ? this._ownAttributeEls(groupDecl) : [];
+    });
+    return [...direct, ...fromGroups];
+  }
+
+  /** Same base-chain-following shape as _resolveEffectiveParticles, for attributes. */
+  _resolveEffectiveAttributeEls(complexTypeEl) {
+    const complexContent = firstChild(complexTypeEl, 'complexContent');
+    if (!complexContent) return this._ownAttributeEls(complexTypeEl);
+    const extensionEl = firstChild(complexContent, 'extension');
+    if (!extensionEl) return this._ownAttributeEls(firstChild(complexContent, 'restriction') || complexTypeEl);
+    const baseComplexType = this.types.getComplexType(extensionEl.getAttribute('base'));
+    const baseAttrs = baseComplexType ? this._resolveEffectiveAttributeEls(baseComplexType) : [];
+    return [...baseAttrs, ...this._ownAttributeEls(extensionEl)];
+  }
+
+  _collectAttributes(attrEls, ownerPath) {
+    return attrEls.map((attrEl) => {
       const name = attrEl.getAttribute('name');
       const use = attrEl.getAttribute('use') || 'optional';
       const typeAttr = attrEl.getAttribute('type');
@@ -587,8 +675,15 @@ export class SchemaParser {
   }
 
   _parseParticleList(groupEl, parentPath) {
+    return this._parseParticlesFromList(Array.from(groupEl.children), parentPath);
+  }
+
+  /** Same dispatch as _parseParticleList, over a plain particle array instead
+   *  of a single group element's .children — shared with _finishComplexType's
+   *  extension-chain merge, which has no single DOM group element to hand it. */
+  _parseParticlesFromList(particles, parentPath) {
     const result = [];
-    for (const child of groupEl.children) {
+    for (const child of particles) {
       if (child.localName === 'element') result.push(this._parseParticleElement(child, parentPath));
       else if (child.localName === 'group') result.push(...this._parseGroupRef(child, parentPath));
       else if (child.localName === 'choice') result.push(this._parseChoiceGroup(child, parentPath));
@@ -670,9 +765,11 @@ function buildSection(particleEl, flatDoc) {
   const maxOccurs = maxOccursRaw == null ? -1 : maxOccursRaw;
 
   let description = '';
+  let childForms = [];
   if (ref) {
     const globalEl = findGlobalElementInDoc(flatDoc, elementName);
     description = globalEl ? getDocumentation(globalEl) : '';
+    childForms = globalEl ? buildChildFormSections(globalEl, flatDoc) : [];
   } else {
     description = getDocumentation(particleEl);
   }
@@ -683,8 +780,37 @@ function buildSection(particleEl, flatDoc) {
     isRequired: minOccurs >= 1,
     isRepeatable: maxOccurs === -1 || maxOccurs > 1,
     maxOccurs,
-    childForms: [], // not populated for the flat sample packet (every section is a leaf form)
+    childForms,
   };
+}
+
+/**
+ * A global element like MeF's ReturnDataState is a pure "list of forms" wrapper —
+ * its content model is nothing but xs:element ref= particles pointing at other
+ * global forms (FormN11, SchCR, IRSW2, ...) — as opposed to a leaf form (e.g.
+ * FormN11 itself), whose fields are always declared inline (name=, with an
+ * actual data type), never ref=. Recursing only when EVERY particle in the
+ * model group is ref-style stops exactly at real forms without exploding into
+ * their field-level structure, and naturally supports arbitrary wrapper depth.
+ */
+function buildChildFormSections(globalEl, flatDoc) {
+  const complexType = firstChild(globalEl, 'complexType');
+  const topGroup = complexType ? findTopLevelModelGroup(getStructuralContainer(complexType)) : null;
+  if (!topGroup || !isRefStyleModelGroup(topGroup)) return [];
+  return walkSectionParticles(topGroup, flatDoc);
+}
+
+function isRefStyleModelGroup(groupEl) {
+  let hasAny = false;
+  for (const child of groupEl.children) {
+    if (child.localName === 'element') {
+      hasAny = true;
+      if (!child.hasAttribute('ref')) return false;
+    } else if (child.localName === 'sequence' || child.localName === 'all' || child.localName === 'choice') {
+      if (!isRefStyleModelGroup(child)) return false;
+    }
+  }
+  return hasAny;
 }
 
 function walkSectionParticles(groupEl, flatDoc) {
@@ -717,6 +843,24 @@ function collectAllFormNames(sections) {
   };
   walk(sections);
   return names;
+}
+
+/**
+ * Ancestor wrapper elementNames (root-first) leading to the leaf section named
+ * `formName`, e.g. ["ReturnDataState"] for "FormN11" — or null if not found.
+ * Used by xmlReader/xmlWriter to locate/create the correct nesting parent for
+ * a leaf form's XML content instead of always reading from/writing to the
+ * packet root directly.
+ */
+export function findSectionAncestry(sections, formName, trail = []) {
+  for (const s of sections) {
+    if (s.elementName.toLowerCase() === formName.toLowerCase()) return trail;
+    if (s.childForms?.length) {
+      const found = findSectionAncestry(s.childForms, formName, [...trail, s.elementName]);
+      if (found) return found;
+    }
+  }
+  return null;
 }
 
 /**

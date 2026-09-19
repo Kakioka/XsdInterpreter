@@ -118,8 +118,12 @@ function colorOfNode(element, parentPath, state, result) {
   // permanently reading every required field inside it as empty. Matching
   // formRenderer.js's own dispatch rule (`if (schemaElement.isRepeating)
   // return buildRepeatingSection(...)`, checked per-child regardless of
-  // siblings) instead of gating on the PARENT's shape fixes that.
-  if (element.isRepeating && element.isGeneratedWrapper) return colorOfRepeatingEntry(element, parentPath, state, result);
+  // siblings) instead of gating on the PARENT's shape fixes that. This also
+  // covers a REAL (non-synthetic) repeating element like HI's
+  // "DependentInformation" (maxOccurs=99, kind='GroupContainer',
+  // isGeneratedWrapper=false) — colorOfRepeatingEntry only reads
+  // elementName/children/isRequired, so it works unchanged either way.
+  if (element.isRepeating) return colorOfRepeatingEntry(element, parentPath, state, result);
 
   const path = joinPath(parentPath, element.elementName);
 

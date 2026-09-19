@@ -147,8 +147,11 @@ function validateNode(element, state, path, errors, formName, instanceKeyStr) {
   // content in the same parent (e.g. AuthenticationHeader.xsd's Submission: a
   // maxOccurs="3" sequence sitting next to a separate xs:choice) — see
   // coloringService.js's colorOfNode for the matching fix and fuller
-  // explanation of why the parent-shape gate is too narrow here.
-  if (element.isRepeating && element.isGeneratedWrapper) return validateRepeatingEntry(element, state, path, errors, formName, instanceKeyStr);
+  // explanation of why the parent-shape gate is too narrow here. This also
+  // covers a REAL (non-synthetic) repeating element like HI's
+  // "DependentInformation" — validateRepeatingEntry only reads
+  // elementName/children/minOccurs/maxOccurs, unaffected either way.
+  if (element.isRepeating) return validateRepeatingEntry(element, state, path, errors, formName, instanceKeyStr);
 
   if (isTransparent(element)) {
     for (const child of element.children) validateNode(child, state, path, errors, formName, instanceKeyStr);

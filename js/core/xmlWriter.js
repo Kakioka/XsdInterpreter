@@ -6,7 +6,7 @@
 // Pure logic beyond building/serializing an XML Document (createElementNS,
 // XMLSerializer — browser globals, not app-specific DOM rendering).
 
-import { isTransparent, isAttribute, isLeaf, isRepeatingContentContainer, isChoiceOnlyContainer, joinPath } from './parser.js';
+import { isTransparent, isAttribute, isLeaf, isRepeatingContentContainer, isChoiceOnlyContainer, joinPath, findSectionAncestry } from './parser.js';
 import { keyOf } from './formEngine.js';
 
 export function isEmpty(value) {
@@ -70,13 +70,35 @@ export function buildPacketXml(manifest, allFormStates, orderedInstanceKeys, sch
   const root = createElement(manifest.packetName);
   _doc.appendChild(root);
 
+  // Leaf forms nested under a wrapper section (e.g. FormN11/SchCR under
+  // ReturnDataState) must be written inside that wrapper's own element, not as
+  // direct children of the packet root — memoized per wrapper path so every
+  // leaf sharing the same wrapper reuses the one element instance.
+  const wrapperElByPath = new Map();
+  function resolveTargetParent(formName) {
+    const ancestry = findSectionAncestry(manifest.sections, formName) || [];
+    let parent = root;
+    let pathKey = '';
+    for (const name of ancestry) {
+      pathKey = pathKey ? `${pathKey}.${name}` : name;
+      let wrapperEl = wrapperElByPath.get(pathKey);
+      if (!wrapperEl) {
+        wrapperEl = createElement(name);
+        parent.appendChild(wrapperEl);
+        wrapperElByPath.set(pathKey, wrapperEl);
+      }
+      parent = wrapperEl;
+    }
+    return parent;
+  }
+
   for (const instanceKey of orderedInstanceKeys) {
     const state = allFormStates.get(keyOf(instanceKey)) ?? allFormStates.get(instanceKey.toString());
     if (!state) continue;
     const schemaElement = schemaParser.parseGlobalElement(instanceKey.formName);
     if (!schemaElement) continue;
     syncInstanceIdAttribute(schemaElement, state, instanceKey);
-    buildNodes(root, schemaElement, state);
+    buildNodes(resolveTargetParent(instanceKey.formName), schemaElement, state);
   }
 
   return prettyPrintXml(new XMLSerializer().serializeToString(root));
@@ -159,6 +181,25 @@ export function buildNodes(parentEl, schemaElement, state, path = '') {
     return;
   }
 
+  if (schemaElement.isRepeating && !schemaElement.isGeneratedWrapper) {
+    // A REAL (non-synthetic) repeating element — e.g. HI's "DependentInformation"
+    // (maxOccurs=99, parser.js's _finishComplexType). Unlike the generated-Entry
+    // case above, this element keeps its own XML tag each repetition — there's
+    // no separate wrapper, the element itself is both the repeating unit and
+    // the field holder — and unlike isRepeatingContentContainer it's typically
+    // one of several structural siblings under its parent, not the parent's
+    // sole child, so the "outer tag repeats, Entry doesn't" trick doesn't apply
+    // here either: this element's OWN tag is what repeats.
+    const count = state.repeatingInstanceCounts[schemaElement.elementName.toLowerCase()] ?? 0;
+    const entryPath = joinPath(path, schemaElement.elementName);
+    for (let i = 0; i < count; i++) {
+      const el = createElement(schemaElement.elementName);
+      writeContainerBody(el, schemaElement, state, `${entryPath}[${i}]`);
+      parentEl.appendChild(el);
+    }
+    return;
+  }
+
   if (isChoiceOnlyContainer(schemaElement)) {
     // A named element whose entire content model is a bare xs:choice (e.g.
     // EntityTypeChoice) never emits its own tag either — see isChoiceOnlyContainer
@@ -196,15 +237,23 @@ export function buildNodes(parentEl, schemaElement, state, path = '') {
 
   // Container
   const el = createElement(schemaElement.elementName);
+  writeContainerBody(el, schemaElement, state, currentPath);
+  if (el.children.length > 0 || el.attributes.length > 0 || schemaElement.isRequired) {
+    parentEl.appendChild(el);
+  }
+}
+
+/** Writes schemaElement's own attributes onto `el`, then its non-attribute
+ *  children as child nodes — shared by the generic Container branch above and
+ *  the real-repeating-element branch, which needs the exact same body once
+ *  per `[i]`-indexed instance rather than once at an unindexed path. */
+function writeContainerBody(el, schemaElement, state, currentPath) {
   for (const attr of schemaElement.children.filter(isAttribute)) {
     const attrValue = state.fieldValues[joinPath(currentPath, attr.elementName).toLowerCase()];
     if (!isEmpty(attrValue)) el.setAttribute(attr.elementName, formatValue(attrValue, attr));
   }
   for (const child of schemaElement.children.filter((c) => !isAttribute(c))) {
     buildNodes(el, child, state, currentPath);
-  }
-  if (el.children.length > 0 || el.attributes.length > 0 || schemaElement.isRequired) {
-    parentEl.appendChild(el);
   }
 }
 

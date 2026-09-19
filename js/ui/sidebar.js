@@ -3,8 +3,10 @@
 // See web-implementation-spec.md §13 (Page Layout) and §20 (Form Switch Flow).
 // IMPLEMENTATION_PLAN.md Phase 3.3.
 
+import { chooseOne } from './chooseRootDialog.js';
+
 /** Finds a manifest section (possibly nested under childForms) by elementName. */
-function findSection(sections, formName) {
+export function findSection(sections, formName) {
   for (const s of sections || []) {
     if (s.elementName === formName) return s;
     if (s.childForms?.length) {
@@ -13,6 +15,27 @@ function findSection(sections, formName) {
     }
   }
   return null;
+}
+
+/** Flattens a manifest section tree down to its leaf forms — a wrapper section
+ *  (childForms.length > 0, e.g. ReturnDataState) is never itself addable, only
+ *  its leaf descendants (FormN11, SchCR, ...) are. */
+function collectLeafSections(sections, out = []) {
+  for (const s of sections || []) {
+    if (s.childForms?.length) collectLeafSections(s.childForms, out);
+    else out.push(s);
+  }
+  return out;
+}
+
+/** A repeatable leaf is always addable (up to maxOccurs, if bounded). A
+ *  non-repeatable leaf is addable only when optional and not already present —
+ *  required non-repeatable forms (e.g. FormN11) are pre-instantiated at load
+ *  and never appear here. */
+function isAddableSection(section, instanceKeys) {
+  const count = instanceKeys.filter((k) => k.formName.toLowerCase() === section.elementName.toLowerCase()).length;
+  if (section.isRepeatable) return section.maxOccurs === -1 || count < section.maxOccurs;
+  return !section.isRequired && count === 0;
 }
 
 /**
@@ -76,31 +99,28 @@ export function setCurrentRootLabel(labelEl, packetName) {
 }
 
 /**
- * Wires the sidebar's single "+ Add" button. When more than one section is
- * repeatable, `window.prompt` stands in for a proper picker for now — the
- * sample schema only has one repeatable section (SampleEventLog), so this
- * rarely matters yet; revisit with a real dropdown/modal in a later UI pass.
+ * Wires the sidebar's single "+ Add" button to a dropdown of every addable
+ * leaf form — every form nested under a wrapper section (e.g. ReturnDataState)
+ * plus any top-level repeatable/optional section, minus whatever is already
+ * present and can't be added again. Reuses chooseRootDialog's generic
+ * chooseOne() picker (auto-picks when there's exactly one candidate).
  * @param {HTMLButtonElement} addBtn
- * @param {() => {sections: {elementName:string, isRepeatable:boolean}[]}|null} getManifest
+ * @param {() => {sections: object[]}|null} getManifest
  *   a getter (not a static object) so this always sees the current schema —
  *   the button is wired once at bootstrap, before any schema is loaded
+ * @param {() => import('../core/formEngine.js').FormInstanceKey[]} getInstanceKeys
  * @param {(sectionName: string) => void} onAdd
  */
-export function wireAddFormButton(addBtn, getManifest, onAdd) {
-  addBtn.addEventListener('click', () => {
+export function wireAddFormButton(addBtn, getManifest, getInstanceKeys, onAdd) {
+  addBtn.addEventListener('click', async () => {
     const manifest = getManifest();
     if (!manifest) return;
-    const repeatable = manifest.sections.filter((s) => s.isRepeatable);
-    if (repeatable.length === 0) {
-      window.alert('No repeatable forms in this schema to add another instance of.');
-      return;
-    }
-    if (repeatable.length === 1) {
-      onAdd(repeatable[0].elementName);
-      return;
-    }
-    const names = repeatable.map((s) => s.elementName).join(', ');
-    const chosen = window.prompt(`Add a new instance of which form?\n(${names})`, repeatable[0].elementName);
-    if (chosen && repeatable.some((s) => s.elementName === chosen)) onAdd(chosen);
+    const instanceKeys = getInstanceKeys() || [];
+    const addable = collectLeafSections(manifest.sections).filter((s) => isAddableSection(s, instanceKeys));
+
+    const labelFor = (s) => (s.description ? `${s.elementName} — ${s.description}` : s.elementName);
+    const labelToName = new Map(addable.map((s) => [labelFor(s), s.elementName]));
+    const chosenLabel = await chooseOne([...labelToName.keys()], 'No more forms available to add.', 'Add a new instance of which form?');
+    if (chosenLabel) onAdd(labelToName.get(chosenLabel));
   });
 }

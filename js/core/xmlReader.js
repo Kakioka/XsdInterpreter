@@ -5,7 +5,7 @@
 //
 // Pure logic beyond DOMParser (a browser global, not app-specific DOM rendering).
 
-import { isTransparent, isAttribute, isLeaf, isRepeatingContentContainer, isChoiceOnlyContainer, joinPath } from './parser.js';
+import { isTransparent, isAttribute, isLeaf, isRepeatingContentContainer, isChoiceOnlyContainer, joinPath, findSectionAncestry } from './parser.js';
 import { FormInstanceKey, createEmptyFormState } from './formEngine.js';
 
 function generateUUID() {
@@ -83,17 +83,40 @@ export function readPacket(xmlString, manifest, schemaParser) {
 
   const result = new Map();
 
-  for (const section of manifest.sections) {
-    const elements = doc.documentElement.querySelectorAll(`:scope > ${section.elementName}`);
-    for (const el of elements) {
-      const instanceId = section.isRepeatable ? el.getAttribute('documentId') || generateUUID() : section.elementName;
-      const key = new FormInstanceKey(section.elementName, instanceId);
-      const schemaElement = schemaParser.parseGlobalElement(section.elementName);
-      if (!schemaElement) continue; // unresolvable section — nothing to read it into
-      const state = extractFormState(el, schemaElement);
-      result.set(key.toString(), state);
+  // A leaf form nested under a wrapper section (e.g. FormN11/SchCR under
+  // ReturnDataState) lives inside that wrapper's own XML element, not as a
+  // direct child of the packet root — descend the ancestry chain to find it.
+  function resolveParentDomEl(formName) {
+    const ancestry = findSectionAncestry(manifest.sections, formName) || [];
+    let parent = doc.documentElement;
+    for (const name of ancestry) {
+      const child = parent.querySelector(`:scope > ${name}`);
+      if (!child) return null;
+      parent = child;
+    }
+    return parent;
+  }
+
+  function readSections(sections) {
+    for (const section of sections) {
+      if (section.childForms?.length) {
+        readSections(section.childForms);
+        continue;
+      }
+      const parentDomEl = resolveParentDomEl(section.elementName);
+      if (!parentDomEl) continue;
+      const elements = parentDomEl.querySelectorAll(`:scope > ${section.elementName}`);
+      for (const el of elements) {
+        const instanceId = section.isRepeatable ? el.getAttribute('documentId') || generateUUID() : section.elementName;
+        const key = new FormInstanceKey(section.elementName, instanceId);
+        const schemaElement = schemaParser.parseGlobalElement(section.elementName);
+        if (!schemaElement) continue; // unresolvable section — nothing to read it into
+        const state = extractFormState(el, schemaElement);
+        result.set(key.toString(), state);
+      }
     }
   }
+  readSections(manifest.sections);
 
   return result;
 }
@@ -184,6 +207,20 @@ export function walkElement(xmlEl, schemaElement, path, state) {
 
   if (schemaElement.isRepeating && schemaElement.isGeneratedWrapper) {
     readRepeatingEntrySiblings(xmlEl, schemaElement, path, state);
+    return;
+  }
+
+  if (schemaElement.isRepeating && !schemaElement.isGeneratedWrapper) {
+    // A REAL (non-synthetic) repeating element — e.g. HI's "DependentInformation"
+    // (maxOccurs=99, parser.js's _finishComplexType) — counterpart of
+    // xmlWriter.js's matching branch. Each occurrence is its own
+    // <DependentInformation> tag directly under xmlEl (unlike the
+    // generated-Entry case above, which has no tag of its own), so this is
+    // just walkContainerBody run once per occurrence at its own `[i]`-indexed path.
+    const instances = xmlEl.querySelectorAll(`:scope > ${schemaElement.elementName}`);
+    const entryPath = joinPath(path, schemaElement.elementName);
+    state.repeatingInstanceCounts[schemaElement.elementName.toLowerCase()] = instances.length;
+    instances.forEach((inst, i) => walkContainerBody(inst, schemaElement, `${entryPath}[${i}]`, state));
     return;
   }
 

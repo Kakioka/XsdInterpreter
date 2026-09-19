@@ -125,14 +125,20 @@ async function loadSchema(fileTextMap) {
   });
 }
 
-/** One non-repeatable-form key per non-repeatable section, in manifest order.
- *  Repeatable sections start with zero instances until XML load or "+ Add". */
+/** One instance key per required, non-repeatable LEAF form (e.g. FormN11), in
+ *  manifest order — a wrapper section (childForms.length > 0, e.g.
+ *  ReturnDataState) never gets its own key, only its leaf descendants do.
+ *  Everything else (repeatable forms, and optional non-repeatable forms like
+ *  SchCR) starts absent and is only created via XML load or "+ Add". */
 function buildInitialInstanceKeys(manifest) {
   const keys = [];
   const walk = (sections) => {
     for (const section of sections) {
-      if (!section.isRepeatable) keys.push(new FormInstanceKey(section.elementName));
-      if (section.childForms?.length) walk(section.childForms);
+      if (section.childForms?.length) {
+        walk(section.childForms);
+      } else if (!section.isRepeatable && section.isRequired) {
+        keys.push(new FormInstanceKey(section.elementName));
+      }
     }
   };
   walk(manifest.sections);
@@ -203,7 +209,17 @@ function rebuildNavTree() {
 }
 
 function addFormInstance(sectionName) {
-  const instanceId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `new-${Date.now()}`;
+  // Non-repeatable forms (e.g. optional single-instance schedules like SchCR)
+  // use the formName itself as the instanceId — same convention as every
+  // other non-repeatable key (§2) — so the nav tree shows "SchCR", not a
+  // random "SchCR#<uuid>". Only a genuinely repeatable section needs a
+  // synthetic per-instance id.
+  const section = sidebar.findSection(appState.manifest?.sections, sectionName);
+  const instanceId = section?.isRepeatable
+    ? typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `new-${Date.now()}`
+    : sectionName;
   const key = new FormInstanceKey(sectionName, instanceId);
   const priorInstanceKey = appState.currentInstanceKey;
   appState.instanceKeys.push(key);
@@ -266,10 +282,13 @@ async function loadXmlText(xmlText) {
     const orderedKeys = [];
     const walkSections = (sections) => {
       for (const section of sections) {
+        if (section.childForms?.length) {
+          walkSections(section.childForms);
+          continue;
+        }
         const matching = [...stateMap.keys()].map((k) => FormInstanceKey.parse(k)).filter((k) => k.formName === section.elementName);
         if (matching.length > 0) orderedKeys.push(...matching);
-        else if (!section.isRepeatable) orderedKeys.push(new FormInstanceKey(section.elementName));
-        if (section.childForms?.length) walkSections(section.childForms);
+        else if (!section.isRepeatable && section.isRequired) orderedKeys.push(new FormInstanceKey(section.elementName));
       }
     };
     walkSections(appState.manifest.sections);
@@ -524,7 +543,7 @@ function init() {
     onXmlTextSelected: loadXmlText,
     onSaveXmlRequested: saveXml,
   });
-  sidebar.wireAddFormButton(document.getElementById('add-form-btn'), () => appState.manifest, addFormInstance);
+  sidebar.wireAddFormButton(document.getElementById('add-form-btn'), () => appState.manifest, () => appState.instanceKeys, addFormInstance);
 
   // §9 coloring: debounced on typing (invariant 19), immediate elsewhere (radio
   // swap / add / remove already call coloringUi directly from formRenderer.js).
