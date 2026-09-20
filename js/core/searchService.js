@@ -30,12 +30,8 @@ export function matchesQuery(text, query, caseSensitive) {
 export function walkForSearch(element, formName, query, options, results) {
   const text = options.searchInDocs ? element.documentation : element.resolvedLabel;
   const match = options.lineNumberMode
-    // element.lineNumber is always '' today — parser.js never populates it
-    // (display-only, no source-position info survives a DOMParser parse; see
-    // its own file-level comment). Line-number-mode search is implemented
-    // per spec, but is a dormant no-op until lineNumber is ever populated —
-    // same pre-existing, deliberate limitation the line-number <span> in
-    // formRenderer.js's buildLeafControl already carries.
+    // element.lineNumber comes from the schema annotation's <LineNumber> child
+    // (parser.js getLineNumber) — '' for elements with no such annotation.
     ? element.lineNumber !== '' && String(element.lineNumber) === String(query)
     : matchesQuery(text, query, options.caseSensitive);
 

@@ -397,11 +397,37 @@ function fillActiveForm(schemaElement, parentPath, options) {
     radioSelections: state.radioSelections,
   });
 
+  let changed = false;
+  let formEl = document.getElementById('form-content-host').firstElementChild;
+
+  // §17 "required repeating sections" inflation: generateValues raises a
+  // required repeating section's target count above what currently exists
+  // (testDataFiller.js's fillRepeatingEntry — its own minOccurs, e.g.
+  // AuthenticationHeader.xsd's Submission needing 1-3 SubmissionEntry rows)
+  // but never creates the DOM rows itself. Only done for a whole-form fill:
+  // a scoped/container fill's snapshot (formEngine.snapshotUnderPathPrefix)
+  // can't capture repeatingInstanceCounts (keyed by bare entry name, not
+  // path — see its own comment), so ContainerFillAction's undo/redo has no
+  // way to reflect an inflation here, unlike FillTestDataAction's, whose
+  // snapshot already includes the full dict and whose undo/redo re-renders
+  // the whole form from it (see switchToForm).
+  if (isWholeForm && formEl) {
+    for (const [entryName, count] of Object.entries(generated.instanceCounts)) {
+      if (count > (state.repeatingInstanceCounts[entryName] ?? 0)) {
+        appState.formEngine.setRepeatingInstanceCount(entryName, count);
+        changed = true;
+      }
+    }
+    if (changed) {
+      formRenderer.inflateRepeatingSections(formEl, appState.formEngine);
+      formRenderer.registerControlsUnder(formEl, appState.formEngine);
+    }
+  }
+
   // §17 "Only empty fields are filled (merge against existing values)" — §22
   // invariant 22 states this for the context menu specifically, but applying
   // it to the toolbar-level Fill buttons too avoids ever silently overwriting
   // data the user already entered, regardless of which entry point filled it.
-  let changed = false;
   for (const [path, value] of Object.entries(generated.values)) {
     if (isEmptyValue(state.fieldValues[path])) {
       state.fieldValues[path] = value;
@@ -431,7 +457,6 @@ function fillActiveForm(schemaElement, parentPath, options) {
   // clearActiveFormSection below, which deletes values restoreActiveForm has
   // no way to reflect).
   appState.formEngine.restoreActiveForm();
-  const formEl = document.getElementById('form-content-host').firstElementChild;
   if (formEl) {
     formRenderer.selectRadioGroupBranches(formEl, state);
     coloringUi.applyAllColors();

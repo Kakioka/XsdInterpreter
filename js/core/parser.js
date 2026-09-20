@@ -132,12 +132,32 @@ function parseOccurs(particleEl) {
   return { minOccurs, maxOccurs };
 }
 
-function getDocumentation(el) {
+function getAnnotationDocumentation(el) {
   const annotation = firstChild(el, 'annotation');
-  if (!annotation) return '';
-  const doc = firstChild(annotation, 'documentation');
+  if (!annotation) return null;
+  return firstChild(annotation, 'documentation');
+}
+
+// Most schema annotations here are structured (<Description>/<FormNumber>/<LineNumber>/
+// <ELFFieldNumber> children rather than bare text) — the Description child is the only
+// piece meant for the tooltip, so it's read on its own rather than via doc.textContent,
+// which would otherwise concatenate every sibling's text (including FormNumber/LineNumber/
+// ELFFieldNumber) into one run-on string. A few annotations are still plain text (no
+// Description child), so that's kept as the fallback.
+function getDocumentation(el) {
+  const doc = getAnnotationDocumentation(el);
   if (!doc) return '';
-  return (doc.textContent || '').trim().replace(/\s+/g, ' ');
+  const description = firstChild(doc, 'Description');
+  const text = description ? description.textContent : doc.textContent;
+  return (text || '').trim().replace(/\s+/g, ' ');
+}
+
+// ELFFieldNumber is deliberately ignored — not needed for display.
+function getLineNumber(el) {
+  const doc = getAnnotationDocumentation(el);
+  if (!doc) return '';
+  const lineNumberEl = firstChild(doc, 'LineNumber');
+  return lineNumberEl ? (lineNumberEl.textContent || '').trim() : '';
 }
 
 /** "IndividualFirstName" → "Individual First Name". Not spec-mandated (§2 only says
@@ -147,6 +167,25 @@ export function humanizeLabel(name) {
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .trim();
+}
+
+/**
+ * The <xsd:extension>/<xsd:restriction> inside a complexType's <xsd:simpleContent>
+ * wrapper, if present — the "value with XML attributes" idiom this schema set uses
+ * throughout for money amounts referencing a worksheet (e.g. FormN11.xsd's
+ * MedicalAndDentalDeduction: <xsd:extension base="USAmountNNType"> plus a
+ * referenceDocumentId/referenceDocumentName xsd:attribute pair). Neither
+ * _resolveEffectiveAttributeEls nor _resolveEffectiveParticles (both
+ * complexContent-only) ever look inside a simpleContent wrapper, so left
+ * unhandled in _buildSchemaElementForDecl this produced a GroupContainer with
+ * zero attributes AND zero model children — an empty box with no way to enter
+ * the value at all. See _buildSchemaElementForDecl's use of this for the fix:
+ * treated as a plain leaf of the extension's own base type instead.
+ */
+function getSimpleContentExtension(complexTypeEl) {
+  const simpleContent = firstChild(complexTypeEl, 'simpleContent');
+  if (!simpleContent) return null;
+  return firstChild(simpleContent, 'extension') || firstChild(simpleContent, 'restriction');
 }
 
 function findTopLevelModelGroup(containerEl) {
@@ -381,6 +420,7 @@ export class SchemaParser {
   _buildSchemaElementForDecl(defEl, elementName, parentPath, occurs) {
     const elementPath = joinPath(parentPath, elementName);
     const documentation = getDocumentation(defEl);
+    const lineNumber = getLineNumber(defEl);
     const typeAttr = defEl.getAttribute('type');
     const inlineSimpleType = firstChild(defEl, 'simpleType');
     const inlineComplexType = firstChild(defEl, 'complexType');
@@ -388,18 +428,24 @@ export class SchemaParser {
     const base = {
       elementName,
       documentation,
-      lineNumber: '', // display-only; no source-position info survives a DOMParser parse — left blank until/unless a real need for it shows up
+      lineNumber,
       isRequired: occurs.minOccurs >= 1,
       minOccurs: occurs.minOccurs,
       maxOccurs: occurs.maxOccurs,
       elementPath,
     };
 
-    if (inlineComplexType) return this._finishComplexType(base, inlineComplexType);
+    if (inlineComplexType) {
+      const simpleContentExt = getSimpleContentExtension(inlineComplexType);
+      if (simpleContentExt) return this._finishSimpleType(base, simpleContentExt.getAttribute('base'), null);
+      return this._finishComplexType(base, inlineComplexType);
+    }
 
     if (typeAttr) {
       const namedComplexType = this.types.getComplexType(typeAttr);
       if (namedComplexType) {
+        const simpleContentExt = getSimpleContentExtension(namedComplexType);
+        if (simpleContentExt) return this._finishSimpleType(base, simpleContentExt.getAttribute('base'), null);
         base.originalTypeName = typeAttr;
         return this._finishComplexType(base, namedComplexType);
       }
@@ -543,7 +589,7 @@ export class SchemaParser {
       const attrBase = {
         elementName: name,
         documentation: getDocumentation(attrEl),
-        lineNumber: '',
+        lineNumber: getLineNumber(attrEl),
         isRequired: use === 'required',
         minOccurs: use === 'required' ? 1 : 0,
         maxOccurs: 1,
@@ -614,9 +660,28 @@ export class SchemaParser {
     ];
   }
 
-  _parseChoiceGroup(choiceEl, parentPath) {
+  /**
+   * `choiceIndex` disambiguates multiple xs:choice particles sitting as
+   * SIBLINGS under the same parent (e.g. Common/ReturnHeader.xsd's
+   * PaidPreparerInformationGrp: PTIN/STIN/PreparerSSN, then separately
+   * PreparerFirmEIN/MissingEINReasonCd, then a US/Foreign address choice,
+   * then a phone-number choice — four independent xs:choice blocks, all
+   * direct children of the same complexType sequence). Without it every one
+   * of them computes the exact same `${parentName}Choice` name — and, worse,
+   * the exact same `choicePath`/`elementPath` — from `parentPath` alone, so
+   * they'd not only render identical "...Choice" headers but actually share
+   * one FormEngine radioSelections key and even (via `${choiceName}Option${i+1}`)
+   * per-option elementPaths, making them literally the same field: selecting
+   * an option in ONE of the choices would overwrite/appear to select an
+   * option in every other one. Defaults to 1 (unnumbered "...Choice") so a
+   * parent with only one xs:choice — the overwhelmingly common case — keeps
+   * its existing name/path exactly as before; only the 2nd, 3rd, etc. sibling
+   * choice under the same parent gets a numbered suffix, from
+   * _parseParticlesFromList's own per-parent counter.
+   */
+  _parseChoiceGroup(choiceEl, parentPath, choiceIndex = 1) {
     const parentName = lastSegment(parentPath);
-    const choiceName = `${parentName}Choice`;
+    const choiceName = choiceIndex > 1 ? `${parentName}Choice${choiceIndex}` : `${parentName}Choice`;
     const choicePath = joinPath(parentPath, choiceName);
     const { minOccurs, maxOccurs } = parseOccurs(choiceEl);
 
@@ -683,10 +748,13 @@ export class SchemaParser {
    *  extension-chain merge, which has no single DOM group element to hand it. */
   _parseParticlesFromList(particles, parentPath) {
     const result = [];
+    let choiceCount = 0;
     for (const child of particles) {
       if (child.localName === 'element') result.push(this._parseParticleElement(child, parentPath));
       else if (child.localName === 'group') result.push(...this._parseGroupRef(child, parentPath));
-      else if (child.localName === 'choice') result.push(this._parseChoiceGroup(child, parentPath));
+      // choiceCount disambiguates multiple xs:choice siblings under this same
+      // parent — see _parseChoiceGroup's own comment on why that's needed.
+      else if (child.localName === 'choice') result.push(this._parseChoiceGroup(child, parentPath, ++choiceCount));
       else if (child.localName === 'sequence') result.push(...this._parseSequenceGroup(child, parentPath));
       else if (child.localName === 'all') result.push(...this._parseParticleList(child, parentPath));
       // 'annotation' and anything else: ignored here (documentation is read via getDocumentation on the owning element)

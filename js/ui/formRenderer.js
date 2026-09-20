@@ -449,7 +449,13 @@ function buildLeafControl(element, formEngine, depth, undoService) {
   wrapper.dataset.path = element.elementPath;
 
   const label = document.createElement('label');
-  label.textContent = element.resolvedLabel;
+  if (element.lineNumber) {
+    const ln = document.createElement('span');
+    ln.classList.add('line-number');
+    ln.textContent = `${element.lineNumber}. `;
+    label.append(ln);
+  }
+  label.append(document.createTextNode(element.resolvedLabel));
   if (element.isRequired) label.classList.add('required');
 
   const colorBorder = document.createElement('div');
@@ -534,12 +540,6 @@ function buildLeafControl(element, formEngine, depth, undoService) {
     tooltip.classList.add('tooltip');
     tooltip.textContent = element.documentation;
     wrapper.append(tooltip);
-  }
-  if (element.lineNumber) {
-    const ln = document.createElement('span');
-    ln.classList.add('line-number');
-    ln.textContent = element.lineNumber;
-    wrapper.append(ln);
   }
 
   // See the file-level comment: registration is centralized in registerControlsUnder,

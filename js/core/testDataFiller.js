@@ -221,7 +221,7 @@ function fillLeaf(element, path, values, options) {
  *  required fields still need values for a clean validation. Only when there
  *  is NO existing selection does `requiredOnly` skip an optional group
  *  entirely, rather than forcing a pick nothing actually requires. */
-function fillRadioGroup(element, path, values, radioSelections, options) {
+function fillRadioGroup(element, path, values, radioSelections, neededCounts, options) {
   const choicePath = joinPath(path, element.elementName);
   const existing = options.radioSelections?.[choicePath.toLowerCase()];
   const filter = getEffectiveFilter(options);
@@ -252,21 +252,25 @@ function fillRadioGroup(element, path, values, radioSelections, options) {
   // silently strand every generated value under the selected branch at a key
   // nothing registered ever reads.
   const optionPath = joinPath(choicePath, targetOption.elementName);
-  for (const child of targetOption.children) walkElement(child, optionPath, values, radioSelections, options);
+  for (const child of targetOption.children) walkElement(child, optionPath, values, radioSelections, neededCounts, options);
 }
 
-/** Only fills instances that ALREADY exist (per `options.instanceCounts`,
- *  keyed the same way FormEngine.repeatingInstanceCounts is — bare entry
- *  name, lowercased) — this module never creates a repeating instance itself
- *  (that's an interactive Add-button/DOM operation, out of scope for a
- *  pure/no-DOM value generator); the caller decides whether to Add first. */
-function fillRepeatingContentContainer(element, path, values, radioSelections, options) {
+/** Fills every EXISTING instance (per `options.instanceCounts`, keyed the same
+ *  way FormEngine.repeatingInstanceCounts is — bare entry name, lowercased),
+ *  plus enough additional ones to reach `entryWrapper.minOccurs` when the
+ *  schema requires more than currently exist (§17 "required repeating
+ *  sections" inflation — see fillRepeatingEntry's own comment). This module
+ *  still never touches the DOM itself; it only reports the target count via
+ *  `neededCounts` (keyed exactly like `options.instanceCounts`) for the
+ *  caller to act on — inflating the actual rows is still an Add-button/DOM
+ *  operation out of scope for a pure/no-DOM value generator. */
+function fillRepeatingContentContainer(element, path, values, radioSelections, neededCounts, options) {
   const entryWrapper = element.children.find((c) => !isAttribute(c));
   const outerPath = joinPath(path, element.elementName);
 
-  for (const attr of element.children.filter(isAttribute)) walkElement(attr, outerPath, values, radioSelections, options);
+  for (const attr of element.children.filter(isAttribute)) walkElement(attr, outerPath, values, radioSelections, neededCounts, options);
 
-  fillRepeatingEntry(entryWrapper, outerPath, values, radioSelections, options);
+  fillRepeatingEntry(entryWrapper, outerPath, values, radioSelections, neededCounts, options);
 }
 
 /**
@@ -279,25 +283,37 @@ function fillRepeatingContentContainer(element, path, values, radioSelections, o
  * colorOfNode for the fuller explanation of why the parent-shape gate alone
  * is too narrow). Either way, `entryWrapper` is always the repeating node
  * itself and `parentPath` is ITS OWN parent's path.
+ *
+ * `entryWrapper.minOccurs` is the schema's actual floor on how many instances
+ * must exist (validation.js's validateRepeatingEntry enforces the same
+ * number) — filling only the instances that already happen to exist would
+ * leave a "Fill All"/"Fill Required" pass unable to ever satisfy a required
+ * repeating section on its own, forcing the user to click Add manually first.
+ * Values are generated for the extra instances the same as existing ones;
+ * `neededCounts` records the raised target so the caller can actually create
+ * those rows before merging these values in.
  */
-function fillRepeatingEntry(entryWrapper, parentPath, values, radioSelections, options) {
+function fillRepeatingEntry(entryWrapper, parentPath, values, radioSelections, neededCounts, options) {
   const entryPath = joinPath(parentPath, entryWrapper.elementName);
-  const count = options.instanceCounts?.[entryWrapper.elementName.toLowerCase()] ?? 0;
+  const key = entryWrapper.elementName.toLowerCase();
+  const existingCount = options.instanceCounts?.[key] ?? 0;
+  const count = Math.max(existingCount, entryWrapper.minOccurs || 0);
+  if (count > existingCount) neededCounts[key] = count;
   for (let i = 0; i < count; i++) {
-    for (const child of entryWrapper.children) walkElement(child, `${entryPath}[${i}]`, values, radioSelections, options);
+    for (const child of entryWrapper.children) walkElement(child, `${entryPath}[${i}]`, values, radioSelections, neededCounts, options);
   }
 }
 
-function walkElement(element, path, values, radioSelections, options) {
-  if (element.kind === 'RadioGroup') return fillRadioGroup(element, path, values, radioSelections, options);
-  if (isRepeatingContentContainer(element)) return fillRepeatingContentContainer(element, path, values, radioSelections, options);
+function walkElement(element, path, values, radioSelections, neededCounts, options) {
+  if (element.kind === 'RadioGroup') return fillRadioGroup(element, path, values, radioSelections, neededCounts, options);
+  if (isRepeatingContentContainer(element)) return fillRepeatingContentContainer(element, path, values, radioSelections, neededCounts, options);
   // Covers both the generated-Entry idiom and a REAL repeating element (e.g.
   // HI's "DependentInformation") — fillRepeatingEntry only reads
-  // elementName/children and options.instanceCounts, unaffected either way.
-  if (element.isRepeating) return fillRepeatingEntry(element, path, values, radioSelections, options);
+  // elementName/children/minOccurs and options.instanceCounts, unaffected either way.
+  if (element.isRepeating) return fillRepeatingEntry(element, path, values, radioSelections, neededCounts, options);
 
   if (isTransparent(element)) {
-    for (const child of element.children) walkElement(child, path, values, radioSelections, options);
+    for (const child of element.children) walkElement(child, path, values, radioSelections, neededCounts, options);
     return;
   }
 
@@ -315,8 +331,8 @@ function walkElement(element, path, values, radioSelections, options) {
 
   // Container: attributes then structural children, same order as
   // validateNode/buildNodes/walkContainerBody.
-  for (const attr of element.children.filter(isAttribute)) walkElement(attr, currentPath, values, radioSelections, options);
-  for (const child of element.children.filter((c) => !isAttribute(c))) walkElement(child, currentPath, values, radioSelections, options);
+  for (const attr of element.children.filter(isAttribute)) walkElement(attr, currentPath, values, radioSelections, neededCounts, options);
+  for (const child of element.children.filter((c) => !isAttribute(c))) walkElement(child, currentPath, values, radioSelections, neededCounts, options);
 }
 
 /**
@@ -328,8 +344,11 @@ function walkElement(element, path, values, radioSelections, options) {
  *   when no explicit `filter` is given.
  * @param {(el:object)=>boolean} [options.filter] - overrides `requiredOnly` when given.
  * @param {Record<string, number>} [options.instanceCounts] - CURRENT
- *   repeatingInstanceCounts (bare entry name, lowercased) — only existing
- *   instances get filled, none are created.
+ *   repeatingInstanceCounts (bare entry name, lowercased) — the count each
+ *   repeating section is filled up to, RAISED to that section's own
+ *   minOccurs when the schema requires more instances than currently exist
+ *   (see fillRepeatingEntry) — none are created here, but the raised targets
+ *   are reported back via the returned `instanceCounts` for the caller to act on.
  * @param {Record<string, string>} [options.radioSelections] - CURRENT
  *   radioSelections (choicePath, lowercased → optionPath) — an existing
  *   selection is reused rather than overridden.
@@ -337,16 +356,21 @@ function walkElement(element, path, values, radioSelections, options) {
  *   itself sits under (its parent's own path) — '' for a whole-form fill
  *   where `element` IS the form root, or the container's actual parent path
  *   for a scoped fill.
- * @returns {{values: Record<string,*>, radioSelections: Record<string,string>}}
+ * @returns {{values: Record<string,*>, radioSelections: Record<string,string>, instanceCounts: Record<string,number>}}
  *   `values` is keyed exactly like FormEngine.fieldValues (full path,
  *   lowercased). `radioSelections` here holds only the selections THIS call
  *   newly chose (not ones it merely reused from `options.radioSelections`) —
  *   callers merge both dicts into FormEngine themselves (§17 "Only empty
  *   fields are filled" — that merge decision belongs to the caller, not here).
+ *   `instanceCounts` holds only entries THIS call needed to raise above
+ *   `options.instanceCounts` (a required repeating section with too few
+ *   instances) — keyed like FormEngine.repeatingInstanceCounts, so the caller
+ *   can inflate the DOM/state to match before merging `values` in.
  */
 export function generateValues(element, options = {}) {
   const values = {};
   const radioSelections = {};
-  walkElement(element, options.parentPath || '', values, radioSelections, options);
-  return { values, radioSelections };
+  const instanceCounts = {};
+  walkElement(element, options.parentPath || '', values, radioSelections, instanceCounts, options);
+  return { values, radioSelections, instanceCounts };
 }
