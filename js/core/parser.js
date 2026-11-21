@@ -132,6 +132,15 @@ function parseOccurs(particleEl) {
   return { minOccurs, maxOccurs };
 }
 
+/** The one "does this particle repeat?" test, shared by _ownParticles and
+ *  _parseSequenceGroup so the two can't drift apart — they decide the same
+ *  question (whether a <xs:sequence> needs a synthetic Entry wrapper) at two
+ *  different points in the walk, and disagreeing silently costs the wrapper. */
+function isRepeatingParticle(particleEl) {
+  const { maxOccurs } = parseOccurs(particleEl);
+  return particleEl.getAttribute('maxOccurs') === 'unbounded' || (maxOccurs != null && maxOccurs > 1);
+}
+
 function getAnnotationDocumentation(el) {
   const annotation = firstChild(el, 'annotation');
   if (!annotation) return null;
@@ -525,14 +534,31 @@ export class SchemaParser {
    * A complexType's OWN top-level particles — a plain sequence/all's .children
    * (its actual field declarations), or a bare choice/group ref kept as a
    * single particle so callers always get a flat, uniform particle list.
+   *
+   * A REPEATING top-level sequence is also kept whole, because flattening it
+   * loses the thing that makes it repeat: _parseParticlesFromList routes a
+   * `sequence` particle to _parseSequenceGroup, which is what builds the
+   * synthetic "<parent>Entry" wrapper carrying isRepeating (§4 Synthetic
+   * Nodes). Hand it the sequence's children instead and the entries collapse
+   * into one non-repeating set of fields — PriorNameList / LineItems in
+   * sample-schemas/ render as a single row with no Add button, and every
+   * value lands at an un-indexed path no `[i]` runtime path ever matches.
+   *
+   * Non-repeating sequences are still flattened here rather than returned
+   * whole, which matters for the extension-chain merge in
+   * _resolveEffectiveParticles: base and extension particles have to arrive
+   * as ONE list so _parseParticlesFromList's per-parent choiceCount numbers
+   * sibling xs:choice particles across both halves. Returning two group nodes
+   * would restart that counter and give two different choices the same
+   * synthetic "...Choice" name and path — see _parseChoiceGroup's comment.
    */
   _ownParticles(containerEl) {
     const topGroup = findTopLevelModelGroup(containerEl);
     if (!topGroup) return [];
-    if (topGroup.localName === 'sequence' || topGroup.localName === 'all') {
+    if (topGroup.localName === 'all' || (topGroup.localName === 'sequence' && !isRepeatingParticle(topGroup))) {
       return Array.from(topGroup.children).filter((c) => c.localName !== 'annotation');
     }
-    return [topGroup]; // bare xs:choice or xs:group ref as the entire content model
+    return [topGroup]; // repeating sequence, or a bare xs:choice / xs:group ref as the entire content model
   }
 
   /**
@@ -622,7 +648,7 @@ export class SchemaParser {
 
   _parseSequenceGroup(seqEl, parentPath) {
     const { minOccurs, maxOccurs } = parseOccurs(seqEl);
-    const isRepeatingSeq = seqEl.getAttribute('maxOccurs') === 'unbounded' || (maxOccurs != null && maxOccurs > 1);
+    const isRepeatingSeq = isRepeatingParticle(seqEl);
 
     if (!isRepeatingSeq) {
       // Plain (non-repeating) sequence: its particles become direct children of the parent.

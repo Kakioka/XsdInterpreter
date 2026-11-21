@@ -40,7 +40,45 @@ module and re-checking is just Ctrl+S — no restart.
 Don't suggest `python -m http.server` or `npx serve` as the normal workflow; they're only a
 fallback if Live Server isn't running and the user can't start it.
 
-**Tests** are self-contained check harnesses, one per implementation phase:
+### `node --test` — the headless suites (`test/`)
+
+`js/core/` is testable in Node, with no install step and no network:
+
+```
+npm test            # node --test "test/**/*.test.mjs"
+node --test "test/formEngine.test.mjs"      # one file
+node --test --test-name-pattern "round-trip" "test/**/*.test.mjs"
+```
+
+There is still **no runtime dependency and no build step** — `package.json` exists only so
+Node treats `.js` as ESM and `npm test` has somewhere to live; `dependencies` and
+`devDependencies` are both empty and must stay that way.
+
+`test/helpers/xmlDom.mjs` is a hand-rolled XML DOM (DOMParser / XMLSerializer /
+`document.implementation`) covering exactly what `flattener.js`, `parser.js`, `xmlReader.js` and
+`xmlWriter.js` call — same reasoning as `packager.js`'s hand-rolled ZIP writer. It prefers
+`linkedom` if that is ever installed, and `test/xmlDom.test.mjs` self-tests it against the
+browser behaviors core code depends on. **An unsupported CSS selector throws** rather than
+returning null, so add support there rather than working around it in the module under test.
+
+What is covered: flattener, parser, xmlReader/xmlWriter (including the full fixture round-trip),
+formEngine, coloringService, undoService, searchService, testDataFiller, packager (ZIP bytes
+parsed back out of the central directory), autosaveStore, plus `test/moduleGraph.test.mjs` — a
+static check that every import resolves, every named import exists, `js/core/` imports no
+`js/ui/`, and `index.html` still declares every container the UI builds into. That last one is
+the closest thing this repo has to a compiler.
+
+Some assertions deliberately pin behavior that `dev/PARITY_GAP_ANALYSIS.md` says is **wrong**
+(no activation context; a required repeating section with zero instances colors Green). They are
+commented `KNOWN-WRONG` and exist so the Phase 1 rewrite has to acknowledge the change — update
+them with the fix, don't delete them.
+
+`js/ui/` is not covered here (it touches the DOM at module scope); the browser harnesses below
+remain the ground truth for rendering, and the live render stage genuinely earns its keep.
+
+### Browser harnesses (`dev/*.html`)
+
+Self-contained check harnesses, one per implementation phase:
 
 | Harness | Covers |
 |---|---|
@@ -57,15 +95,18 @@ sanity-checking.
 
 Practical notes for an agent:
 
-- **You cannot read the results yourself** unless you drive a browser. Changing logic covered by
-  a harness means asking the user to open it and report the summary line, or saying which
-  harness to check — don't claim a change is verified when nothing ran it.
-- **No way to run one assertion in isolation.** To narrow down, comment out `check()` calls in
-  the harness's inline `<script type="module">` block, or add a temporary `check()` next to the
-  area under test.
-- Harnesses import and drive the **real** modules through the same entry points `app.js` uses —
-  never reimplement logic inside a harness. When you change behavior, update the covering
-  harness in the same commit.
+- **You cannot read a harness's results yourself** unless you drive a browser. Changing logic
+  covered only by a harness means asking the user to open it and report the summary line, or
+  saying which harness to check — don't claim a change is verified when nothing ran it. For
+  `js/core/` changes, run `npm test` first: it covers the same ground headlessly and you can
+  read the result.
+- **No way to run one harness assertion in isolation.** To narrow down, comment out `check()`
+  calls in the harness's inline `<script type="module">` block, or add a temporary `check()`
+  next to the area under test. (`node --test --test-name-pattern` does this properly for the
+  headless suites.)
+- Harnesses and `node --test` suites alike import and drive the **real** modules through the
+  same entry points `app.js` uses — never reimplement logic in a test. When you change
+  behavior, update every covering suite/harness in the same commit.
 - There is no harness for `js/ui/app.js`'s own orchestration (schema load, form switch, save).
   Those paths are only exercised by using `index.html` against `sample-schemas/`.
 
@@ -163,8 +204,9 @@ folder of .xsd
 ```
 
 `js/ui/app.js` is the only orchestrator — it holds `appState` and owns `loadSchema`,
-`switchToForm`, `addFormInstance`, `removeFormInstance`, `loadXmlText`, `saveXml`. Every other
-`ui/` module is wired from its `init()` and receives the pieces it needs. There is no framework
+`switchToForm`, `addFormInstance`, `removeFormInstance`, `loadXmlText`, `saveXml`,
+`restoreFromSnapshot`. Every other `ui/` module is wired from its `init()` and receives the
+pieces it needs. There is no framework
 and no reactive layer; `FormEngine` extends `EventTarget` and fires `controlValueChanged` /
 `dirtyChanged`.
 
@@ -240,6 +282,26 @@ Actions store **paths, values, keys and flags only** — never live DOM or contr
 They mutate state through `switchToForm`'s `mutateState` callback and let the DOM rebuild from
 scratch, which is what makes cross-form undo work without patching live DOM. Every recording
 site must check `undoService.isReplaying` and skip.
+
+### Data-loss protection (`errorBoundary.js`, `autosave.js` / `autosaveStore.js`)
+
+Both exist because FormEngine state lives only in memory and the browser can take the tab away
+(`dev/IMPROVEMENT_BACKLOG.md` B.3 and C.1). Neither is in `web-implementation-spec.md`.
+
+- `installErrorBoundary()` is the **first** statement in `init()`, so a throw in a later init
+  step still surfaces. Its panel's real job is the two download buttons; each is independently
+  try/caught because `buildPacketXml` is itself a plausible source of the crash being reported,
+  and the raw-state JSON dump is the last-resort path with no schema dependency at all. The
+  session's crash log is also reachable from the debug panel's **Errors** tab, since the panel
+  itself is dismissable.
+- `autosave.js` writes a debounced snapshot keyed by schema identity, and **`offerRecovery()` is
+  called after `withBusyOverlay` returns**, never inside it — a modal shown under the loading
+  overlay swallows its own clicks (see the comment on `#choose-root-dialog-overlay` in
+  `css/main.css`). `setSchemaIdentity` is called after `undoService.clearHistory()` for the
+  opposite reason: `clearHistory` fires `changed`, which autosave listens to, and a blank-state
+  write must not land before the stored snapshot has been read.
+- A successful Save XML calls `clearSnapshot()`. Every store function resolves rather than
+  rejects on a storage failure; the one quiet notice goes to `#autosave-status`.
 
 ### Fixtures
 

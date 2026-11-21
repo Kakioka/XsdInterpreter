@@ -100,6 +100,9 @@
     <div id="status-bar">
       <span id="zoom-indicator">100%</span>
       <span id="save-status">Not saved</span>
+      <!-- C.1 autosave indicator — written by js/ui/autosave.js; also how an
+           unavailable-storage notice is surfaced, once, instead of per-write. -->
+      <span id="autosave-status"></span>
     </div>
 
     <div id="loading-overlay" class="hidden">
@@ -127,6 +130,11 @@
     <!-- §20 Choose-root dropdown — built dynamically by js/ui/chooseRootDialog.js,
          same empty-container pattern as #package-dialog-overlay. -->
     <div id="choose-root-dialog-overlay" class="hidden"></div>
+    <!-- B.3 error boundary / C.1 crash recovery prompt — built dynamically by
+         js/ui/errorBoundary.js and js/ui/autosave.js, same empty-container
+         pattern as the dialogs above. -->
+    <div id="error-boundary-overlay" class="hidden"></div>
+    <div id="recovery-dialog-overlay" class="hidden"></div>
   </div>
 
   <!-- Folder picker fallback for browsers without showDirectoryPicker (§24). -->

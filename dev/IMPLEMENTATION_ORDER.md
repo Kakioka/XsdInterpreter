@@ -7,23 +7,43 @@ the same pass instead of being revisited twice. It supersedes neither source doc
 below links back to the section with the actual rationale, decision table, or code citation.
 `IMPLEMENTATION_PLAN.md` (Phases 0–10) is unrelated and already complete; this picks up where
 that left off.
+Keep an eye out for possible improvements. We should be flexible, and look to utilize the strengths of the this implementation rather than working around the constraints of the C# one. When an opportunity for improvement is noted, discuss with the user. 
 
 Legend: **P** = `dev/PARITY_GAP_ANALYSIS.md` item, **B** = `dev/IMPROVEMENT_BACKLOG.md` item.
 
 ---
 
-## Phase 0 — Foundation (start immediately, no dependencies)
+## Phase 0 — Foundation — **DONE**
 
 Pure data-loss protection and tooling. Nothing below depends on these, but they cost nothing to
 do first and the backlog calls both "worth doing soonest regardless of parity status."
 
-- **B.3** Error boundary — global `window.onerror`/`unhandledrejection` handler, recoverable
-  error panel, "download current state as XML."
-- **C.1** Autosave/crash recovery — `IndexedDB` persistence of `getAllFormStates()` on debounce;
-  `beforeunload` warning as an immediate stopgap.
-- **B.2** Make `js/core/` testable under `node --test` — do this *before* Phase 1, not after.
-  It turns the Phase 1 rewrite from "read the C# carefully" into "port the WPF xUnit
-  characterization tests," and it's cheap (7 of 10 core modules need no shim at all).
+- ~~**B.3** Error boundary~~ — `js/ui/errorBoundary.js`: `window.onerror` +
+  `unhandledrejection`, a dismissable panel offering "download work in progress (XML)" and a
+  schema-independent raw-state JSON dump, plus a bounded in-session crash log. Installed as the
+  first statement of `app.js`'s `init()`.
+- ~~**C.1** Autosave/crash recovery~~ — `js/core/autosaveStore.js` (IndexedDB, zero DOM) +
+  `js/ui/autosave.js` (1.5 s debounce, `beforeunload`/`pagehide`, recovery prompt).
+  `app.js`'s `restoreFromSnapshot` applies a snapshot; a successful Save XML clears it.
+- ~~**B.2** `node --test` for `js/core/`~~ — `npm test` runs 142 assertions across 10 suites
+  with **no dependencies installed**: `test/helpers/xmlDom.mjs` is a hand-rolled XML DOM rather
+  than the suggested `linkedom` (same rationale as `packager.js`'s hand-rolled ZIP writer), and
+  it defers to `linkedom` if that is ever added. Also includes
+  `test/moduleGraph.test.mjs`, a static import/export and Core-UI-boundary check — the nearest
+  thing this repo has to a compiler. See CLAUDE.md → *Running and testing*.
+
+**Found while doing B.2:** commit `9c566d2`'s `_ownParticles` refactor had regressed the
+anonymous-repeating-`xs:sequence` idiom (§4 Synthetic Nodes) — a repeating top-level sequence
+was flattened, dropping the synthetic `…Entry` wrapper and `isRepeating`, so `PriorNameList` /
+`LineItems` rendered as one non-repeating row and every value landed at an un-indexed path.
+Fixed in `parser.js` by keeping a repeating sequence whole as one particle, with the
+repeating test factored into a shared `isRepeatingParticle` helper. `dev/phase1-check.html` and
+`dev/phase2-check.html` were already asserting the correct behavior and would have been
+reporting FAIL.
+
+Phase 1's characterization-test premise now holds: the coloring suite deliberately pins the
+current (wrong) activation-context behavior under `KNOWN-WRONG` comments, so the rewrite has to
+acknowledge each change rather than silently alter it.
 
 ---
 

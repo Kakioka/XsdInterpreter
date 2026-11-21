@@ -1,0 +1,12 @@
+{
+  "name": "xsd-interpreter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser XSD-to-form editor. This file exists ONLY so `node --test` can run the js/core/ suites in test/ — nothing is bundled, installed or built, and the app still loads as plain ES modules from index.html.",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

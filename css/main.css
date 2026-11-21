@@ -669,6 +669,17 @@ body.layout-wrap .branch-content > *:not(.field-wrapper) {
   flex-shrink: 0;
 }
 
+/* Keeps the zoom indicator hard left and groups the save/autosave indicators
+ * together on the right, rather than letting space-between spread three
+ * children across the whole bar and strand the save state in the middle. */
+#save-status {
+  margin-left: auto;
+}
+
+#autosave-status {
+  margin-left: 14px;
+}
+
 /* ---------------------------------------------------------- Search panel */
 
 #search-panel {
@@ -909,6 +920,15 @@ body.layout-wrap .branch-content > *:not(.field-wrapper) {
   margin: 0;
 }
 
+/* Errors tab (js/ui/debug.js renderErrorsTab) — one collapsible entry per
+ * recorded crash, same affordance as the error boundary's own stack section. */
+#debug-panel-body summary {
+  cursor: pointer;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+  padding: 2px 0;
+}
+
 #debug-panel-body ul {
   margin: 0;
   padding-left: 18px;
@@ -1093,6 +1113,184 @@ body.layout-wrap .branch-content > *:not(.field-wrapper) {
   padding: 10px 14px;
   border-top: 1px solid var(--control-border);
   flex-shrink: 0;
+}
+
+/* ---------------------------------------------------------- Error boundary */
+
+/* dev/IMPROVEMENT_BACKLOG.md B.3 — the recoverable-crash panel. Content is
+ * built dynamically by js/ui/errorBoundary.js (same pattern as #package-dialog
+ * and #choose-root-dialog); these rules only style whatever it renders into
+ * #error-boundary-overlay. Highest z-index in the file on purpose: it has to
+ * out-rank the loading overlay (1000) AND the choose-root dialog (1010),
+ * because a crash can happen while either is up, and a panel the user can't
+ * click is the same as no panel at all. */
+#error-boundary-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1030;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+#error-boundary-overlay.hidden {
+  display: none;
+}
+
+#error-boundary-dialog {
+  width: 620px;
+  max-width: 94vw;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-background);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+#error-boundary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-weight: bold;
+  color: var(--coloring-incomplete);
+  border-bottom: 1px solid var(--control-border);
+  flex-shrink: 0;
+}
+
+#error-boundary-header button {
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+#error-boundary-body {
+  padding: 14px;
+  overflow: auto;
+}
+
+#error-boundary-lead {
+  margin: 0 0 12px;
+}
+
+#error-boundary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#error-boundary-note {
+  margin: 10px 0 0;
+  min-height: 1.2em;
+  font-size: 12.5px;
+  color: var(--secondary-text);
+}
+
+#error-boundary-note.error {
+  color: var(--coloring-incomplete);
+}
+
+#error-boundary-details {
+  margin-top: 12px;
+}
+
+#error-boundary-summary {
+  cursor: pointer;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+#error-boundary-stack {
+  margin: 8px 0 0;
+  padding: 8px;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--window-background);
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+#error-boundary-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--control-border);
+  flex-shrink: 0;
+}
+
+/* -------------------------------------------------------- Recovery dialog */
+
+/* dev/IMPROVEMENT_BACKLOG.md C.1 — "unsaved work found, restore it?". Built
+ * dynamically by js/ui/autosave.js. Shown only after the loading overlay has
+ * come down (see offerRecovery's comment), so 1010 would do; 1020 keeps it
+ * unambiguously above the choose-root dialog and below the error boundary. */
+#recovery-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1020;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+#recovery-dialog-overlay.hidden {
+  display: none;
+}
+
+#recovery-dialog {
+  width: 440px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-background);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+#recovery-dialog-header {
+  padding: 10px 14px;
+  font-weight: bold;
+  border-bottom: 1px solid var(--control-border);
+}
+
+#recovery-dialog-body {
+  padding: 14px;
+}
+
+#recovery-dialog-body p {
+  margin: 0 0 8px;
+}
+
+#recovery-dialog-body p:last-child {
+  margin-bottom: 0;
+}
+
+#recovery-dialog-body .hint {
+  font-size: 12.5px;
+  color: var(--secondary-text);
+}
+
+#recovery-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--control-border);
+}
+
+#recovery-dialog-restore-btn {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  font-weight: bold;
 }
 
 /* --------------------------------------------------------- Loading overlay */

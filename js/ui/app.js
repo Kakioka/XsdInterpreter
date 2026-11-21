@@ -10,7 +10,7 @@
 
 import { scanForBom, stripBom, findRootFileCandidates, flattenFromRoot } from '../core/flattener.js';
 import { SchemaParser, findRootElementCandidates, analyzePacket, joinPath } from '../core/parser.js';
-import { FormEngine, FormInstanceKey, createEmptyFormState } from '../core/formEngine.js';
+import { FormEngine, FormInstanceKey, createEmptyFormState, keyOf } from '../core/formEngine.js';
 import { readPacket } from '../core/xmlReader.js';
 import { buildPacketXml } from '../core/xmlWriter.js';
 import { UndoService, FormAddAction, FormRemoveAction, FillTestDataAction, ContainerFillAction, ContainerClearAction, ClearAllAction } from '../core/undoService.js';
@@ -26,6 +26,9 @@ import * as contextMenuUi from './contextMenu.js';
 import * as themeUi from './theme.js';
 import * as debugUi from './debug.js';
 import * as packagingUi from './packaging.js';
+import * as autosaveUi from './autosave.js';
+import { installErrorBoundary } from './errorBoundary.js';
+import { computeSchemaKey } from '../core/autosaveStore.js';
 import { chooseOne } from './chooseRootDialog.js';
 
 const appState = {
@@ -74,7 +77,7 @@ async function withBusyOverlay(message, work) {
 // ---------------------------------------------------------------------------
 
 async function loadSchema(fileTextMap) {
-  await withBusyOverlay('Parsing schema…', async () => {
+  const loaded = await withBusyOverlay('Parsing schema…', async () => {
     const bomHits = scanForBom(fileTextMap);
     if (bomHits.length > 0) {
       const proceed = window.confirm(
@@ -82,7 +85,7 @@ async function loadSchema(fileTextMap) {
           .map((h) => h.name)
           .join('\n')}\n\nStrip it and continue?`
       );
-      if (!proceed) return;
+      if (!proceed) return false;
       for (const hit of bomHits) fileTextMap.set(hit.name, stripBom(fileTextMap.get(hit.name)));
     }
 
@@ -92,7 +95,7 @@ async function loadSchema(fileTextMap) {
       'Could not determine a root schema file — every file is referenced by another via xs:include/xs:import.',
       'Multiple possible root schema files found. Which one is the packet root?'
     );
-    if (!rootFileName) return;
+    if (!rootFileName) return false;
 
     const { doc: flatDoc, targetNamespace } = flattenFromRoot(fileTextMap, rootFileName);
     appState.flatDoc = flatDoc;
@@ -104,7 +107,7 @@ async function loadSchema(fileTextMap) {
       'Could not determine a root packet element — every global element is referenced by another via xs:element ref=.',
       'Multiple possible root elements found. Which one is the packet root?'
     );
-    if (!rootElementName) return;
+    if (!rootElementName) return false;
 
     appState.schemaParser = new SchemaParser(flatDoc, rootElementName);
     appState.manifest = analyzePacket(flatDoc, rootElementName);
@@ -121,8 +124,23 @@ async function loadSchema(fileTextMap) {
     packagingUi.refreshCreatePackageButton(appState); // formEngine.reset() above doesn't fire dirtyChanged/controlValueChanged
     toolbar.setStatus(`Loaded ${appState.manifest.packetName}`);
 
+    // Autosave keys its snapshot by schema identity (C.1), so it can only be
+    // told what that is once the root file/element are actually settled.
+    // Deliberately AFTER clearHistory() above — that dispatches undoService's
+    // 'changed', which autosave listens to, and a blank-state write landing
+    // before offerRecovery() has read the stored snapshot would be writing
+    // over the very work we are about to offer back.
+    autosaveUi.setSchemaIdentity(computeSchemaKey(fileTextMap, rootFileName, rootElementName), appState.manifest.packetName);
+
     if (appState.instanceKeys.length > 0) switchToForm(appState.instanceKeys[0]);
+    return true;
   });
+
+  // Recovery prompt goes here, not inside the callback: withBusyOverlay's
+  // loading overlay is still up in there, and anything modal shown underneath
+  // it silently swallows its own clicks (the trap documented on
+  // #choose-root-dialog-overlay in css/main.css).
+  if (loaded) await autosaveUi.offerRecovery();
 }
 
 /** One instance key per required, non-repeatable LEAF form (e.g. FormN11), in
@@ -317,6 +335,49 @@ async function loadXmlText(xmlText) {
   });
 }
 
+/**
+ * Applies a js/core/autosaveStore.js snapshot (C.1 crash recovery) — the same
+ * shape of operation as loadXmlText above, just sourced from IndexedDB instead
+ * of a file, and so it follows the same sequence: reset, clear history, restore
+ * every FormState, re-derive the nav tree, switch to the first instance.
+ *
+ * Passed to autosave.wireAutosave as its `restoreSnapshot` callback; never
+ * called directly, because only autosave.js knows whether the user agreed.
+ */
+function restoreFromSnapshot(snapshot) {
+  if (!appState.manifest) return;
+  appState.formEngine.reset();
+  appState.undoService.clearHistory(); // §22 invariant 23 — a restore is a state load, same as an XML load
+
+  const keys = (snapshot.instanceKeys || []).map((k) => FormInstanceKey.parse(k));
+  // The snapshot records instanceKeys in natural case (parseGlobalElement needs
+  // the exact schema name) but its formStates dict under FormEngine's own
+  // lower-cased keyOf() keys, so the two halves are re-paired here.
+  const remaining = new Map(Object.entries(snapshot.formStates || {}));
+  for (const key of keys) {
+    const stored = keyOf(key);
+    if (remaining.has(stored)) {
+      appState.formEngine.restoreFormState(key, remaining.get(stored));
+      remaining.delete(stored);
+    }
+  }
+  // A stored state with no matching instance key shouldn't happen, but keep it
+  // rather than silently dropping entered data — it just isn't reachable from
+  // the nav tree (its parsed form name is lower-cased, so it is deliberately
+  // never switched to).
+  for (const [storedKey, state] of remaining) appState.formEngine.restoreFormState(FormInstanceKey.parse(storedKey), state);
+
+  appState.instanceKeys = keys;
+  appState.currentInstanceKey = null;
+
+  rebuildNavTree();
+  packagingUi.refreshCreatePackageButton(appState); // formEngine.reset() above doesn't fire dirtyChanged/controlValueChanged
+  toolbar.setStatus(`Restored autosaved work (${keys.length} form instance${keys.length === 1 ? '' : 's'})`);
+
+  if (keys.length > 0) switchToForm(keys[0]);
+  else refreshSaveStatus();
+}
+
 /** Shared by Save XML and packaging.js's "Create Submission Package" (§19) —
  *  both need the exact same flush-then-serialize sequence to get the
  *  packet's current, in-progress-edit-included state as an XML string. */
@@ -347,6 +408,9 @@ async function saveXml() {
     const allFormStates = appState.formEngine.getAllFormStates();
     toolbar.downloadXmlString(xmlString, `${appState.manifest.packetName}.xml`);
     toolbar.setStatus('Saved');
+    // The work is on disk now, so the autosave snapshot would only serve to
+    // offer back on the next load something the user already has (C.1).
+    autosaveUi.clearSnapshot();
     // §13 status bar: a completed Save XML writes EVERY stored form's state to
     // the file, so every one of them (not just the active form) is clean now.
     for (const state of allFormStates.values()) state.isDirty = false;
@@ -563,6 +627,19 @@ function clearActiveForm() {
 // ---------------------------------------------------------------------------
 
 function init() {
+  // FIRST, before any other wiring: a throw in one of the init steps below is
+  // exactly the dead-UI-with-no-message failure the boundary exists to surface
+  // (dev/IMPROVEMENT_BACKLOG.md B.3).
+  installErrorBoundary({
+    getRecoveryXml: () => (appState.manifest ? buildCurrentPacketXml() : null),
+    getStateJson: () => ({
+      instanceKeys: appState.instanceKeys.map((k) => k.toString()),
+      formStates: Object.fromEntries(appState.formEngine.getAllFormStates()),
+    }),
+    getPacketName: () => appState.manifest?.packetName ?? null,
+  });
+  autosaveUi.wireAutosave({ appState, restoreSnapshot: restoreFromSnapshot });
+
   toolbar.wireToolbar({
     onSchemaFilesSelected: loadSchema,
     onXmlTextSelected: loadXmlText,

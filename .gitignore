@@ -1,0 +1,13 @@
+# The app ships with zero dependencies and has no build step (see CLAUDE.md).
+# package.json exists only so `node --test` treats js/ as ES modules and
+# `npm test` has somewhere to live — nothing should ever be installed. These
+# entries are here so that if something IS installed (e.g. adding `linkedom`
+# as a test-only devDependency), the install output doesn't land in the repo.
+node_modules/
+package-lock.json
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

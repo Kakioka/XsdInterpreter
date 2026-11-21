@@ -12,6 +12,8 @@
 // (re)renders on a toggle, a tab click, or a 200ms-debounced value-change
 // event (§21 "Refresh"), so there's no hot path here to optimize against.
 
+import { getErrorLog } from './errorBoundary.js';
+
 let _appState = null;
 let _activeTab = 'fields';
 let _selectedSchemaPath = null; // Schema Tree tab's clicked-node detail selection
@@ -21,6 +23,7 @@ const TABS = [
   { id: 'fields', label: 'Fields' },
   { id: 'schema', label: 'Schema Tree' },
   { id: 'state', label: 'State' },
+  { id: 'errors', label: 'Errors' },
   { id: 'export', label: 'Export' },
 ];
 
@@ -163,6 +166,9 @@ function render() {
       break;
     case 'state':
       body.appendChild(renderStateTab());
+      break;
+    case 'errors':
+      body.appendChild(renderErrorsTab());
       break;
     case 'export':
       body.appendChild(renderExportTab());
@@ -341,6 +347,41 @@ function labeledPre(label, obj) {
   const pre = document.createElement('pre');
   pre.textContent = JSON.stringify(obj, null, 2);
   wrap.append(heading, pre);
+  return wrap;
+}
+
+// ---------------------------------------------------------------------------
+// Errors tab — this session's crash log (errorBoundary.js, backlog B.3)
+// ---------------------------------------------------------------------------
+//
+// The error boundary's own panel is modal and dismissable, so without this the
+// log would be unreachable once dismissed — and "what was that error again?"
+// is exactly the question the panel is dismissed before answering.
+
+function renderErrorsTab() {
+  const wrap = document.createElement('div');
+  const log = getErrorLog();
+
+  const heading = document.createElement('h5');
+  heading.textContent = log.length === 0 ? 'No errors this session' : `Errors this session (${log.length}, newest last)`;
+  wrap.appendChild(heading);
+
+  if (log.length === 0) {
+    const hint = document.createElement('p');
+    hint.textContent = 'Uncaught exceptions and unhandled promise rejections are recorded here as they happen.';
+    wrap.appendChild(hint);
+    return wrap;
+  }
+
+  for (const entry of log) {
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = `${entry.when.toLocaleTimeString()} (${entry.source}) ${entry.name}: ${entry.message}`;
+    const pre = document.createElement('pre');
+    pre.textContent = entry.stack || '(no stack)';
+    details.append(summary, pre);
+    wrap.appendChild(details);
+  }
   return wrap;
 }
 

@@ -140,6 +140,12 @@ build DOM in parallel with the walk. Start with the four read-only consumers
 
 ### B.2 Make the `core/` layer testable in Node
 
+**Status: done** (Phase 0). `npm test` →
+`node --test "test/**/*.test.mjs"`. Implemented WITHOUT the `linkedom` devDependency suggested
+below — `test/helpers/xmlDom.mjs` hand-rolls the XML DOM instead, so the suite runs on a clean
+checkout with no install and no network, and defers to `linkedom` if it is ever added.
+`dependencies` and `devDependencies` in `package.json` are both empty.
+
 Right now **nothing can verify a change without a human opening a browser and reading
 PASS/FAIL rows** — a real drag on both human and agent iteration, and the reason `CLAUDE.md` has
 to tell agents not to claim a change is verified.
@@ -167,6 +173,8 @@ coloring characterization tests to mine for cases.
 
 ### B.3 No error boundary
 
+**Status: done** (Phase 0) — `js/ui/errorBoundary.js`.
+
 There's no `window.onerror` or `unhandledrejection` handler. A throw partway through
 `switchToForm` leaves a half-built DOM in `#form-content-host` with `appState.currentInstanceKey`
 already reassigned — the UI is dead with no message, and the user's unsaved state is still in
@@ -189,6 +197,8 @@ eleven times.
 ## C. Capabilities the desktop app couldn't have
 
 ### C.1 Autosave and crash recovery — treat as required, not optional
+
+**Status: done** (Phase 0) — `js/core/autosaveStore.js` + `js/ui/autosave.js`.
 
 **This is a regression the web introduces, not just a missing nicety.** The WPF app held state
 in a process the user deliberately closed. A browser tab can be closed by accident, crash, or be
