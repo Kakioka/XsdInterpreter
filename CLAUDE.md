@@ -97,6 +97,9 @@ Practical notes for an agent:
 6. **`dev/PHASE9_DRYRUN_FINDINGS.md`** — per-construct evidence for XSD features the parser
    doesn't model (`xs:union`, substitution groups, wildcards, `xs:redefine`, …). **Its summary
    table is stale**: findings #0 and #11 have since been fixed.
+7. **`dev/IMPLEMENTATION_ORDER.md`** — the merged execution order across `PARITY_GAP_ANALYSIS.md`
+   and `IMPROVEMENT_BACKLOG.md`'s own (separate) sequencing sections. Check this before picking
+   what to work on next; it groups items that touch the same code into one pass instead of two.
 
 ## Reference implementation
 

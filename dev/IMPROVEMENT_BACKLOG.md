@@ -334,3 +334,20 @@ unlocks nearly for free.
 
 **C.1 and B.3 are the two worth doing soonest regardless of parity status** — everything else on
 this list costs time, but those two are about not losing a user's work.
+
+---
+
+## Revisit note (2026-11-20)
+
+Once parity (`dev/PARITY_GAP_ANALYSIS.md` Tiers 1–3) is substantially closed, re-examine this
+backlog with fresh eyes specifically for web-platform tools and practices that have no WPF
+analogue at all — not just the C/D items already listed here, which were found by diffing
+against the C# app's own feature set. The original can only suggest improvements shaped like
+itself; a second pass should ask what a web-native rebuild would do that the reference app
+structurally couldn't, without using it as the starting point. Candidates worth scoping at that
+point (illustrative, not a commitment): streaming/progressive rendering for very large forms,
+URL-addressable state beyond deep links (C.7), service-worker-based update/versioning strategy
+for the PWA (C.4), and whatever the state of in-browser WASM validators (C.2) looks like by then.
+At that point also revisit whether UI-layer architecture (React vs. the current vanilla
+renderer) is still the right call — see the 2026-11-20 conversation where this was assessed as
+not yet justified, pending `B.1`'s core-layer refactor landing first.
