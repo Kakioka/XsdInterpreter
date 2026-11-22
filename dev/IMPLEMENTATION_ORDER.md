@@ -25,7 +25,7 @@ do first and the backlog calls both "worth doing soonest regardless of parity st
 - ~~**C.1** Autosave/crash recovery~~ — `js/core/autosaveStore.js` (IndexedDB, zero DOM) +
   `js/ui/autosave.js` (1.5 s debounce, `beforeunload`/`pagehide`, recovery prompt).
   `app.js`'s `restoreFromSnapshot` applies a snapshot; a successful Save XML clears it.
-- ~~**B.2** `node --test` for `js/core/`~~ — `npm test` runs 142 assertions across 10 suites
+- ~~**B.2** `node --test` for `js/core/`~~ — `npm test` runs 152 assertions across 10 suites
   with **no dependencies installed**: `test/helpers/xmlDom.mjs` is a hand-rolled XML DOM rather
   than the suggested `linkedom` (same rationale as `packager.js`'s hand-rolled ZIP writer), and
   it defers to `linkedom` if that is ever added. Also includes
@@ -41,25 +41,55 @@ repeating test factored into a shared `isRepeatingParticle` helper. `dev/phase1-
 `dev/phase2-check.html` were already asserting the correct behavior and would have been
 reporting FAIL.
 
-Phase 1's characterization-test premise now holds: the coloring suite deliberately pins the
-current (wrong) activation-context behavior under `KNOWN-WRONG` comments, so the rewrite has to
-acknowledge each change rather than silently alter it.
+The two `KNOWN-WRONG` characterization tests the coloring suite carried — pinning the
+pre-activation behavior so the rewrite had to acknowledge each change — did their job in Phase 1
+and were replaced by assertions of the new rules.
 
 ---
 
-## Phase 1 — Activation-context rewrite (highest-value item in either document)
+## Phase 1 — Activation-context rewrite — **DONE**
 
-One root cause, three symptoms, two files that must change together — do all of it in one pass:
+One root cause, three symptoms, two files that had to change together — all done in one pass:
 
-- **P 1.1 + 1.2 + 1.3** — thread `parentIsActiveOrRequired` through `coloringService.js` and
-  `validation.js`; fix the zero-instance-repeating-section-colors-Green bug as part of the same
-  decision-ladder rewrite.
-- **B A.2** — while both walks are already open for surgery, merge `computeAllColors` and
-  `validateSchema` into one walk emitting both a color map and an error list. Doing this after
-  the fact means re-touching the same lines twice.
-- **B A.3** — same reasoning for the duplicated facet switch: merge `validateField` /
-  `isFieldValid` into one exported `core/` predicate now, since Phase 2 (below) would otherwise
-  add three new facets to both copies.
+- ~~**P 1.1 + 1.2 + 1.3**~~ — `js/core/coloringService.js` threads `parentIsActiveOrRequired`
+  from the form root down, through the reference's decision ladder; zero-instance repeating
+  sections are Red-or-Yellow, never Green.
+- ~~**B A.2**~~ — `analyzeForm(schemaElement, state)` → `{colors, errors}`, one traversal.
+  `js/ui/validation.js` keeps only the packet-level work (instance keys, error identity,
+  unmatched fields, the panel) and no longer dispatches on schema shapes, so Phase 7 starts from
+  five parallel walkers instead of six.
+- ~~**B A.3**~~ — `validateFieldValue` is the single facet switch; `validateField` is a
+  re-export and `isFieldValid` a verdict-only wrapper. Phase 2's three new facets are a
+  one-place change.
+
+**Spec rewritten, not just code:** `web-implementation-spec.md` §9 and §16 described the old
+pure roll-up and the old ungated walk, so they were rewritten in the same pass (the user's
+call) and §22 gained invariant 30. The spec is the source of truth per CLAUDE.md, so leaving it
+describing superseded algorithms would have made every later phase argue with it.
+
+**Decisions taken beyond a literal port of the reference,** each documented where the code is:
+
+- An explicit radio selection, and an existing repeating instance, each count as activation for
+  **errors as well as colors**. The reference's coloring walk says so while its completeness walk
+  does not, so it paints a selected branch's required fields Red while Validate stays silent and
+  Save XML emits the incomplete branch unwarned. (The repeating case is not even a divergence:
+  the reference derives instance counts from the values themselves, so `count > 0` always implied
+  a value was present — this codebase stores counts explicitly and can represent a blank added
+  row.)
+- Container completeness requires each leaf to be present **and valid**, where the reference
+  checks presence only — otherwise §9's filled-but-invalid-is-Red rule would not survive the
+  roll-up.
+- An unchecked checkbox (boolean `false`) counts as *answered* but not as *engagement*. The
+  reference treats `false` as no value at all, which is why it carries checkbox exceptions at
+  several call sites; here it would otherwise activate every container holding a checkbox the
+  moment a form rendered.
+
+**Found while doing this:** `dev/phase5-check.html`'s section E asserted an occurrence error for
+the fixture's two `<PriorNameList>` entries, read against the OUTER element's `maxOccurs=1`.
+That row has never passed — occurrence bounds are checked against the repeating node (the
+synthetic `PriorNameListEntry`, whose `<xs:sequence maxOccurs="unbounded">` allows any number),
+and `parser.js` deliberately leaves reconciling those two independent numbers open. The row was
+corrected to assert the real contract, with the bounds check itself now covered headlessly.
 
 ---
 

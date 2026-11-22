@@ -21,7 +21,7 @@ js/
     flattener.js        — XSD include/import resolution → flat DOM
     parser.js           — Flat XSD DOM → SchemaElement tree
     formEngine.js       — Central state manager
-    coloringService.js  — R/G/Y completeness logic
+    coloringService.js  — R/G/Y completeness coloring + completeness errors (one walk)
     xmlWriter.js        — Form state → XML string
     xmlReader.js        — XML string → form state
     searchService.js    — Cross-form field text search
@@ -36,7 +36,7 @@ js/
     controlFactory.js   — Creates individual input elements
     coloring.js         — Applies R/G/Y borders to DOM controls
     search.js           — Search panel UI
-    validation.js       — Validation panel UI
+    validation.js       — Validation entry point + panel UI
     undo.js             — Undo/redo UI wiring
     contextMenu.js      — Container right-click fill/clear
     theme.js            — Theme loading and CSS variable application
@@ -596,34 +596,144 @@ Using `prefix + '.' + name` directly (without the empty-prefix guard) produces a
 
 **File:** `js/core/coloringService.js`
 
-Computes `FieldColorState` for every registered field based on completeness and validity rules.
+Computes `FieldColorState` for every node in a form's tree — leaf fields, attributes, containers, repeating instances, radio groups and selected branches alike — and, **in the same walk**, the completeness errors §16 reports.
+
+```js
+analyzeForm(schemaElement, state) -> { colors: Map<lowercasedPath, FieldColorState|null>,
+                                       errors: [{ path, kind, message }] }
+```
+
+`computeAllColors(schemaElement, state)` is the colors-only entry point `js/ui/coloring.js` uses; §16's `validateSchema` consumes the error list and adds form/instance identity. Colors are keyed by the same lower-cased, fully-indexed path convention FormEngine uses (§8).
+
+**Why one walk.** Coloring and completeness-error collection were two parallel walks in earlier drafts of this spec, and still are in the WPF reference — whose own invariant list carries a rule whose entire purpose is to warn that the two must be edited together. They compute the same predicates from the same inputs and so could contradict each other; a required repeating section with zero instances coloring Green while the validator reported an occurrence error for that same node was the standing example. One traversal makes that class of bug unrepresentable.
+
+### Activation context
+
+A required field only *demands* a value once the user is actually working in the part of the form that contains it. Without this, a freshly loaded form paints large swaths of Red and Validate reports hundreds of errors for optional sections nobody has opened.
+
+The walk threads one boolean, `parentIsActiveOrRequired`, recomputed at every container:
+
+```
+thisIsActiveOrRequired = element.isRequired ? parentIsActiveOrRequired
+                                            : isActivated(element, effectivePath)
+```
+
+seeded `true` at the form root — **a form root is always a required context**, since there is no outer container that could have activated it, and a form the user navigated to is by definition one they are working in.
+
+```
+isActivated(container, path):
+  if container.isRequired: return true
+  if not hasAnyDescendantValue(container, path): return false
+  // all-optional-children exception: filling one optional field in a container
+  // whose children are ALL optional cannot make any sibling mandatory
+  return container.children.some(c => c.isRequired)
+```
+
+Two things activate a subtree besides a value:
+
+- **An explicit radio selection.** The branch the user picked is always an active context, however dormant its surroundings — picking a branch is a commitment to filling it. (This matters: the alternative lets an incomplete selected branch reach the XML with no warning.)
+- **An existing repeating instance.** A row exists only because the user clicked Add or an XML load created it, so every instance walks in an active context, and a repeating child with `count > 0` counts as a descendant value for its parent's activation.
+
+`hasAnyDescendantValue` is about *engagement*, not completeness, and differs from `hasValue` in one case: an unchecked checkbox (boolean `false`) does not count. FormEngine's flush writes `false` for every unchecked checkbox the moment a form renders, so counting it would activate every container holding one and collapse the whole mechanism. An unchecked box still counts as **complete** — it is answered, just not evidence of engagement. `hasAnyDescendantValue` also ignores unselected radio branches, so data stranded in a branch the user swapped away from never activates anything.
 
 ### Color Rules
 
 ```
-computeColor(element, value, allValues, radioSelections):
-  if isEmpty(value):
-    return element.isRequired ? 'Red' : 'Yellow'   // empty: Red if required, Yellow if optional
-  return isValid(element, value) ? 'Green' : 'Red'  // filled: Green if valid, Red if not — required or not
+computeColor(element, value, parentIsActiveOrRequired):
+  if not isEmpty(value):
+    return isFieldValid(element, value) ? 'Green' : 'Red'   // filled: Green if valid, Red if not
+  if element.isRequired:
+    return parentIsActiveOrRequired ? 'Red' : 'Yellow'      // required: Red only where it is actually being asked for
+  return 'Yellow'                                           // optional and empty
 ```
 
-Every leaf always has some color — there is no "no color" state. Yellow marks "optional and empty" as distinctly as Red marks "required and empty"; a field only turns Red once it's genuinely wrong (required-and-empty, or filled with invalid data).
+Every leaf the walk reaches has some color — there is no "no color" state. (The one unreached case is anything inside an unselected radio branch; `js/ui/coloring.js` clears the classes of an indexed element the map has no entry for.) Yellow marks "nothing is being asked of you here" as distinctly as Red marks "this is wrong"; a field only turns Red once it is genuinely wrong — required-and-empty *in an active context*, or filled with invalid data.
 
 ### Container Coloring
 
 ```
-computeContainerColor(containerElement, allValues, radioSelections):
-  childColors = computeChildColors(...)
-  if childColors is empty (no scoreable descendants at all):
-    return containerElement.isRequired ? 'Green' : 'Yellow'
-  if all children are Green: return 'Green'   // strict: ALL must be complete
-  if any child is Red: return 'Red'
+containerColor(element, path, parentIsActiveOrRequired):
+  if element.children is empty: return 'Yellow'     // nothing to complete, so never Green either
+
+  requiredComplete = allRequiredChildrenComplete(element, path)
+
+  if parentIsActiveOrRequired and element.isRequired:
+    return requiredComplete ? 'Green' : 'Red'
+
+  // optional container, or any container in a not-yet-active context
+  if not hasAnyDescendantValue(element, path): return 'Yellow'   // untouched
+  if not requiredComplete:                     return 'Red'      // activated internally, unfinished
+  if allChildrenComplete(element, path):       return 'Green'    // strict: required AND optional
   return 'Yellow'
 ```
 
-**Radio branch coloring:** Only evaluate the selected branch. Hidden branches are ignored. An unselected radio group reads the same as an empty leaf: Red if required, Yellow if optional.
+An **active required** container goes Green as soon as nothing *required* is missing: "Green" means "nothing more is being asked of you here", and empty optional children no longer hold it back. An **optional or not-yet-active** container keeps the strict bar — it reaches Green only once there is genuinely nothing left to fill in (invariant 6).
 
-**Optional child poisoning:** since every child always has a color, a container is Green only once every child (required or optional) is Green — an optional child left empty (Yellow) or filled invalid (Red) keeps its parent from reading Green, same as a required one would.
+Container completeness requires each leaf to be present **and valid**, not merely present — otherwise the "filled-but-invalid is Red" rule above would not survive the roll-up and a container full of malformed values could read Green.
+
+```
+allRequiredChildrenComplete(container, path):   // the Green/Red split for an active required container
+  for each child:
+    if not child.isRequired:
+      leaf or attribute        -> never blocks
+      RadioGroup               -> blocks iff a branch is selected and incomplete
+      repeating                -> every EXISTING instance's required content must be complete
+      container                -> blocks iff isActivated(child) and its own required content is incomplete
+    else:
+      RadioGroup               -> a branch must be selected AND complete
+      repeating                -> count > 0, and every instance complete (and not entirely blank)
+      leaf or attribute        -> present and valid
+      container                -> recurse
+  return true
+
+allChildrenComplete(container, path):           // strict: every child, optional ones included
+  zero children -> false
+  RadioGroup    -> selected branch strictly complete
+  repeating     -> count > 0 and every instance strictly complete
+  leaf          -> present and valid
+  container     -> recurse, and must have a descendant value of its own
+```
+
+Invariant 7 lives in `allRequiredChildrenComplete`'s optional-child cases: an optional child the user has already activated and left half-finished is effectively Red and must keep its required parent off Green.
+
+### Radio branch coloring
+
+Only the **selected** branch is walked. Hidden branches are ignored entirely — they are not colored, they contribute nothing to any ancestor's completeness, and their data cannot activate anything. (The one place unselected branches are read is §16's "more than one branch populated" count, where that is the error being reported.)
+
+```
+radioGroupColor(group, choicePath, parentIsActiveOrRequired):
+  option = the child whose elementPath equals state.radioSelections[choicePath]   // §22 invariant 27
+  if a selection is recorded but resolves to no option: return null   // stale state; defensive
+  if no selection: return (group.isRequired and parentIsActiveOrRequired) ? 'Red' : 'Yellow'
+
+  complete = allRequiredChildrenComplete(option, optionPath)
+             and hasAnyDescendantValue(option, optionPath)
+  if group.isRequired or parentIsActiveOrRequired:
+    return complete ? 'Green' : 'Red'          // same "required covered" bar as a required container
+  if complete and allChildrenComplete(option, optionPath): return 'Green'
+  return complete ? 'Yellow' : 'Red'
+```
+
+The "something in the branch actually has a value" half of `complete` is what stops a branch of nothing but empty optional fields from turning a required radio group Green the instant a button is clicked.
+
+The selected branch's own wrapper is then colored in its own right, at `joinPath(choicePath, option.elementName)` (§22 invariant 29) and always in an active context — `js/ui/coloring.js` paints it on `.branch-content[data-path]`. The wrapper is optional (the parser builds every `OptionN` with `isRequired: false`), so the strict ladder applies to it: an unfilled optional field inside the branch holds the *wrapper* at Yellow even while the *group* reads Green.
+
+### Repeating sections
+
+A repeating node — a synthetic `…Entry` wrapper, or a real element with `maxOccurs > 1` — is colored at its own un-indexed path from the aggregate of its instances, each of which is colored at `path[i]`:
+
+```
+any instance Red    -> Red
+all instances Green -> Green
+otherwise           -> Yellow
+
+zero instances: leaf -> the normal leaf rule
+                else -> (element.isRequired and parentIsActiveOrRequired) ? 'Red' : 'Yellow'
+```
+
+**Zero instances is never Green** (invariant 30). An earlier draft aggregated an empty instance list through the generic container rule, which answered Green for a required node — so a required list the user had never added a row to read as *complete*.
+
+The repeating test is made per child, on `element.isRepeating`, regardless of what the parent looks like: an anonymous repeating `xs:sequence` can validly sit alongside sibling content, in which case the parent is not an `isRepeatingContentContainer` and a parent-shape test would walk the wrapper once at an un-indexed path where no value ever lives.
 
 ### Coloring Index
 
@@ -1384,31 +1494,41 @@ A slide-in panel (Ctrl+F):
 
 ## 16. Validation
 
-**File:** `js/ui/validation.js`
+**File:** `js/ui/validation.js` (the entry point and the panel) over `js/core/coloringService.js` (the walk)
 
-Full schema validation is a hard requirement for this tool — output is meant to be filed as real IRS/state MeF submissions, so "looks complete in the form" is not enough; the generated XML must actually conform to the schema's structure, not just each field's own facets.
+Full schema validation is a hard requirement for this tool — output is meant to be filed as real submissions, so "looks complete in the form" is not enough; the generated XML must actually conform to the schema's structure, not just each field's own facets.
 
 ### Field-Level Validation
 
-On `blur` (or immediately for select/checkbox), run the field's validation rules. This now covers every `ValidationRule.kind` defined in §2, including `totalDigits`/`fractionDigits` (missing from earlier drafts of this spec — decimal fields like `PercentType` in the sample schema depend on it):
+On `blur` (or immediately for select/checkbox), run the field's validation rules. This is one function for the whole codebase — `coloringService.validateFieldValue`, re-exported here as `validateField` and used verdict-only by the coloring walk as `isFieldValid`. It covers every `ValidationRule.kind` defined in §2, including `totalDigits`/`fractionDigits` (decimal fields like `PercentType` in the sample schema depend on it):
 
 ```js
-function validateField(value, element) {
-  if (isEmpty(value) && !element.isRequired) return { valid: true };
-  for (const rule of element.validationRules) {
+function validateFieldValue(value, element) {
+  // Emptiness is a completeness concern, not a validity one (§22 invariant 4).
+  // Short-circuit unconditionally — including for REQUIRED fields, which an
+  // earlier draft of this spec let fall through into the rule loop, where
+  // String(undefined).length produced a spurious format message ("Min length: 6")
+  // for a field whose actual problem was that it was empty. The callers below
+  // all test emptiness themselves before reaching this.
+  if (isEmpty(value)) return { valid: true };
+  for (const rule of element.validationRules || []) {
     switch (rule.kind) {
-      case 'minLength':      if (String(value).length < +rule.value) return { valid: false, message: `Min length: ${rule.value}` };
-      case 'maxLength':      if (String(value).length > +rule.value) return { valid: false, message: `Max length: ${rule.value}` };
-      case 'pattern':        if (!new RegExp('^(?:' + rule.value + ')$').test(String(value))) return { valid: false, message: patternDescriber.describe(rule.value) };
-      case 'minInclusive':   if (+value < +rule.value) return { valid: false, message: `Min value: ${rule.value}` };
-      case 'maxInclusive':   if (+value > +rule.value) return { valid: false, message: `Max value: ${rule.value}` };
+      // Every case breaks. Without the breaks (another earlier-draft bug) each
+      // case falls through into every later case's condition too, misapplying
+      // e.g. a minLength rule's own value as a maxLength threshold.
+      case 'minLength':      if (String(value).length < +rule.value) return { valid: false, message: `Min length: ${rule.value}` }; break;
+      case 'maxLength':      if (String(value).length > +rule.value) return { valid: false, message: `Max length: ${rule.value}` }; break;
+      case 'pattern':        if (!new RegExp('^(?:' + rule.value + ')$').test(String(value))) return { valid: false, message: patternDescriber.describe(rule.value) }; break;
+      case 'minInclusive':   if (+value < +rule.value) return { valid: false, message: `Min value: ${rule.value}` }; break;
+      case 'maxInclusive':   if (+value > +rule.value) return { valid: false, message: `Max value: ${rule.value}` }; break;
       case 'totalDigits':    if (String(value).replace(/[-.]/g, '').replace(/^0+(?=\d)/, '').length > +rule.value)
-                                return { valid: false, message: `Max total digits: ${rule.value}` };
+                               return { valid: false, message: `Max total digits: ${rule.value}` }; break;
       case 'fractionDigits': { const frac = String(value).split('.')[1] || '';
-                                if (frac.length > +rule.value) return { valid: false, message: `Max decimal places: ${rule.value}` }; }
+                               if (frac.length > +rule.value) return { valid: false, message: `Max decimal places: ${rule.value}` }; break; }
+      default: break;        // an unknown kind is ignored, not failed — the parser may extract kinds this switch doesn't know yet
     }
   }
-  if (element.kind === 'DatePicker' && !isEmpty(value) && isNaN(Date.parse(value)))
+  if (element.kind === 'DatePicker' && isNaN(Date.parse(value)))
     return { valid: false, message: 'Invalid date' };
   return { valid: true };
 }
@@ -1418,82 +1538,48 @@ Show error text below the input. Set the input's border to `var(--coloring-incom
 
 ### Full Structural Schema Validation
 
-Field-level facet checks alone don't catch a wrong element count, a `xs:choice` with zero or multiple branches populated, or content that doesn't belong under the schema at all. A generic, arbitrary XSD 1.0/1.1 validator (identity constraints, substitution groups, wildcards, `xs:union`/`xs:list`, mixed content — see the MeF Compatibility Checklist near the end of this document) is out of scope for a from-scratch vanilla-JS tool. Instead, validate everything this tool's own parser (§4) already models — since the `SchemaElement` tree *is* this tool's representation of the schema, walking it against the actual document is a complete validator for every construct the tool supports:
+Field-level facet checks alone don't catch a wrong element count, an `xs:choice` with zero or multiple branches populated, or content that doesn't belong under the schema at all. A generic, arbitrary XSD 1.0/1.1 validator (identity constraints, substitution groups, wildcards, `xs:union`/`xs:list`, mixed content — see the MeF Compatibility Checklist near the end of this document) is out of scope for a from-scratch vanilla-JS tool. Instead, validate everything this tool's own parser (§4) already models — since the `SchemaElement` tree *is* this tool's representation of the schema, walking it against the actual document is a complete validator for every construct the tool supports.
+
+**That walk is §9's `analyzeForm`.** The structural walk is not duplicated here: §9 traverses the tree once and returns both the color map and the error list, so a node can never be reported incomplete while being painted complete. Everything that remains in this file is the packet-level part §9 cannot know about — which instances exist, in what order, and what identity to stamp on each error:
 
 ```js
-function validateSchema(manifest, allFormStates, schemaParser):
-  const errors = []   // { formName, path, kind: 'completeness'|'occurrence'|'choice'|'format'|'unmatched', message }
+function validateSchema(orderedInstanceKeys, allFormStates, schemaParser):
+  const errors = []   // { formName, instanceKey, path, kind, message }
 
-  for each instanceKey of activeInstanceKeys(allFormStates):
-    const state = allFormStates.get(instanceKey.toString())
+  for each instanceKey of orderedInstanceKeys:
+    // A form the user never switched into has no FormState at all (FormEngine
+    // creates them lazily, in setActiveForm) — it is exactly as unfilled as one
+    // that WAS visited and left blank, so an empty FormState stands in rather
+    // than skipping the key. Skipping it silently dropped every never-rendered
+    // form's completeness errors from Validate, Save XML and Package alike,
+    // all three of which share this function.
+    const state = allFormStates.get(keyOf(instanceKey)) ?? createEmptyFormState()
     const schemaElement = schemaParser.parseGlobalElement(instanceKey.formName)
-    validateNode(schemaElement, state, '', errors, instanceKey.formName)
+    if (!schemaElement) continue
+
+    for each error of analyzeForm(schemaElement, state).errors:
+      errors.push({ formName: instanceKey.formName, instanceKey: instanceKey.toString(), ...error })
+
     for each u of state.unmatchedFields:     // §11 — populated at XML-read time
-      errors.push({ formName: instanceKey.formName, path: u.xmlPath, kind: 'unmatched',
+      errors.push({ formName: instanceKey.formName, instanceKey: instanceKey.toString(),
+                    path: u.xmlPath, kind: 'unmatched',
                     message: `Unrecognized element in source XML: ${u.xmlPath}` })
 
   return errors
-
-function validateNode(schemaElement, state, path, errors, formName):
-  if (schemaElement.kind === 'RadioGroup'):
-    const choicePath = joinPath(path, schemaElement.elementName)
-    const selected = state.radioSelections[choicePath.toLowerCase()]
-    const populatedCount = schemaElement.children.filter(opt => hasDataUnder(joinPath(choicePath, opt.elementName), state.fieldValues)).length
-    if (!selected && schemaElement.isRequired)
-      errors.push({ formName, path: choicePath, kind: 'completeness', message: 'A selection is required' })
-    else if (populatedCount > 1)
-      errors.push({ formName, path: choicePath, kind: 'choice', message: 'More than one option has data — only one branch may be populated' })
-    if (selected):
-      const opt = schemaElement.children.find(c => joinPath(choicePath, c.elementName) === selected)
-      for each child of opt.children: validateNode(child, state, choicePath, errors, formName)
-    return
-
-  if (isRepeatingContentContainer(schemaElement)):
-    const entryWrapper = schemaElement.children[0]
-    const count = state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] ?? 0
-    if (count < schemaElement.minOccurs)
-      errors.push({ formName, path: joinPath(path, schemaElement.elementName), kind: 'occurrence',
-                    message: `At least ${schemaElement.minOccurs} required, found ${count}` })
-    if (schemaElement.maxOccurs != null && count > schemaElement.maxOccurs)
-      errors.push({ formName, path: joinPath(path, schemaElement.elementName), kind: 'occurrence',
-                    message: `At most ${schemaElement.maxOccurs} allowed, found ${count}` })
-    const entryPath = joinPath(joinPath(path, schemaElement.elementName), entryWrapper.elementName)
-    for i in 0..count-1:
-      for each grandchild of entryWrapper.children: validateNode(grandchild, state, entryPath + '[' + i + ']', errors, formName)
-    return
-
-  if (isTransparent(schemaElement)):
-    for each child of schemaElement.children: validateNode(child, state, path, errors, formName)
-    return
-
-  if (isAttribute(schemaElement)):
-    const value = state.fieldValues[joinPath(path, schemaElement.elementName).toLowerCase()]
-    if (schemaElement.isRequired && isEmpty(value))
-      errors.push({ formName, path: joinPath(path, schemaElement.elementName), kind: 'completeness', message: 'Required attribute is missing' })
-    else if (!isEmpty(value)):
-      const r = validateField(value, schemaElement)
-      if (!r.valid) errors.push({ formName, path: joinPath(path, schemaElement.elementName), kind: 'format', message: r.message })
-    return
-
-  const currentPath = joinPath(path, schemaElement.elementName)
-
-  if (isLeaf(schemaElement)):
-    const value = state.fieldValues[currentPath.toLowerCase()]
-    if (isEmpty(value)):
-      if (schemaElement.isRequired) errors.push({ formName, path: currentPath, kind: 'completeness', message: 'Required field is empty' })
-      return
-    const r = validateField(value, schemaElement)
-    if (!r.valid) errors.push({ formName, path: currentPath, kind: 'format', message: r.message })
-    return
-
-  // Container: recurse; a required container with zero populated required descendants
-  // still surfaces as individual completeness errors from those descendants, so no
-  // separate "container is empty" check is needed here.
-  for each attr of schemaElement.children.filter(isAttribute): validateNode(attr, state, currentPath, errors, formName)
-  for each child of schemaElement.children.filter(c => !isAttribute(c)): validateNode(child, state, currentPath, errors, formName)
 ```
 
-This reuses the exact same helpers and path contract as `buildNodes`/`walkElement` (§10, §11) by design — the validator, the writer, and the reader all have to agree on what the schema means, and keeping them structurally parallel is how that agreement is enforced rather than assumed.
+The error kinds `analyzeForm` emits, and what gates each:
+
+| `kind` | Raised when | Activation-gated? |
+|---|---|---|
+| `completeness` | a required leaf or attribute is empty; a required radio group has no selection | **Yes** — only in an active context (§9). This is what stops hundreds of false positives on a freshly loaded form. |
+| `format` | a *filled* value fails `validateFieldValue` | No. The user typed it, so activation isn't in question. |
+| `occurrence` | instance count is below the repeating node's `minOccurs` | **Yes** — an untouched optional section's unmet minimum is not the user's problem yet. |
+| `occurrence` | instance count is above its `maxOccurs` | No. The schema forbids it outright. |
+| `choice` | more than one branch of an `xs:choice` holds data | No. |
+| `unmatched` | added by `validateSchema` above, from the XML reader | n/a |
+
+Occurrence bounds are checked against the **repeating node itself** — for the anonymous-repeating-sequence idiom that is the synthetic `…Entry` wrapper, whose `minOccurs`/`maxOccurs` come from the `xs:sequence` particle, not from the outer named element. Those are two independent numbers (`PriorNameList` is `minOccurs="0"` while its inner sequence defaults to `minOccurs="1"`), and reconciling them is a deliberately open question — see `parser.js`'s note on `_parseSequenceGroup`.
 
 **Scope caveat:** this validates every construct the parser (§4) models — element/attribute presence, occurrence bounds, single-branch choice selection, and every extracted `ValidationRule` facet. It does **not** implement generic W3C XML Schema features the parser doesn't model: `xs:union`/`xs:list` simple types, identity constraints (`xs:key`/`xs:unique`/`xs:keyref`), substitution groups, wildcards (`xs:any`/`xs:anyAttribute`), mixed content, or `xsi:nil`. See the MeF Compatibility Checklist (near the end of this document) — if a real schema turns out to use any of these, the parser needs to be extended first, since this validator can only be as complete as the tree it walks.
 
@@ -1800,9 +1886,9 @@ These rules are critical for correctness. Violating them produces incorrect XML 
 
 5. **Validation collects both completeness errors and format errors.**
 
-6. **Optional containers go Green only when ALL children are Green.** An optional container with any Yellow or Red child is itself Yellow or Red.
+6. **The strict all-children Green bar applies to OPTIONAL and not-yet-active containers only.** Such a container reaches Green only once every child, optional ones included, is complete — one untouched optional field keeps it Yellow. An **active required** container instead goes Green as soon as nothing *required* is missing (§9 Container Coloring).
 
-7. **Activated optional children poison required parents.** A required parent is not complete if it has an optional child with data that is itself incomplete.
+7. **Activated optional children poison required parents.** A required parent is not complete if it has an optional child with data that is itself incomplete. A *dormant* optional child never blocks anything — the two cases are distinguished by `isActivated` (§9).
 
 8. **Line numbers are display-only.** Never included in generated XML.
 
@@ -1847,6 +1933,8 @@ These rules are critical for correctness. Violating them produces incorrect XML 
 28. **A named element whose entire content model is a bare `xs:choice` never emits its own XML tag either** (`isChoiceOnlyContainer`, §10) — confirmed against `sample-schemas/SamplePacket.xml`, which has no `<EntityTypeChoice>` or `<PaymentMethodChoice>` wrapper anywhere despite both being real, non-generated elements in the schema. Its name still contributes a path segment (its `elementPath` is computed the same as any other node), exactly like the repeating Entry wrapper (invariant 25) contributes a path segment without ever becoming a tag.
 
 29. **A choice option wrapper's name still contributes a path segment to its children's field keys, even though it emits no XML tag.** `buildChoiceNodes`/`walkElement`'s RadioGroup branch must recurse with `joinPath(choicePath, selectedOption.elementName)`, not `choicePath` alone — the latter was a bug in an earlier draft of this spec that silently broke every field inside any selected radio branch, since `parser.js` builds each such leaf's `elementPath` through the option and `formRenderer` registers controls at `elementPath` (§8 already said as much: "Synthetic segments ARE included in paths" explicitly lists `OptionN`).
+
+30. **Coloring and validation are activation-gated, and never contradict each other.** Both come out of one walk (§9 `analyzeForm`) that threads `parentIsActiveOrRequired` from the form root down. A required-but-empty field in an inactive subtree colors Yellow and reports nothing; the same field in an active subtree colors Red and reports a completeness error. Two corollaries that are easy to get wrong: a **container-shaped node is never Green on emptiness alone** (a required repeating section with zero instances is Red when active, Yellow otherwise — never Green), and an **explicit radio selection or an existing repeating instance is itself activation**, so a branch the user picked and a row the user added both demand their required fields in both outputs.
 
 ---
 

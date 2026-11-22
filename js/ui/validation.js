@@ -1,107 +1,35 @@
-// js/ui/validation.js — Field-Level Validation, Full Structural Schema
-// Validation, and the Validation Panel.
+// js/ui/validation.js — the validation entry point and the Validation Panel.
 //
 // See web-implementation-spec.md §16 (Validation), §22 invariants 4, 5.
-// IMPLEMENTATION_PLAN.md Phase 5.
+// dev/IMPLEMENTATION_ORDER.md Phase 1 (backlog A.2 + A.3).
 //
-// Per §23's File Structure Reference there is no separate js/core/validation.js
-// — validateField/validateSchema live here, pure and DOM-free (no `document`
-// access anywhere above the "Validation Panel" section below), exactly like
-// coloringService.js's split from coloring.js but folded into one file since
-// that's the file the spec names. They reuse the exact same shared predicates
-// (joinPath, isTransparent, isAttribute, isLeaf, isRepeatingContentContainer)
-// from parser.js that coloringService.js/xmlWriter.js/xmlReader.js already do
-// — the validator, the coloring service, the writer, and the reader all have
-// to agree on what the schema means, and staying structurally parallel is how
-// that's enforced rather than assumed.
+// Per §23's File Structure Reference there is no separate js/core/validation.js,
+// so this is the file the spec names for `validateField` and `validateSchema`
+// — but neither algorithm lives here any more:
+//
+//  * `validateField` IS `coloringService.validateFieldValue`, re-exported. The
+//    facet switch used to exist twice, here and as `isFieldValid` in the
+//    coloring service, each with a comment acknowledging the other (backlog
+//    A.3). One copy, one place.
+//  * `validateSchema` no longer walks the schema tree at all. The structural
+//    walk is `coloringService.analyzeForm`, which emits the color map and the
+//    error list from a single activation-aware traversal (backlog A.2). What
+//    is left here is the packet-level part the core walk can't know about:
+//    iterating the ordered instance keys, tagging each error with its form and
+//    instance identity, and appending the unmatched fields an XML load
+//    recorded on the FormState.
+//
+// Everything above the "Validation Panel" section below is still pure and
+// DOM-free (no `document` access), exactly as before.
 
-import { joinPath, isTransparent, isAttribute, isLeaf, isRepeatingContentContainer } from '../core/parser.js';
+import { validateFieldValue, analyzeForm } from '../core/coloringService.js';
 import { FormInstanceKey, keyOf, createEmptyFormState } from '../core/formEngine.js';
 
-// ---------------------------------------------------------------------------
-// Field-Level Validation (§16 "Field-Level Validation")
-// ---------------------------------------------------------------------------
-
-export function isEmpty(value) {
-  return value === undefined || value === null || value === '';
-}
-
-/**
- * Minimal stand-in for the spec's `patternDescriber.describe(rule.value)` —
- * no such describer exists anywhere else in this codebase or spec, so this
- * gives every pattern-format error a readable (if generic) message rather
- * than dumping a raw regex at the user.
- */
-const patternDescriber = {
-  describe(pattern) {
-    return `Must match the required format (pattern: ${pattern})`;
-  },
-};
-
-/**
- * §16 `validateField`. Two deliberate departures from the spec's literal code
- * block, both already precedented by coloringService.js's `isFieldValid` — the
- * same validator's "standalone, lighter-weight" sibling built in Phase 4:
- *
- * 1. The spec's switch has no `break` between cases, which in real JS falls
- *    through into every later case's condition check too (misapplying, e.g.,
- *    a minLength rule's own `rule.value` as if it were also a maxLength
- *    threshold). `isFieldValid` already carries the `break` this needs.
- * 2. The spec short-circuits empty values only `if (isEmpty(value) &&
- *    !element.isRequired)`, so an empty REQUIRED value falls through into the
- *    rule loop — e.g. `String(undefined).length` failing a minLength check —
- *    producing a spurious format message ("Min length: 6") for a field whose
- *    actual problem is completeness, not format. `isFieldValid` already
- *    short-circuits unconditionally on emptiness ("emptiness is a
- *    completeness concern, not a validity one" — §22 invariant 4); this does
- *    the same, leaving completeness errors to validateNode/coloringService,
- *    which both already check isEmpty+isRequired themselves before ever
- *    calling into this function.
- */
-export function validateField(value, element) {
-  if (isEmpty(value)) return { valid: true };
-  for (const rule of element.validationRules || []) {
-    switch (rule.kind) {
-      case 'minLength':
-        if (String(value).length < Number(rule.value)) return { valid: false, message: `Min length: ${rule.value}` };
-        break;
-      case 'maxLength':
-        if (String(value).length > Number(rule.value)) return { valid: false, message: `Max length: ${rule.value}` };
-        break;
-      case 'pattern':
-        if (!new RegExp(`^(?:${rule.value})$`).test(String(value))) return { valid: false, message: patternDescriber.describe(rule.value) };
-        break;
-      case 'minInclusive':
-        if (Number(value) < Number(rule.value)) return { valid: false, message: `Min value: ${rule.value}` };
-        break;
-      case 'maxInclusive':
-        if (Number(value) > Number(rule.value)) return { valid: false, message: `Max value: ${rule.value}` };
-        break;
-      case 'totalDigits':
-        if (String(value).replace(/[-.]/g, '').replace(/^0+(?=\d)/, '').length > Number(rule.value))
-          return { valid: false, message: `Max total digits: ${rule.value}` };
-        break;
-      case 'fractionDigits': {
-        const frac = String(value).split('.')[1] || '';
-        if (frac.length > Number(rule.value)) return { valid: false, message: `Max decimal places: ${rule.value}` };
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  if (element.kind === 'DatePicker' && !isEmpty(value) && isNaN(Date.parse(value))) return { valid: false, message: 'Invalid date' };
-  return { valid: true };
-}
+export { validateFieldValue as validateField };
 
 // ---------------------------------------------------------------------------
 // Full Structural Schema Validation (§16 "Full Structural Schema Validation")
 // ---------------------------------------------------------------------------
-
-function hasDataUnder(pathPrefix, fieldValues) {
-  const p = pathPrefix.toLowerCase();
-  return Object.entries(fieldValues).some(([k, v]) => (k === p || k.startsWith(`${p}.`) || k.startsWith(`${p}[`)) && !isEmpty(v));
-}
 
 /**
  * @param {import('../core/formEngine.js').FormInstanceKey[]} orderedInstanceKeys
@@ -124,7 +52,11 @@ export function validateSchema(orderedInstanceKeys, allFormStates, schemaParser)
     const state = allFormStates.get(keyOf(instanceKey)) ?? allFormStates.get(instanceKey.toString()) ?? createEmptyFormState();
     const schemaElement = schemaParser.parseGlobalElement(instanceKey.formName);
     if (!schemaElement) continue;
-    validateNode(schemaElement, state, '', errors, instanceKey.formName, instanceKey.toString());
+
+    for (const error of analyzeForm(schemaElement, state).errors) {
+      errors.push({ formName: instanceKey.formName, instanceKey: instanceKey.toString(), ...error });
+    }
+
     for (const u of state.unmatchedFields) {
       errors.push({
         formName: instanceKey.formName,
@@ -136,133 +68,6 @@ export function validateSchema(orderedInstanceKeys, allFormStates, schemaParser)
     }
   }
   return errors;
-}
-
-function validateNode(element, state, path, errors, formName, instanceKeyStr) {
-  if (element.kind === 'RadioGroup') return validateRadioGroup(element, state, path, errors, formName, instanceKeyStr);
-  if (isRepeatingContentContainer(element)) return validateRepeatingContentContainer(element, state, path, errors, formName, instanceKeyStr);
-  // isRepeatingContentContainer only catches a repeating Entry wrapper when
-  // it's its parent's ONLY structural child. A schema can just as validly
-  // place an anonymous repeating <xsd:sequence> ALONGSIDE other sibling
-  // content in the same parent (e.g. AuthenticationHeader.xsd's Submission: a
-  // maxOccurs="3" sequence sitting next to a separate xs:choice) — see
-  // coloringService.js's colorOfNode for the matching fix and fuller
-  // explanation of why the parent-shape gate is too narrow here. This also
-  // covers a REAL (non-synthetic) repeating element like HI's
-  // "DependentInformation" — validateRepeatingEntry only reads
-  // elementName/children/minOccurs/maxOccurs, unaffected either way.
-  if (element.isRepeating) return validateRepeatingEntry(element, state, path, errors, formName, instanceKeyStr);
-
-  if (isTransparent(element)) {
-    for (const child of element.children) validateNode(child, state, path, errors, formName, instanceKeyStr);
-    return;
-  }
-
-  if (isAttribute(element)) {
-    const value = state.fieldValues[joinPath(path, element.elementName).toLowerCase()];
-    if (element.isRequired && isEmpty(value)) {
-      errors.push(makeError(formName, instanceKeyStr, joinPath(path, element.elementName), 'completeness', 'Required attribute is missing'));
-    } else if (!isEmpty(value)) {
-      const r = validateField(value, element);
-      if (!r.valid) errors.push(makeError(formName, instanceKeyStr, joinPath(path, element.elementName), 'format', r.message));
-    }
-    return;
-  }
-
-  const currentPath = joinPath(path, element.elementName);
-
-  if (isLeaf(element)) {
-    const value = state.fieldValues[currentPath.toLowerCase()];
-    if (isEmpty(value)) {
-      if (element.isRequired) errors.push(makeError(formName, instanceKeyStr, currentPath, 'completeness', 'Required field is empty'));
-      return;
-    }
-    const r = validateField(value, element);
-    if (!r.valid) errors.push(makeError(formName, instanceKeyStr, currentPath, 'format', r.message));
-    return;
-  }
-
-  // Container: recurse; a required container with zero populated required
-  // descendants still surfaces as individual completeness errors from those
-  // descendants, so no separate "container is empty" check is needed here.
-  for (const attr of element.children.filter(isAttribute)) validateNode(attr, state, currentPath, errors, formName, instanceKeyStr);
-  for (const child of element.children.filter((c) => !isAttribute(c))) validateNode(child, state, currentPath, errors, formName, instanceKeyStr);
-}
-
-function validateRadioGroup(element, state, path, errors, formName, instanceKeyStr) {
-  const choicePath = joinPath(path, element.elementName);
-  const selected = state.radioSelections[choicePath.toLowerCase()];
-  const populatedCount = element.children.filter((opt) => hasDataUnder(joinPath(choicePath, opt.elementName), state.fieldValues)).length;
-
-  if (!selected && element.isRequired) {
-    errors.push(makeError(formName, instanceKeyStr, choicePath, 'completeness', 'A selection is required'));
-  } else if (populatedCount > 1) {
-    errors.push(makeError(formName, instanceKeyStr, choicePath, 'choice', 'More than one option has data — only one branch may be populated'));
-  }
-
-  if (selected) {
-    // `selected` is the option's own STATIC elementPath (see formRenderer.js's
-    // setRadioSelection call), not a runtime index-bearing path — even when
-    // `choicePath` itself is index-bearing because this RadioGroup sits
-    // inside a repeating instance. Compare against `c.elementPath` directly
-    // (matching coloringService.js's colorOfRadioGroup and formRenderer.js's
-    // own showBranch/selectRadioGroupBranches) rather than reconstructing an
-    // indexed candidate via joinPath(choicePath, c.elementName), which would
-    // never match once an index is involved.
-    const opt = element.children.find((c) => c.elementPath.toLowerCase() === String(selected).toLowerCase());
-    if (opt) {
-      // §22 invariant 29: the option wrapper emits no XML tag but its NAME
-      // still contributes a path segment to its children's field keys.
-      // Recursing with bare `choicePath` here — which is what §16's own
-      // literal pseudocode does — is exactly the earlier-draft bug invariant
-      // 29 calls out: every field inside any selected branch would be looked
-      // up at a key nothing registers a control at (coloringService.js's
-      // colorOfRadioGroup and xmlWriter.js/xmlReader.js already get this
-      // right; this brings validateNode in line with them).
-      const optPath = joinPath(choicePath, opt.elementName);
-      for (const child of opt.children) validateNode(child, state, optPath, errors, formName, instanceKeyStr);
-    }
-  }
-}
-
-function validateRepeatingContentContainer(element, state, path, errors, formName, instanceKeyStr) {
-  const entryWrapper = element.children.find((c) => !isAttribute(c));
-  const outerPath = joinPath(path, element.elementName);
-  validateRepeatingEntry(entryWrapper, state, outerPath, errors, formName, instanceKeyStr);
-}
-
-/**
- * A repeating, synthetic Entry wrapper's own occurrence-count check and
- * per-instance validation — shared by validateRepeatingContentContainer (when
- * the wrapper is its parent's ONLY structural child, e.g. PriorNameList →
- * PriorNameListEntry) and validateNode's own dispatch (when it's one of
- * SEVERAL siblings under its parent — see validateNode's comment). Either
- * way, `entryWrapper` is always the repeating node itself and `parentPath` is
- * ITS OWN parent's path. The occurrence check uses entryWrapper's OWN
- * minOccurs/maxOccurs (the true repeat cardinality, from the underlying
- * <xs:sequence> particle) rather than any outer element's — see
- * parser.js's _parseSequenceGroup comment on why those two numbers are
- * independent and the outer's was never the right one to check `count`
- * against.
- */
-function validateRepeatingEntry(entryWrapper, state, parentPath, errors, formName, instanceKeyStr) {
-  const entryPath = joinPath(parentPath, entryWrapper.elementName);
-  const count = state.repeatingInstanceCounts[entryWrapper.elementName.toLowerCase()] ?? 0;
-
-  if (count < entryWrapper.minOccurs) {
-    errors.push(makeError(formName, instanceKeyStr, entryPath, 'occurrence', `At least ${entryWrapper.minOccurs} required, found ${count}`));
-  }
-  if (entryWrapper.maxOccurs != null && count > entryWrapper.maxOccurs) {
-    errors.push(makeError(formName, instanceKeyStr, entryPath, 'occurrence', `At most ${entryWrapper.maxOccurs} allowed, found ${count}`));
-  }
-
-  for (let i = 0; i < count; i++) {
-    for (const grandchild of entryWrapper.children) validateNode(grandchild, state, `${entryPath}[${i}]`, errors, formName, instanceKeyStr);
-  }
-}
-
-function makeError(formName, instanceKeyStr, path, kind, message) {
-  return { formName, instanceKey: instanceKeyStr, path, kind, message };
 }
 
 // ---------------------------------------------------------------------------

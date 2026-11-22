@@ -161,18 +161,21 @@
 
         typeAndBlur(inputOf(formEl, `${addrPrefix}.PostalCode`), '96814');
         coloring.applyAllColors();
-        // §9: an untouched optional leaf now colors Yellow (not "no color"), so it
-        // still caps an otherwise-all-Green container at Yellow — nothing here is
-        // actually incomplete or invalid, but StreetLine2 hasn't been filled in yet.
-        check('All 4 required fields valid, optional StreetLine2 untouched → Yellow (capped by the untouched optional child)', addrFieldset.classList.contains('color-yellow'));
+        // §9 as rewritten in Phase 1 (parity 1.1): a REQUIRED container in an
+        // active context is Green as soon as nothing REQUIRED is missing. The
+        // untouched optional StreetLine2 no longer holds it at Yellow — "Green"
+        // means "nothing more is being asked of you here", and strict
+        // all-children completeness is now only the bar for OPTIONAL and
+        // not-yet-active containers.
+        check('All 4 required fields valid, optional StreetLine2 untouched → Green (nothing required is missing)', addrFieldset.classList.contains('color-green'));
 
         const streetLine2Wrapper = fieldWrapper(formEl, `${addrPrefix}.StreetLine2`);
-        check('Untouched optional StreetLine2 colors Yellow', streetLine2Wrapper.querySelector('.color-border').classList.contains('color-yellow'));
+        check('Untouched optional StreetLine2 still colors Yellow itself', streetLine2Wrapper.querySelector('.color-border').classList.contains('color-yellow'));
 
         typeAndBlur(inputOf(formEl, `${addrPrefix}.StreetLine2`), 'Suite 100');
         coloring.applyAllColors();
         check('Optional StreetLine2 filled with valid data colors Green (§9: filled + valid is always Green, required or not)', streetLine2Wrapper.querySelector('.color-border').classList.contains('color-green'));
-        check('Once every child (required or optional) is Green, the container reads Green too', addrFieldset.classList.contains('color-green'));
+        check('Filling the optional child as well keeps the container Green', addrFieldset.classList.contains('color-green'));
 
         typeAndBlur(inputOf(formEl, `${addrPrefix}.PostalCode`), 'not-digits');
         coloring.applyAllColors();
@@ -203,12 +206,25 @@
         typeAndBlur(inputOf(formEl, `${choicePath}.EntityTypeChoiceChoiceOption2.OrgLegalName`), 'Acme Test Co');
         setInputAndFireChange(inputOf(formEl, `${choicePath}.EntityTypeChoiceChoiceOption2.OrgType`), 'Corporation');
         coloring.applyAllColors();
-        // §9: OrgFoundedYear is optional and untouched, so it colors Yellow (not
-        // "no color") and caps the otherwise-all-Green Option2 branch at Yellow.
+        // Parity 1.1: a REQUIRED radio group's Green threshold is "the selected
+        // branch's required fields are covered", exactly like a required
+        // container's — the untouched optional OrgFoundedYear no longer holds
+        // the group at Yellow.
         check(
-          'Option2 required fields filled, optional OrgFoundedYear untouched → Yellow',
-          radioGroupEl.classList.contains('color-yellow')
+          'Option2 required fields filled, optional OrgFoundedYear untouched → group reads Green',
+          radioGroupEl.classList.contains('color-green')
         );
+        // The selected BRANCH is colored in its own right now (Phase 1 — the
+        // coloring index has always looked for .branch-content[data-path], but
+        // nothing used to put a color there). The branch wrapper is optional, so
+        // strict completeness applies to it and OrgFoundedYear does hold it at
+        // Yellow.
+        const branchEl = formEl.querySelector(`.branch-content[data-path="${choicePath}.EntityTypeChoiceChoiceOption2"]`);
+        check('The selected branch wrapper itself is colored — Yellow, pending its optional field', branchEl.classList.contains('color-yellow'));
+
+        typeAndBlur(inputOf(formEl, `${choicePath}.EntityTypeChoiceChoiceOption2.OrgFoundedYear`), '1999');
+        coloring.applyAllColors();
+        check('Filling the branch\'s optional field turns the branch wrapper Green too', branchEl.classList.contains('color-green'));
 
         // Populate the HIDDEN Option1 branch with a value, leaving Option1's OTHER
         // required fields (IndividualLastName, IndividualBirthDate) empty — if
@@ -217,7 +233,7 @@
         // color at all, since only the selected branch (Option2) is evaluated.
         formEngine.setValueSilently(`${choicePath}.EntityTypeChoiceChoiceOption1.IndividualFirstName`, 'Jane');
         coloring.applyAllColors();
-        check('Hidden Option1 branch data is ignored by coloring — still Yellow from Option2 alone', radioGroupEl.classList.contains('color-yellow'));
+        check('Hidden Option1 branch data is ignored by coloring — still Green from Option2 alone', radioGroupEl.classList.contains('color-green'));
       }
 
       // ==================================================================

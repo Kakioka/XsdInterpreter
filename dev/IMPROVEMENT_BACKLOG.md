@@ -54,7 +54,15 @@ an idiom the parser already handles correctly in every other respect.
 parameter called `basePath` that must receive a bare name is a trap. Touches the same six
 modules as any shape change (see B.1), so it pairs naturally with that work.
 
-### A.2 Two near-identical tree walks kept in sync by hand
+### A.2 Two near-identical tree walks kept in sync by hand — **DONE**
+
+> **Done** in Phase 1 of `dev/IMPLEMENTATION_ORDER.md`, alongside parity 1.1–1.3 as this entry
+> recommended. `coloringService.analyzeForm(schemaElement, state)` returns `{colors, errors}`
+> from one traversal; `js/ui/validation.js`'s `validateSchema` iterates the instance keys, stamps
+> form/instance identity on each error and appends the reader's unmatched fields, and dispatches
+> on no schema shapes at all. `web-implementation-spec.md` §9 and §16 were rewritten to describe
+> the merged walk. A side effect worth noting: the structural validation walk is now in `js/core/`
+> and therefore covered by `node --test` rather than only by a browser harness.
 
 The WPF app walks the schema tree twice with almost the same logic: once for coloring
 (`ComputeRecursive`) and once for completeness errors (`CollectCompletenessRecursive`). Its
@@ -71,7 +79,12 @@ of "coloring says green, validation says error" contradiction (exactly the sympt
 1.3). This is the single best moment to do it — don't fix the two walks separately and then try
 to merge them later.
 
-### A.3 Facet validation is duplicated
+### A.3 Facet validation is duplicated — **DONE**
+
+> **Done** in the same pass. `coloringService.validateFieldValue(value, element)` returns
+> `{valid, message}` and is the only facet switch in the codebase; `validation.js` re-exports it
+> as `validateField` and `isFieldValid` is a verdict-only wrapper for the coloring path. Parity
+> 1.9's three new facets are now a one-place change.
 
 `validation.js`'s `validateField` and `coloringService.js`'s `isFieldValid` are the same facet
 switch with different return shapes, and both carry comments acknowledging it. Parity 1.9 adds
@@ -113,20 +126,22 @@ Noted so nobody spends time on them:
 
 ## B. Architecture and maintainability
 
-### B.1 Collapse the six-way shape dispatch into one visitor
+### B.1 Collapse the five-way shape dispatch into one visitor
 
 **The highest-value structural change available.** Documented in `CLAUDE.md` as the main
-maintenance hazard: `parser.js`, `formRenderer.js`, `xmlWriter.js`, `xmlReader.js`,
-`coloringService.js`, and `ui/validation.js` each independently dispatch on the same structural
-shapes (transparent wrappers, repeating content containers, choice-only containers, radio
-groups, attributes, leaves).
+maintenance hazard: `parser.js`, `formRenderer.js`, `xmlWriter.js`, `xmlReader.js` and
+`coloringService.js` each independently dispatch on the same structural shapes (transparent
+wrappers, repeating content containers, choice-only containers, radio groups, attributes,
+leaves). It was six until A.2 merged the coloring and completeness-error walks —
+`ui/validation.js` no longer dispatches on shapes at all.
 
-This isn't hypothetical — the evidence is already in the codebase. `coloringService.js`'s
-`colorOfNode` and `validation.js`'s `validateNode` carry **near-identical 10-line comments**
-explaining the same fix (the `isRepeatingContentContainer` parent-shape gate being too narrow),
-because the same bug had to be found and fixed separately in each. `dev/PHASE9_DRYRUN_FINDINGS.md`
-finding #0 describes its own scope as "the same five-way parallel structure
-`isRepeatingContentContainer` already has to keep in sync."
+This isn't hypothetical — the evidence is in the codebase's history. `coloringService.js`'s
+`colorOfNode` and `validation.js`'s `validateNode` each carried **near-identical 10-line
+comments** explaining the same fix (the `isRepeatingContentContainer` parent-shape gate being
+too narrow), because the same bug had to be found and fixed separately in each; A.2 collapsed
+those two into the one comment now in `walkNode`. `dev/PHASE9_DRYRUN_FINDINGS.md` finding #0
+describes its own scope as "the same five-way parallel structure `isRepeatingContentContainer`
+already has to keep in sync."
 
 **Do:** one `walkSchema(element, path, visitor)` in `js/core/`, owning shape recognition,
 path construction via `joinPath`, repeating-instance expansion, and radio-branch resolution.

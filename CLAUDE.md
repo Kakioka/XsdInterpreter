@@ -68,10 +68,10 @@ static check that every import resolves, every named import exists, `js/core/` i
 `js/ui/`, and `index.html` still declares every container the UI builds into. That last one is
 the closest thing this repo has to a compiler.
 
-Some assertions deliberately pin behavior that `dev/PARITY_GAP_ANALYSIS.md` says is **wrong**
-(no activation context; a required repeating section with zero instances colors Green). They are
-commented `KNOWN-WRONG` and exist so the Phase 1 rewrite has to acknowledge the change — update
-them with the fix, don't delete them.
+`test/coloringService.test.mjs` is where the activation-context rules live now (parity 1.1–1.3,
+done): it covers the colors *and* the error list, since both come out of one `analyzeForm` call.
+The two `KNOWN-WRONG` characterization tests that used to pin the pre-Phase-1 behavior did their
+job and were replaced by assertions of the new rules — don't reintroduce them.
 
 `js/ui/` is not covered here (it touches the DOM at module scope); the browser harnesses below
 remain the ground truth for rendering, and the live render stage genuinely earns its keep.
@@ -115,10 +115,12 @@ Practical notes for an agent:
 1. **`web-implementation-spec.md`** (~1,930 lines) is the **source of truth** for algorithms and
    behavior. It overrides `WALKTHROUGH.md`, this file, the reference implementation's behavior,
    and your own judgment about what "correct" means — unless the user says otherwise.
-   - Caveat: the spec's inline JS code blocks contain known bugs that the real code deliberately
-     fixes (e.g. §16's `validateField` switch has no `break` statements, and short-circuits empty
-     values only for optional fields). Where a module departs from the spec's literal code, there
-     is a comment explaining why. Read the comment before "fixing" it back.
+   - Caveat: the spec's inline JS code blocks have historically contained bugs the real code
+     deliberately fixes. Where a module departs from the spec's literal code, there is a comment
+     explaining why — read the comment before "fixing" it back. (§9 and §16 were rewritten in
+     Phase 1 of `dev/IMPLEMENTATION_ORDER.md` and now match the code, including the two
+     long-standing bugs in §16's `validateField` block — the missing `break`s and the
+     optional-only empty short-circuit.)
 2. **`IMPLEMENTATION_PLAN.md`** is the working document: ordered phases, each scoped to a small
    set of spec `§` sections, with acceptance criteria. The intended workflow is to open *only*
    the `§` sections a phase lists rather than re-reading the whole spec.
@@ -210,24 +212,27 @@ pieces it needs. There is no framework
 and no reactive layer; `FormEngine` extends `EventTarget` and fires `controlValueChanged` /
 `dirtyChanged`.
 
-### The six-way parallel structure (the main maintenance hazard)
+### The five-way parallel structure (the main maintenance hazard)
 
 The schema tree's structural shapes — transparent wrappers, repeating content containers,
-choice-only containers, radio groups — are dispatched on **independently** in six modules:
+choice-only containers, radio groups — are dispatched on **independently** in five modules:
 
-`parser.js` · `formRenderer.js` · `xmlWriter.js` · `xmlReader.js` · `coloringService.js` ·
-`ui/validation.js`
+`parser.js` · `formRenderer.js` · `xmlWriter.js` · `xmlReader.js` · `coloringService.js`
 
-A change to how one shape is recognized or walked must be mirrored in all six, or data silently
+A change to how one shape is recognized or walked must be mirrored in all five, or data silently
 disappears in one direction only (the classic symptom: a field renders and colors fine but never
 reaches the XML, or loads from XML into a path nothing is registered at). The shared predicates
 `isTransparent`, `isAttribute`, `isLeaf`, `isRepeatingContentContainer`, and
 `isChoiceOnlyContainer` all live in `js/core/parser.js` and are imported by the rest — add new
 shape tests there, not locally.
 
-Two pieces of logic are **deliberately duplicated** and must be kept in sync by hand:
-`validation.js`'s `validateField` and `coloringService.js`'s `isFieldValid` (the same facet
-switch, different return shapes).
+It was six until Phase 1 merged the coloring and completeness-error walks (backlog A.2):
+`coloringService.analyzeForm` now returns `{colors, errors}` from one traversal, and
+`ui/validation.js` dispatches on nothing — it iterates instance keys, stamps form identity on
+each error, and renders the panel. The facet switch is single-sourced the same way (backlog
+A.3): `coloringService.validateFieldValue` is the one implementation, re-exported by
+`validation.js` as `validateField` and wrapped verdict-only as `isFieldValid`. Phase 7's
+`walkSchema` refactor starts from these five.
 
 ### Path conventions (`§8`)
 
@@ -315,7 +320,7 @@ Both exist because FormEngine state lives only in memory and the browser can tak
 
 ## Invariants
 
-`web-implementation-spec.md` §22 lists 29 numbered behavioral invariants; the WPF app's
+`web-implementation-spec.md` §22 lists 30 numbered behavioral invariants; the WPF app's
 `project-context.md` §13 lists 48. Read §22 before changing anything in the write/read/coloring
 path. The ones most often broken in practice:
 
@@ -327,6 +332,10 @@ path. The ones most often broken in practice:
   snapshot for undo *before* purging.
 - `isValid` ≠ completeness. Emptiness is a completeness concern; format rules are a validity
   concern. Both are collected by Validate.
+- Coloring and validation are **activation-gated** (§22 invariant 30) and share one walk. A
+  required-but-empty field only paints Red and reports an error where its subtree is active; a
+  container-shaped node is never Green on emptiness alone; an explicit radio selection and an
+  existing repeating row each count as activation.
 - Rebuild the colorable index on structural change only, never on every value change (coloring
   recompute is 50 ms debounced).
 - The undo stack is cleared on schema load, root switch and XML load. Form add/remove are
@@ -337,11 +346,6 @@ path. The ones most often broken in practice:
 Do not treat current behavior as correct in these places — see `dev/PARITY_GAP_ANALYSIS.md`
 Tier 1 for the behavior each one should have instead:
 
-- **Coloring and validation have no activation context.** The WPF app threads a
-  `parentIsActiveOrRequired` flag through both walks; this codebase does not. Required fields
-  inside untouched optional containers paint Red and report errors where the original shows
-  Yellow and stays silent. A required repeating section with zero instances currently paints
-  **Green**.
 - **Packaging has no configuration layer.** Archive layout, metadata fields, validation regexes
   and manifest element names are all literals in `js/core/packager.js`, encoding a partial copy
   of one organization's rules. Neither general nor correct for that one case — see parity 1.4.

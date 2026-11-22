@@ -62,9 +62,18 @@ decision** — flagged at the end of this document under *Open question for the 
 These are the highest-value fixes: the feature exists on both sides but produces different
 answers. Each is a user-visible difference on the *existing* sample schema set.
 
-### 1.1 Coloring has no activation context (`parentIsActiveOrRequired`)
+### 1.1 Coloring has no activation context (`parentIsActiveOrRequired`) — **DONE**
 
 **The single largest semantic divergence in the codebase.**
+
+> **Resolved** in Phase 1 of `dev/IMPLEMENTATION_ORDER.md`. `js/core/coloringService.js` threads
+> `parentIsActiveOrRequired` from the form root down and implements the decision ladder below;
+> `web-implementation-spec.md` §9 was rewritten to specify it (it previously described the pure
+> roll-up) and §22 gained invariant 30. Two additions beyond the reference, both documented in
+> the module header: container completeness requires each leaf to be present **and valid** (so
+> §9's filled-but-invalid-is-Red rule survives the roll-up), and an unchecked checkbox counts as
+> *answered* but not as *engagement* (the reference treats boolean `false` as no value at all and
+> then needs per-call-site checkbox exceptions). Covered by `test/coloringService.test.mjs`.
 
 WPF `Core/Coloring/ColoringService.cs` threads a boolean `parentIsActiveOrRequired` down the
 whole walk (`ComputeRecursive` → `RecurseChild`), recomputed at each container as:
@@ -101,7 +110,16 @@ required structure — what must match is the decision table above:
   active+optional → the same ladder as inactive;
 - give `computeColor` the activation flag for leaves (WPF `ComputeLeafColor`).
 
-### 1.2 Validation reports required-field errors the WPF app suppresses
+### 1.2 Validation reports required-field errors the WPF app suppresses — **DONE**
+
+> **Resolved** in the same pass, and more directly than this entry proposed: the two walks were
+> merged (backlog A.2), so the gating is not threaded through a second function at all —
+> `analyzeForm` emits the color map and the error list together. `js/ui/validation.js` keeps only
+> the packet-level work. One deliberate divergence, decided with the user: an explicitly selected
+> radio branch counts as activation for **errors as well as colors**. The reference's completeness
+> walk skips radio groups under inactive containers while its coloring walk treats the selection
+> as activation, so it paints a selected branch's required fields Red while Validate stays silent
+> and Save XML emits the incomplete branch without warning.
 
 Same root cause, second walk. WPF invariant §13 #47 states *both* walks are activation-gated;
 `CollectCompletenessRecursive` skips a required leaf when `!parentIsActiveOrRequired`, and
@@ -121,7 +139,12 @@ children (skipping leaves and radio groups), so a deeper optional container that
 filled is found and reported. Whether that is one function with a flag or two functions is an
 implementation choice; which errors come out is not.
 
-### 1.3 A required repeating section with zero instances colors **Green**
+### 1.3 A required repeating section with zero instances colors **Green** — **DONE**
+
+> **Resolved** in the same pass. Zero instances now yields Red (required *and* active) or Yellow,
+> never Green, and a container-shaped node with no children is Yellow rather than Green too. The
+> coloring/validation contradiction this entry describes is no longer expressible, since both
+> come from one walk.
 
 `colorOfRepeatingEntry` with `count === 0` produces `instanceColors = []`, and
 `computeContainerColor(isRequired, [])` returns `isRequired ? 'Green' : 'Yellow'` — so a
@@ -507,9 +530,12 @@ built as "parity work" until the spec describes them. Each needs a spec section 
 
 ## Suggested sequencing
 
-1. **1.1 + 1.2 + 1.3 together.** They share one root cause (no activation context) and touch
-   the two walks that must stay in lockstep (WPF invariant §13 #47). Doing them separately
-   means doing the same analysis twice. This is the highest-value work in the list.
+`dev/IMPLEMENTATION_ORDER.md` supersedes this list — it merges it with the improvement
+backlog's own ordering. Kept here for the rationale.
+
+1. ~~**1.1 + 1.2 + 1.3 together.**~~ **Done** — they shared one root cause (no activation
+   context) and touched the two walks that had to stay in lockstep (WPF invariant §13 #47), so
+   they were done in one pass, which also merged those two walks into one.
 2. **1.9 → 1.8.** Facet extraction unblocks input hard limits, and also feeds 2.1.
 3. **1.4 + 1.5.** The two domain-specific items. Both are really "move hardcoded assumptions
    into configuration"; doing them together keeps one notion of per-schema settings.

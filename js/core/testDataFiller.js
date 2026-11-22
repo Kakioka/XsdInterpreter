@@ -285,8 +285,8 @@ function fillRepeatingContentContainer(element, path, values, radioSelections, n
  * itself and `parentPath` is ITS OWN parent's path.
  *
  * `entryWrapper.minOccurs` is the schema's actual floor on how many instances
- * must exist (validation.js's validateRepeatingEntry enforces the same
- * number) — filling only the instances that already happen to exist would
+ * must exist (coloringService.js's walk reports an occurrence error against
+ * the same number) — filling only the instances that already happen to exist would
  * leave a "Fill All"/"Fill Required" pass unable to ever satisfy a required
  * repeating section on its own, forcing the user to click Add manually first.
  * Values are generated for the extra instances the same as existing ones;
@@ -330,7 +330,7 @@ function walkElement(element, path, values, radioSelections, neededCounts, optio
   }
 
   // Container: attributes then structural children, same order as
-  // validateNode/buildNodes/walkContainerBody.
+  // coloringService's walkContainer/buildNodes/walkContainerBody.
   for (const attr of element.children.filter(isAttribute)) walkElement(attr, currentPath, values, radioSelections, neededCounts, options);
   for (const child of element.children.filter((c) => !isAttribute(c))) walkElement(child, currentPath, values, radioSelections, neededCounts, options);
 }
