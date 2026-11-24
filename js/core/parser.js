@@ -10,6 +10,8 @@
 // isRepeatingContentContainer) reused later by js/core/xmlWriter.js and
 // js/core/xmlReader.js — see spec §10 "Shared Helper Predicates".
 
+import { VALIDATION_FACETS, deriveMaxLengthFromPattern } from './facets.js';
+
 const XS_NS = 'http://www.w3.org/2001/XMLSchema';
 
 const XS_BUILTIN_TYPES = new Set([
@@ -26,9 +28,7 @@ const NUMERIC_INTEGER_TYPES = new Set([
   'nonNegativeInteger', 'positiveInteger', 'unsignedLong', 'unsignedInt', 'unsignedShort', 'unsignedByte',
 ]);
 
-const VALIDATION_RULE_TAGS = new Set([
-  'minLength', 'maxLength', 'pattern', 'minInclusive', 'maxInclusive', 'totalDigits', 'fractionDigits',
-]);
+const VALIDATION_RULE_TAGS = new Set(VALIDATION_FACETS);
 
 const MODEL_GROUP_TAGS = new Set(['sequence', 'choice', 'all', 'group']);
 
@@ -236,14 +236,70 @@ function extractEnumerations(restrictionEl) {
   });
 }
 
-function extractValidationRules(restrictionEl) {
+/**
+ * Facets → ValidationRules for a simple type, merged down its whole
+ * restriction chain (spec §2 "Facet inheritance"). `restrictions` is the chain
+ * most-derived first — the element's own (or its inline type's) restriction,
+ * then each named base type's, stopping at a built-in type.
+ *
+ * XSD's rules for a restriction step, which this follows:
+ *
+ * - Every facet is inherited unless the derived step restates it, and a
+ *   restated facet replaces the base's (a valid schema may only tighten it,
+ *   so the derived value is always the one that binds). minInclusive and
+ *   minExclusive are different facets and both apply.
+ * - Patterns are the exception: they don't replace, they accumulate — a value
+ *   must match one pattern from EVERY step. Within one step, several pattern
+ *   facets are alternatives, so each step's patterns become one rule
+ *   (`(a)|(b)`); across steps they stay separate rules, which validation ANDs.
+ * - Enumerations come from the most-derived step that has any.
+ *
+ * Nothing is inferred from the built-in type the chain ends at: an
+ * xs:positiveInteger with no minInclusive facet gets no min rule. Enforcing
+ * what the schema author chose not to state is not this tool's call.
+ *
+ * Rules keep source order within a step, most-derived step first. When no
+ * step has maxLength or length, a maxLength is synthesized from the patterns
+ * (parity 1.9, matching the WPF ValidationRuleExtractor) and appended LAST,
+ * flagged `derived: true`, so a pattern's own, more specific message wins in
+ * validateFieldValue. Since the per-step patterns are ANDed, the tightest
+ * bounded one sets it; an unbounded step constrains nothing.
+ */
+function mergeRestrictionChain(restrictions) {
   const rules = [];
-  for (const child of restrictionEl.children) {
-    if (VALIDATION_RULE_TAGS.has(child.localName)) {
-      rules.push({ kind: child.localName, value: child.getAttribute('value') });
+  const bound = new Set(); // facet kinds already fixed by a more-derived step
+  let enumerationValues = [];
+
+  for (const restriction of restrictions) {
+    const own = [];
+    for (const child of restriction.children) {
+      if (VALIDATION_RULE_TAGS.has(child.localName)) own.push({ kind: child.localName, value: child.getAttribute('value') });
     }
+    const patterns = own.filter((r) => r.kind === 'pattern');
+    let patternEmitted = false;
+    for (const rule of own) {
+      if (rule.kind === 'pattern') {
+        if (patternEmitted) continue;
+        patternEmitted = true;
+        rules.push(patterns.length === 1 ? rule : { kind: 'pattern', value: patterns.map((r) => `(${r.value})`).join('|') });
+      } else if (!bound.has(rule.kind)) {
+        rules.push(rule);
+      }
+    }
+    for (const rule of own) if (rule.kind !== 'pattern') bound.add(rule.kind);
+
+    if (enumerationValues.length === 0) enumerationValues = extractEnumerations(restriction);
   }
-  return rules;
+
+  if (!bound.has('maxLength') && !bound.has('length')) {
+    const bounds = rules
+      .filter((r) => r.kind === 'pattern')
+      .map((r) => deriveMaxLengthFromPattern(r.value))
+      .filter((n) => n !== null);
+    if (bounds.length > 0) rules.push({ kind: 'maxLength', value: String(Math.min(...bounds)), derived: true });
+  }
+
+  return { validationRules: rules, enumerationValues };
 }
 
 /**
@@ -340,6 +396,28 @@ export class TypeLookupTable {
 
   getAttributeGroup(name) {
     return name ? this.attributeGroups.get(name.toLowerCase()) : undefined;
+  }
+
+  /**
+   * The xs:restriction elements from `typeName` down through each named
+   * simpleType's base, most-derived first, stopping at a built-in type, an
+   * unknown name, a type that isn't a restriction (xs:list / xs:union), or a
+   * cycle. Facets are merged over this chain (see mergeRestrictionChain).
+   */
+  restrictionChain(typeName, seen = new Set()) {
+    const chain = [];
+    let name = typeName;
+    while (name && !isXsPrimitive(name)) {
+      const key = name.toLowerCase();
+      if (seen.has(key)) break;
+      seen.add(key);
+      const simpleType = this.getSimpleType(name);
+      const restriction = simpleType && firstChild(simpleType, 'restriction');
+      if (!restriction) break;
+      chain.push(restriction);
+      name = restriction.getAttribute('base');
+    }
+    return chain;
   }
 
   /**
@@ -469,32 +547,22 @@ export class SchemaParser {
   }
 
   _finishSimpleType(base, typeAttr, inlineSimpleTypeEl) {
-    let enumerationValues = [];
-    let validationRules = [];
+    let chain;
     let ultimateBase;
 
     if (inlineSimpleTypeEl) {
       const restriction = firstChild(inlineSimpleTypeEl, 'restriction');
       const restrictionBase = restriction ? restriction.getAttribute('base') : null;
       ultimateBase = this.types.resolveUltimateBaseType(restrictionBase);
-      if (restriction) {
-        enumerationValues = extractEnumerations(restriction);
-        validationRules = extractValidationRules(restriction);
-      }
+      chain = restriction ? [restriction, ...this.types.restrictionChain(restrictionBase)] : [];
       base.originalTypeName = restrictionBase;
     } else {
-      const namedSimpleType = this.types.getSimpleType(typeAttr);
-      if (namedSimpleType) {
-        const restriction = firstChild(namedSimpleType, 'restriction');
-        if (restriction) {
-          enumerationValues = extractEnumerations(restriction);
-          validationRules = extractValidationRules(restriction);
-        }
-      }
       ultimateBase = this.types.resolveUltimateBaseType(typeAttr);
+      chain = this.types.restrictionChain(typeAttr);
       base.originalTypeName = typeAttr;
     }
 
+    const { validationRules, enumerationValues } = mergeRestrictionChain(chain);
     const xsdDataType = ultimateBase || 'xs:string';
     return createSchemaElement({
       ...base,

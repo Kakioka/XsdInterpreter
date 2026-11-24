@@ -93,12 +93,54 @@ corrected to assert the real contract, with the bounds check itself now covered 
 
 ---
 
-## Phase 2 — Facet extraction and input hardening
+## Phase 2 — Facet extraction and input hardening — **DONE**
 
-- **P 1.9** — extract `minExclusive`, `maxExclusive`, `length`; add the pattern→`maxLength`
-  derivation (feeds Phase 8's field sizing too).
-- **P 1.8** — set native `maxlength`/`min`/`max`/`step`/`pattern` attributes from the now-complete
-  rule set.
+- ~~**P 1.9**~~ — `parser.js` extracts `length`, `minExclusive`, `maxExclusive` (now inherited down
+  the named-type chain — see below), and appends a
+  `{kind: 'maxLength', derived: true}` rule when a bounded pattern has no explicit length facet
+  (Phase 8's field sizing can read it as-is). `validateFieldValue` has the three new cases.
+- ~~**P 1.8**~~ — `controlFactory.js` sets native `maxlength`/`minlength`/`pattern`/`min`/`max`/
+  `step`. The values come from `inputConstraints` in the new `js/core/facets.js`, so they are
+  covered by `node --test` (`test/facets.test.mjs`) rather than only by a browser harness;
+  `dev/phase3-check.html` section C checks they land on real controls.
+
+**Decisions taken beyond a literal port,** each documented where the code is:
+
+- **The derivation never under-estimates.** A derived `maxLength` becomes a hard `maxlength`, so
+  a figure that is too small would stop the user typing a valid value. The parser is
+  recursive-descent over groups, classes (including XSD `[a-z-[aeiou]]` subtraction) and
+  `\p{…}` escapes, and gives up (`null`) rather than guess. Several `pattern` facets on one
+  restriction are XSD alternatives, so the bound is the longest of them; WPF reads only the first.
+- **`totalDigits` on number inputs is a digit count, not a character count.** Browsers ignore
+  `maxlength` on `<input type="number">`, so an `input` listener refuses the over-limit
+  keystroke. WPF approximates with `MaxLength = totalDigits + 1/+2`; counting digits keeps the
+  sign and point from using up the budget. Only edits that make an overrun *worse* are refused,
+  so a too-long value loaded from XML can still be deleted.
+- **Exclusive bounds become native `min`/`max` only on a discrete grid** — integers, or decimals
+  with `fractionDigits` (`minExclusive 1000` → `min="1001"`). A decimal without one has no
+  "next value", so its exclusive bound stays validation-only.
+- **`pattern` is set natively only when it compiles under the `v` flag** browsers use. Some XSD
+  patterns that are fine in legacy JS mode are not (an unescaped trailing `-` in a class); those
+  keep their validation check and just get no attribute, instead of a console error per control.
+
+**Found while doing this:** range facets on dates never worked. `validateFieldValue` compared
+with `Number(value) < Number(rule.value)`, which is `NaN` for every `xs:date`, so a
+`minInclusive` on a date passed silently — and adding `minExclusive`/`maxExclusive` would have
+inherited the same hole. Range checks now go through a `compareToBound` that compares date
+lexical forms as strings. Date `min`/`max` are also set on `<input type="date">` for `xs:date`.
+
+**Follow-up, done in the same phase (the user's call): facet inheritance.** Facets used to be
+read only from the element's *own* restriction. `parser.js` now merges them down the whole
+named-type chain with XSD's semantics — restated facets replace, patterns accumulate (ANDed
+across steps, alternated within one), enumerations come from the most-derived step that has
+any. Per the user, **nothing is inferred from a built-in type**: an `xs:positiveInteger` the
+schema never gave a `minInclusive` gets no minimum. Blast radius, measured: the synthetic
+fixture is unchanged; 757 of 7,099 production leaves gained rules and none changed kind. The
+largest effect is the base `TextType` pattern (printable characters, no leading/trailing/double
+spaces) now applying to ~500 text fields that previously only had their `maxLength`. Two
+fill-generator gaps surfaced and were fixed: inclusive bounds now snap onto the derived
+`fractionDigits` grid (`RatioType`'s `0.00000` under `fractionDigits 2`), and length padding
+picks a pattern-legal character instead of a fixed `X`.
 
 ---
 

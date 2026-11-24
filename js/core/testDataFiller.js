@@ -13,6 +13,7 @@
 // ever reads.
 
 import { joinPath, isTransparent, isAttribute, isLeaf, isRepeatingContentContainer } from './parser.js';
+import { inputConstraints } from './facets.js';
 
 // ---------------------------------------------------------------------------
 // RegexSampleGenerator (§17 "Pattern-Based Generation")
@@ -148,14 +149,48 @@ function findRule(element, kind) {
 /** Defensive clamp applied to every TextInput-shaped value (name-heuristic OR
  *  pattern-generated) so a co-present minLength/maxLength rule can never be
  *  violated by the generator's own output, even though the fixture set's own
- *  patterns already happen to produce exactly-fitting lengths on their own. */
+ *  patterns already happen to produce exactly-fitting lengths on their own.
+ *
+ *  Padding picks a character the field's patterns still accept: the generator
+ *  emits a quantifier's LOWER bound, so `[0-9]*` alone yields '' — and an
+ *  inherited minLength 1 (NumericType in the production set) then needs a
+ *  digit, not the old fixed 'X'. 'X' remains the last resort. */
 function clampToLengthRules(value, element) {
-  const maxLen = findRule(element, 'maxLength');
-  const minLen = findRule(element, 'minLength');
+  // inputConstraints folds `length` into both bounds, same as the control.
+  const { maxLength, minLength } = inputConstraints(element);
   let v = value;
-  if (maxLen && v.length > Number(maxLen.value)) v = v.slice(0, Number(maxLen.value));
-  if (minLen && v.length < Number(minLen.value)) v = v.padEnd(Number(minLen.value), 'X');
+  if (maxLength !== undefined && v.length > maxLength) v = v.slice(0, maxLength);
+  if (minLength !== undefined && v.length < minLength) {
+    const candidates = [...new Set([v.slice(-1), '0', 'A', 'a', 'X'].filter(Boolean))].map((c) => v.padEnd(minLength, c));
+    v = candidates.find((s) => satisfiesPatterns(s, element)) ?? v.padEnd(minLength, 'X');
+  }
   return v;
+}
+
+function satisfiesPatterns(value, element) {
+  return (element.validationRules || [])
+    .filter((r) => r.kind === 'pattern')
+    .every((r) => {
+      try {
+        return new RegExp(`^(?:${r.value})$`).test(value);
+      } catch {
+        return true; // an uncompilable pattern can't be satisfied deliberately either
+      }
+    });
+}
+
+/**
+ * The lowest value a numeric field accepts: inputConstraints' `min` already
+ * folds minInclusive and a grid-nudged minExclusive together. The one case it
+ * leaves open — minExclusive on a decimal with no fractionDigits, which has no
+ * "next value" — still needs SOME value above the bound, so take bound + 1.
+ */
+function numericLowerBound(element) {
+  const { min } = inputConstraints(element);
+  if (min !== undefined) return min;
+  const minExc = findRule(element, 'minExclusive');
+  if (minExc && Number.isFinite(Number(minExc.value))) return String(Number(minExc.value) + 1);
+  return undefined;
 }
 
 /** "Generate a value based on the element name" (§17) — a small, plainly
@@ -179,12 +214,12 @@ function generateLeafValue(element) {
       return clampToLengthRules(raw, element);
     }
     case 'NumericInput': {
-      const minRule = findRule(element, 'minInclusive');
-      return minRule ? String(Math.trunc(Number(minRule.value))) : '1';
+      const min = numericLowerBound(element);
+      return min !== undefined ? String(Math.trunc(Number(min))) : '1';
     }
     case 'DecimalInput': {
-      const minRule = findRule(element, 'minInclusive');
-      return minRule ? String(minRule.value) : '0.00';
+      const min = numericLowerBound(element);
+      return min !== undefined ? String(min) : '0.00';
     }
     case 'DatePicker':
       // xs:dateTime patterns (e.g. MeF's) require a trailing Z/offset

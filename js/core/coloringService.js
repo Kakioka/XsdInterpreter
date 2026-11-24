@@ -60,6 +60,7 @@
 //     all and then needs per-call-site checkbox exceptions to compensate.
 
 import { joinPath, isTransparent, isAttribute, isLeaf } from './parser.js';
+import { totalDigitCount, fractionDigitCount } from './facets.js';
 
 export function isEmpty(value) {
   return value === undefined || value === null || value === '';
@@ -97,6 +98,28 @@ const patternDescriber = {
 };
 
 /**
+ * Sign of (value − bound) for a range facet, or NaN when the two can't be
+ * compared (which then fails no check — an unparseable value is the date or
+ * number check's business, not the range check's).
+ *
+ * Date kinds compare as strings: xs:date / xs:dateTime lexical forms of the
+ * same shape sort chronologically, and a bound with a different shape than
+ * the value (one with a timezone, one without) is NaN rather than a guess.
+ */
+function compareToBound(value, bound, element) {
+  if (element.kind === 'DatePicker') {
+    const v = String(value).trim();
+    const b = String(bound).trim();
+    if (v.length !== b.length) return NaN;
+    return v < b ? -1 : v > b ? 1 : 0;
+  }
+  const v = Number(value);
+  const b = Number(bound);
+  if (!Number.isFinite(v) || !Number.isFinite(b)) return NaN;
+  return Math.sign(v - b);
+}
+
+/**
  * §16 `validateField` — the single facet switch for the whole codebase
  * (backlog A.3). Two deliberate departures from the spec's literal code block:
  *
@@ -110,35 +133,46 @@ const patternDescriber = {
  *    completeness. Emptiness is a completeness concern, not a validity one
  *    (§22 invariant 4), so it short-circuits unconditionally here; the walk
  *    below checks emptiness itself before ever calling in.
+ *
+ * Range facets compare through `compareToBound`, not a bare `Number()`: on a
+ * date field `Number('2024-01-01')` is NaN, every comparison against NaN is
+ * false, and a min/maxInclusive on an xs:date used to pass silently.
  */
 export function validateFieldValue(value, element) {
   if (isEmpty(value)) return { valid: true };
+  const text = String(value);
   for (const rule of element.validationRules || []) {
     switch (rule.kind) {
+      case 'length':
+        if (text.length !== Number(rule.value)) return { valid: false, message: `Exact length: ${rule.value}` };
+        break;
       case 'minLength':
-        if (String(value).length < Number(rule.value)) return { valid: false, message: `Min length: ${rule.value}` };
+        if (text.length < Number(rule.value)) return { valid: false, message: `Min length: ${rule.value}` };
         break;
       case 'maxLength':
-        if (String(value).length > Number(rule.value)) return { valid: false, message: `Max length: ${rule.value}` };
+        if (text.length > Number(rule.value)) return { valid: false, message: `Max length: ${rule.value}` };
         break;
       case 'pattern':
-        if (!new RegExp(`^(?:${rule.value})$`).test(String(value))) return { valid: false, message: patternDescriber.describe(rule.value) };
+        if (!new RegExp(`^(?:${rule.value})$`).test(text)) return { valid: false, message: patternDescriber.describe(rule.value) };
         break;
       case 'minInclusive':
-        if (Number(value) < Number(rule.value)) return { valid: false, message: `Min value: ${rule.value}` };
+        if (compareToBound(text, rule.value, element) < 0) return { valid: false, message: `Min value: ${rule.value}` };
         break;
       case 'maxInclusive':
-        if (Number(value) > Number(rule.value)) return { valid: false, message: `Max value: ${rule.value}` };
+        if (compareToBound(text, rule.value, element) > 0) return { valid: false, message: `Max value: ${rule.value}` };
+        break;
+      case 'minExclusive':
+        if (compareToBound(text, rule.value, element) <= 0) return { valid: false, message: `Must be greater than ${rule.value}` };
+        break;
+      case 'maxExclusive':
+        if (compareToBound(text, rule.value, element) >= 0) return { valid: false, message: `Must be less than ${rule.value}` };
         break;
       case 'totalDigits':
-        if (String(value).replace(/[-.]/g, '').replace(/^0+(?=\d)/, '').length > Number(rule.value))
-          return { valid: false, message: `Max total digits: ${rule.value}` };
+        if (totalDigitCount(text) > Number(rule.value)) return { valid: false, message: `Max total digits: ${rule.value}` };
         break;
-      case 'fractionDigits': {
-        const frac = String(value).split('.')[1] || '';
-        if (frac.length > Number(rule.value)) return { valid: false, message: `Max decimal places: ${rule.value}` };
+      case 'fractionDigits':
+        if (fractionDigitCount(text) > Number(rule.value)) return { valid: false, message: `Max decimal places: ${rule.value}` };
         break;
-      }
       default:
         break;
     }

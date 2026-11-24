@@ -32,6 +32,7 @@
     import { readPacket } from '../js/core/xmlReader.js';
     import { FormEngine, FormInstanceKey } from '../js/core/formEngine.js';
     import * as formRenderer from '../js/ui/formRenderer.js';
+    import * as controlFactory from '../js/ui/controlFactory.js';
 
     const resultsEl = document.getElementById('results');
     const summaryEl = document.getElementById('summary');
@@ -215,6 +216,51 @@
           inputOf(evt1Again, 'SampleEventLog.EventTitle')?.value === 'Initial Submission Received'
         );
         check('EVT-002s edit persisted under its own state', formEngine.getFormState(evt2Key).fieldValues['sampleeventlog.eventtitle'] === 'Amendment Filed (edited)');
+      }
+
+      // ------------------------------------------------------------------
+      // C. Native constraint attributes (parity 1.8). The values themselves
+      //    are covered headlessly in test/facets.test.mjs; this checks they
+      //    actually land on real DOM controls, and that the number-input
+      //    typing guard (which needs a real `input` event) works.
+      // ------------------------------------------------------------------
+      {
+        const findByName = (root, name) => {
+          if (root.elementName === name) return root;
+          for (const c of root.children || []) { const hit = findByName(c, name); if (hit) return hit; }
+          return null;
+        };
+        const header = parser.parseGlobalElement('SampleHeader');
+        const financial = parser.parseGlobalElement('SampleFinancialForm');
+
+        const packetId = controlFactory.create(findByName(header, 'PacketId'));
+        check('PacketId (pattern + maxLength 6) gets maxlength="6"', packetId.maxLength === 6);
+        check('PacketId gets its pattern as a native pattern attribute', packetId.pattern === '[A-Z]{2}[0-9]{4}');
+        packetId.value = 'ab12';
+        check('…and the browser itself now judges a non-matching value invalid', packetId.validity.patternMismatch === true);
+
+        const taxRate = controlFactory.create(findByName(financial, 'TaxRate'));
+        check(
+          'TaxRate (PercentType) gets min/max/step from its facets',
+          taxRate.min === '0.00' && taxRate.max === '100.00' && taxRate.step === '0.01',
+          `min=${taxRate.min} max=${taxRate.max} step=${taxRate.step}`
+        );
+
+        const gross = controlFactory.create(findByName(financial, 'GrossAmount'));
+        stageEl.appendChild(gross); // focus needs a connected element
+        gross.focus();
+        const typeInto = (input, value) => { input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); };
+        typeInto(gross, '1234567890.12'); // 12 digits — exactly totalDigits
+        check('GrossAmount (totalDigits 12) accepts 12 digits', gross.value === '1234567890.12');
+        typeInto(gross, '12345678901.12'); // 13 digits
+        check('…and refuses the keystroke that would make 13', gross.value === '1234567890.12', `value=${gross.value}`);
+        gross.remove();
+
+        const over1000 = controlFactory.create({
+          kind: 'NumericInput',
+          validationRules: [{ kind: 'minExclusive', value: '1000' }],
+        });
+        check('minExclusive 1000 on an integer becomes min="1001"', over1000.min === '1001' && over1000.step === '1');
       }
 
       summaryEl.textContent = `${pass} passed, ${fail} failed`;

@@ -62,6 +62,7 @@ browser behaviors core code depends on. **An unsupported CSS selector throws** r
 returning null, so add support there rather than working around it in the module under test.
 
 What is covered: flattener, parser, xmlReader/xmlWriter (including the full fixture round-trip),
+facets (pattern→maxLength derivation, the native input constraints `controlFactory` applies),
 formEngine, coloringService, undoService, searchService, testDataFiller, packager (ZIP bytes
 parsed back out of the central directory), autosaveStore, plus `test/moduleGraph.test.mjs` — a
 static check that every import resolves, every named import exists, `js/core/` imports no

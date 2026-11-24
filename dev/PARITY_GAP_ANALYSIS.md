@@ -256,7 +256,11 @@ highlight parent if searched child isnt currently rendered").
 nothing, walk up the schema ancestry and highlight the nearest rendered ancestor container
 instead; show a status line when even that fails.
 
-### 1.8 Input controls don't apply schema constraints as hard limits
+### 1.8 Input controls don't apply schema constraints as hard limits — **DONE**
+
+> **Done** in Phase 2 of `dev/IMPLEMENTATION_ORDER.md`: `js/core/facets.js`'s `inputConstraints`
+> computes the native attributes, `controlFactory.js` sets them, and a digit-counting `input`
+> guard enforces `totalDigits` on number inputs (where `maxlength` is ignored).
 
 WPF leaf controls each run `ApplyRuleLimits()` / `ApplyHardLimits()` at bind time:
 
@@ -274,7 +278,10 @@ and `pattern` attributes in `controlFactory.create*` from the rule set, rather t
 WPF's per-control `ApplyRuleLimits` plumbing. Note `minExclusive`/`maxExclusive` have no native
 equivalent and need a nudge (`min = value + smallest step`) or a blur check. Depends on 1.9.
 
-### 1.9 Four XSD facets are never extracted
+### 1.9 Four XSD facets are never extracted — **DONE**
+
+> **Done** in the same pass: the three facets are extracted and validated, and the
+> pattern→`maxLength` derivation is a `{derived: true}` rule appended by `parser.js`.
 
 `js/core/parser.js`'s `VALIDATION_RULE_TAGS` covers `minLength`, `maxLength`, `pattern`,
 `minInclusive`, `maxInclusive`, `totalDigits`, `fractionDigits`.
@@ -536,7 +543,7 @@ backlog's own ordering. Kept here for the rationale.
 1. ~~**1.1 + 1.2 + 1.3 together.**~~ **Done** — they shared one root cause (no activation
    context) and touched the two walks that had to stay in lockstep (WPF invariant §13 #47), so
    they were done in one pass, which also merged those two walks into one.
-2. **1.9 → 1.8.** Facet extraction unblocks input hard limits, and also feeds 2.1.
+2. ~~**1.9 → 1.8.**~~ **Done** — facet extraction, then native input limits.
 3. **1.4 + 1.5.** The two domain-specific items. Both are really "move hardcoded assumptions
    into configuration"; doing them together keeps one notion of per-schema settings.
 4. **1.6 + 1.7 + 1.11.** Small, independent, each a visible bug.

@@ -152,10 +152,23 @@ All models are plain JavaScript objects. Use JSDoc comments for type documentati
 ```js
 /**
  * @typedef {Object} ValidationRule
- * @property {string} kind    — 'minLength'|'maxLength'|'pattern'|'minInclusive'|'maxInclusive'|'totalDigits'|'fractionDigits'
+ * @property {string} kind    — 'length'|'minLength'|'maxLength'|'pattern'|'minInclusive'|'maxInclusive'
+ *                               |'minExclusive'|'maxExclusive'|'totalDigits'|'fractionDigits'
  * @property {string} value
+ * @property {boolean} [derived] — true only on a maxLength synthesized from a pattern (below)
  */
 ```
+
+#### Facet inheritance
+
+A simple type's rules come from its **whole restriction chain**: the element's own restriction (or its inline `xs:simpleType`'s), then each named base type's, down to a built-in type (`TypeLookupTable.restrictionChain`; stops at an unknown name, an `xs:list`/`xs:union`, or a cycle). They are merged per XSD's restriction semantics:
+
+- Every facet is inherited unless a more-derived step restates it, and the restated one replaces it (a valid schema may only tighten, so the derived value is the one that binds). `minInclusive` and `minExclusive` are different facets; both apply.
+- **Patterns accumulate instead.** A value must match a pattern from every step, so each step contributes its own `pattern` rule and validation ANDs them. Several `pattern` facets within *one* step are alternatives, so they become a single rule `(p1)|(p2)`.
+- `enumerationValues` come from the most-derived step that has any — a restriction that only adds, say, `maxLength` keeps its base's enumeration (and so stays a `Dropdown`).
+- **Nothing is inferred from the built-in type itself.** An `xs:positiveInteger` with no `minInclusive` facet gets no min rule; enforcing a bound the schema author chose not to state is not this tool's call.
+
+Rules are ordered most-derived step first, source order within a step. When no step has `maxLength` or `length`, the parser appends one more rule, `{kind: 'maxLength', value, derived: true}` (`facets.deriveMaxLengthFromPattern`): since the per-step patterns are ANDed, the tightest bounded one sets it, and an unbounded step (any `*`, `+` or `{n,}`) constrains nothing. It is appended **last**, so a value failing a pattern reports the pattern's message rather than the length. The derivation may over-estimate on unusual syntax but must never under-estimate: the value becomes a hard `maxlength` (§7), and too small a figure would stop the user typing a value the schema accepts.
 
 ### EnumerationOption
 
@@ -524,12 +537,27 @@ function create(element) {
 }
 ```
 
-- `TextInput`: `<input type="text">` with `maxlength` from ValidationRules if present
+- `TextInput`: `<input type="text">`
 - `NumericInput`: `<input type="number" step="1">`
-- `DecimalInput`: `<input type="number" step="any">`
+- `DecimalInput`: `<input type="number">`, `step` = `10^-fractionDigits` (`"0.01"` for 2, `"1"` for 0), or `"any"` without a `fractionDigits` facet
 - `DatePicker`: `<input type="date">` (for `xs:date`) or `<input type="datetime-local">` (for `xs:dateTime`)
 - `Checkbox`: `<input type="checkbox">`
 - `Dropdown`: `<select>` with an empty first `<option>` + one `<option>` per `EnumerationOption`
+
+#### Native constraint attributes
+
+Each control carries the native attributes its ValidationRules imply, computed by `facets.inputConstraints(element)` in `js/core/` (so they are testable headlessly) and set by the factory:
+
+| Kind | Attributes |
+|---|---|
+| `TextInput` | `maxlength` = the smaller of `maxLength` / `length`; `minlength` = the larger of `minLength` / `length`; `pattern`, only if it compiles as the browser compiles `pattern` (the `v` flag) |
+| `NumericInput` | `min` / `max` from `minInclusive` / `maxInclusive`; `minExclusive` / `maxExclusive` nudged one integer inward (`minExclusive 1000` → `min="1001"`); where both an inclusive and an exclusive bound exist, the tighter wins |
+| `DecimalInput` | as `NumericInput`, but on the `fractionDigits` grid: inclusive bounds snap onto it (`minInclusive "0.00000"` under `fractionDigits 2` → `min="0.00"`, an off-grid min rounds up and max down; a bound already on the grid keeps its own string), exclusive bounds move one `step` inward. Without `fractionDigits` there is no grid: inclusive bounds pass through as written and exclusive ones stay validation-only |
+| `DatePicker` | `min` / `max` from `minInclusive` / `maxInclusive`, for `xs:date` only, when the value is a plain `YYYY-MM-DD` (an `xs:dateTime` bound carries a timezone `datetime-local` cannot represent) |
+
+Of these, only `maxlength` on a text input stops typing. The rest drive the browser's spinner and picker bounds and the accessibility tree; `validateFieldValue` (§16) remains the authority on validity. A pattern that is valid in legacy JS regex mode but not under `v` (an unescaped `-` ending a class, XSD class subtraction) still gets its §16 check — it just gets no native attribute.
+
+**Typing limit on number inputs.** Browsers ignore `maxlength` on `<input type="number">`, so `totalDigits` (and a `maxLength`/`length` on a numeric type) is enforced by an `input` listener registered at creation, ahead of the renderer's own listeners: an edit that `facets.rejectsEdit(previous, next, constraints)` refuses is reverted to the previous value. Digits are counted as in §16 (sign and point excluded, leading zeros not significant). Only edits that make an overrun *worse* are refused, so a value loaded from XML that is already over the limit can still be deleted back under it. Range and pattern are never typing limits — a partially typed value is routinely out of range on its way to being in range.
 
 ### Path Rewriting
 
@@ -1516,15 +1544,19 @@ function validateFieldValue(value, element) {
       // Every case breaks. Without the breaks (another earlier-draft bug) each
       // case falls through into every later case's condition too, misapplying
       // e.g. a minLength rule's own value as a maxLength threshold.
+      case 'length':         if (String(value).length !== +rule.value) return { valid: false, message: `Exact length: ${rule.value}` }; break;
       case 'minLength':      if (String(value).length < +rule.value) return { valid: false, message: `Min length: ${rule.value}` }; break;
       case 'maxLength':      if (String(value).length > +rule.value) return { valid: false, message: `Max length: ${rule.value}` }; break;
       case 'pattern':        if (!new RegExp('^(?:' + rule.value + ')$').test(String(value))) return { valid: false, message: patternDescriber.describe(rule.value) }; break;
-      case 'minInclusive':   if (+value < +rule.value) return { valid: false, message: `Min value: ${rule.value}` }; break;
-      case 'maxInclusive':   if (+value > +rule.value) return { valid: false, message: `Max value: ${rule.value}` }; break;
-      case 'totalDigits':    if (String(value).replace(/[-.]/g, '').replace(/^0+(?=\d)/, '').length > +rule.value)
+      // compareToBound: sign of (value - bound), or NaN when incomparable (fails no check).
+      case 'minInclusive':   if (compareToBound(value, rule.value, element) < 0)  return { valid: false, message: `Min value: ${rule.value}` }; break;
+      case 'maxInclusive':   if (compareToBound(value, rule.value, element) > 0)  return { valid: false, message: `Max value: ${rule.value}` }; break;
+      case 'minExclusive':   if (compareToBound(value, rule.value, element) <= 0) return { valid: false, message: `Must be greater than ${rule.value}` }; break;
+      case 'maxExclusive':   if (compareToBound(value, rule.value, element) >= 0) return { valid: false, message: `Must be less than ${rule.value}` }; break;
+      case 'totalDigits':    if (totalDigitCount(value) > +rule.value)    // sign and point removed, leading zeros not significant
                                return { valid: false, message: `Max total digits: ${rule.value}` }; break;
-      case 'fractionDigits': { const frac = String(value).split('.')[1] || '';
-                               if (frac.length > +rule.value) return { valid: false, message: `Max decimal places: ${rule.value}` }; break; }
+      case 'fractionDigits': if (fractionDigitCount(value) > +rule.value) // characters after the '.'
+                               return { valid: false, message: `Max decimal places: ${rule.value}` }; break;
       default: break;        // an unknown kind is ignored, not failed — the parser may extract kinds this switch doesn't know yet
     }
   }
@@ -1533,6 +1565,8 @@ function validateFieldValue(value, element) {
   return { valid: true };
 }
 ```
+
+`compareToBound` compares numerically for every kind except `DatePicker`, where it compares the lexical strings: `xs:date` / `xs:dateTime` values of the same shape sort chronologically, and a value and bound of different shapes (one with a timezone, one without) are incomparable rather than guessed at. (A bare `+value` comparison, as an earlier draft had it, is `NaN` for every date, so a range facet on a date passed silently.) `totalDigitCount` and `fractionDigitCount` live in `js/core/facets.js` and are shared with §7's typing limit, so the two can never disagree about what a digit is.
 
 Show error text below the input. Set the input's border to `var(--coloring-incomplete)`.
 
@@ -1616,9 +1650,9 @@ function generateValues(element, options = {}) {
 
 ### Per-Kind Value Generation
 
-- `TextInput`: Generate a value based on the element name (e.g., name-containing elements get "TESTNAME", address gets "123 TEST ST"). If a `pattern` ValidationRule exists, generate a matching string.
-- `NumericInput`: Use `minInclusive` as base if present, else `1`.
-- `DecimalInput`: Use `minInclusive` or `0.00`.
+- `TextInput`: Generate a value based on the element name (e.g., name-containing elements get "TESTNAME", address gets "123 TEST ST"). If a `pattern` ValidationRule exists, generate a matching string. Either way, clamp to the length bounds §7 derives (`length` counts as both a min and a max); when padding up to a minimum, use a character every `pattern` rule still accepts (the generator emits a quantifier's lower bound, so `[0-9]*` alone yields `''`), falling back to `X`.
+- `NumericInput`: Use the lower bound §7 derives (`minInclusive`, or `minExclusive` nudged one inward) if present, else `1`.
+- `DecimalInput`: The same lower bound, or `0.00`. A `minExclusive` with no `fractionDigits` has no derived bound; use the bound `+ 1`.
 - `DatePicker`: Use a fixed recent date (e.g., `"2024-01-01"`).
 - `Checkbox`: `true`.
 - `Dropdown`: Pick the first `EnumerationOption.value`.
