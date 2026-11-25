@@ -319,6 +319,35 @@ function isXEnumCheckboxType(enumerationValues) {
   return enumerationValues.length === 1 && enumerationValues[0].value.trim().toUpperCase() === 'X';
 }
 
+/** "id", "recordId", "recordID", "record_id", "record-id" — but not "paid". */
+function isIdLikeName(name) {
+  return /^id$/i.test(name) || /[A-Za-z0-9]I[dD]$/.test(name) || /[_-]id$/i.test(name);
+}
+
+/**
+ * Which of a form's own attributes identifies an instance of it (§4
+ * "Instance-id source"; parity 1.5).
+ *
+ * `setting` is the per-schema override: {mode: 'attribute', name} uses exactly
+ * that attribute (a form that doesn't declare it has no identity attribute),
+ * {mode: 'none'} uses none, anything else is the heuristic, in order: an
+ * attribute of type xs:ID; the first required attribute named like an id; the
+ * first optional one. References to another element's id are never candidates.
+ *
+ * @param {object[]} attributes attribute SchemaElements in declaration order
+ * @returns {object|null}
+ */
+export function selectInstanceIdSource(attributes, setting = null) {
+  if (setting?.mode === 'none') return null;
+  if (setting?.mode === 'attribute') {
+    return attributes.find((a) => a.elementName.toLowerCase() === String(setting.name).toLowerCase()) ?? null;
+  }
+  const candidates = attributes.filter(
+    (a) => isIdLikeName(a.elementName) && !/^ref/i.test(a.elementName) && !/^xs:IDREFS?$/.test(a.xsdDataType ?? '')
+  );
+  return attributes.find((a) => a.xsdDataType === 'xs:ID') ?? candidates.find((a) => a.isRequired) ?? candidates[0] ?? null;
+}
+
 function assignLeafKind(xsdDataType, enumerationValues) {
   const local = stripPrefix(xsdDataType || 'xs:string');
   if (local === 'boolean') return 'Checkbox';
@@ -445,8 +474,10 @@ export class TypeLookupTable {
 // ---------------------------------------------------------------------------
 
 export class SchemaParser {
-  constructor(flatDoc, rootElementName = null) {
+  /** @param {{mode: string, name?: string}|null} [instanceIdSource] per-schema setting, see selectInstanceIdSource */
+  constructor(flatDoc, rootElementName = null, instanceIdSource = null) {
     this.flatDoc = flatDoc;
+    this.instanceIdSource = instanceIdSource;
     this.types = new TypeLookupTable(flatDoc);
     this.rootElementName = rootElementName;
   }
@@ -462,6 +493,15 @@ export class SchemaParser {
    * SampleSummary case).
    */
   parseGlobalElement(name) {
+    const formElement = this._parseGlobalElement(name);
+    // Only a form's own attributes can identify it, so this is marked here
+    // rather than in _collectAttributes, which runs for every nested type too.
+    const idAttr = formElement && selectInstanceIdSource(formElement.children.filter(isAttribute), this.instanceIdSource);
+    if (idAttr) idAttr.isInstanceIdSource = true;
+    return formElement;
+  }
+
+  _parseGlobalElement(name) {
     const globalEl = findGlobalElementInDoc(this.flatDoc, name);
     if (globalEl) {
       return this._buildSchemaElementForDecl(globalEl, name, '', { minOccurs: 1, maxOccurs: 1 });
@@ -689,7 +729,6 @@ export class SchemaParser {
         maxOccurs: 1,
         elementPath: joinPath(ownerPath, name),
         isAttribute: true,
-        isInstanceIdSource: name.toLowerCase() === 'documentid',
       };
       return this._finishSimpleType(attrBase, typeAttr, inlineSimpleType);
     });

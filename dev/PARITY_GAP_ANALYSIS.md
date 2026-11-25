@@ -160,7 +160,10 @@ and the validation panel actively contradict each other today.
 active), never Green — and more generally make `computeContainerColor(required, [])` never
 return Green for a container-shaped node.
 
-### 1.4 Packaging is hardcoded to one organization's conventions — and hardcoded wrongly **[domain-specific]**
+### 1.4 Packaging is hardcoded to one organization's conventions — and hardcoded wrongly **[domain-specific]** — **DONE**
+
+*Implemented as `js/core/exportProfile.js` + `export-profiles/`; see `dev/IMPLEMENTATION_ORDER.md`
+Phase 3. The text below describes the state before.*
 
 Under the generalized goal, the defect here is **not** "the output doesn't match the original
 department's rules." It is that `js/core/packager.js` has *no configuration layer at all*: the
@@ -211,7 +214,10 @@ If a profile system is more than is wanted right now, the minimum viable version
 literal out of `packager.js` into one exported config object. That alone makes the domain
 assumptions visible and swappable, and it is a prerequisite for any of the above.
 
-### 1.5 Instance identity is tied to a hardcoded attribute name **[domain-specific]**
+### 1.5 Instance identity is tied to a hardcoded attribute name **[domain-specific]** — **DONE**
+
+*Implemented as `selectInstanceIdSource` + `js/core/instanceIdentity.js`; see
+`dev/IMPLEMENTATION_ORDER.md` Phase 3. The text below describes the state before.*
 
 Spec §4 makes `documentId` — a specific attribute name from one schema family — the convention
 by which a repeatable form's instance identity is read on load (`isInstanceIdSource`), and
@@ -544,7 +550,7 @@ backlog's own ordering. Kept here for the rationale.
    context) and touched the two walks that had to stay in lockstep (WPF invariant §13 #47), so
    they were done in one pass, which also merged those two walks into one.
 2. ~~**1.9 → 1.8.**~~ **Done** — facet extraction, then native input limits.
-3. **1.4 + 1.5.** The two domain-specific items. Both are really "move hardcoded assumptions
+3. ~~**1.4 + 1.5.**~~ **Done** — the two domain-specific items. Both are really "move hardcoded assumptions
    into configuration"; doing them together keeps one notion of per-schema settings.
 4. **1.6 + 1.7 + 1.11.** Small, independent, each a visible bug.
 5. **3.2 + 3.3.** Nav tree labeling/renumbering plus the manifest fields it displays.
@@ -583,7 +589,7 @@ of effort:
    long-term, most work now, and probably premature before a second profile exists to prove the
    abstraction.
 
-Option 1 is recommended — it unblocks all the work in 1.4/1.5 without a speculative
+**Option 1 is what Phase 3 implemented** — it unblocks all the work in 1.4/1.5 without a speculative
 restructuring, and option 2 or 3 stays available once a real second profile exists.
 
 Worth noting: §25's checklist of unmodeled constructs (`xs:union`, substitution groups,

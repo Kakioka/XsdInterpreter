@@ -144,15 +144,54 @@ picks a pattern-legal character instead of a fixed `X`.
 
 ---
 
-## Phase 3 — Domain-specific behavior → configuration
+## Phase 3 — Domain-specific behavior → configuration — **DONE**
 
 Both items are "move a hardcoded assumption into data," and share one notion of per-schema
 settings — do together.
 
-- **P 1.4** — packaging export-profile mechanism (archive layout + metadata schema as data, not
+- ~~**P 1.4**~~ — packaging export-profile mechanism (archive layout + metadata schema as data, not
   literals in `packager.js`); ship the original department's rules as the one bundled profile.
-- **P 1.5** — configurable instance-id source (heuristic + per-schema override), replacing the
+- ~~**P 1.5**~~ — configurable instance-id source (heuristic + per-schema override), replacing the
   hardcoded `documentId` convention.
+
+**Where it landed:** `js/core/exportProfile.js` (profile interpreter),
+`export-profiles/mef-state.profile.json` (the bundled profile; format in that folder's README),
+`js/core/instanceIdentity.js`, `parser.js`'s `selectInstanceIdSource`, and
+`js/core/settingsStore.js` (per-schema settings, now the only `localStorage` user in `core/`).
+`js/ui/packaging.js` generates its dialog from the profile; `js/ui/schemaSettings.js` is the
+File → Schema Settings override.
+
+**Decisions taken:**
+
+- **Spec: option 1** of *Open question for the spec*. §4, §10, §11 and §19 carry short notes
+  pointing at the mechanism; their bodies were not restructured. Where §19's archive layout and
+  manifest disagree with the original app, the bundled profile follows the **original** (§25
+  already calls §19's manifest a placeholder). Not verified against the published schema.
+- **The heuristic has a third step.** P 1.5 proposed type `ID`, then the first *required*
+  attribute ending in `Id`. Both fixture sets declare `documentId` optional on forms, so that
+  alone would have lost identity; an optional id-like attribute is now the last resort.
+  References (`ref…`, `xs:IDREF`) and words like `paid` are excluded.
+- **Generated ids are `FormName-n`, not UUIDs.** They are backfilled into the XML, and a UUID
+  breaks the production `IdType` (30 characters), `xs:ID` (leading digit) and integers. An id the
+  attribute can't hold is not written.
+- **Ids with no attribute to live in** are remembered by document fingerprint (last 20 saved), so
+  a file that was edited elsewhere is not matched to the wrong ids.
+- **Directories appear only when otherwise empty**, and the 64-character limit applies to the
+  path actually written. The original omits `irs/xml/` when only federal attachments are present,
+  against its own comment, and measures the federal return's original file name.
+
+- **Sensitive packaging values are not stored** (the user's call; the original persisted them).
+  A field with `remember: false` (SSNs and TempID in the bundled profile) is never written to
+  `localStorage`, and values left by earlier versions are deleted at startup.
+
+**Found while doing this:** two elements with the same `documentId` overwrote each other on load,
+silently dropping a form. Later duplicates now get a generated key and keep their value.
+
+**Not done:** the original's stub-file generation for attachments (a test aid tied to one schema's
+`BinaryAttachment` form).
+
+**Harness failures that predate this phase,** confirmed against a clean checkout: `phase6-check`
+and `phase9-check` throw partway, and `phase7-check` fails "Panel renders all 4 tab buttons".
 
 ---
 

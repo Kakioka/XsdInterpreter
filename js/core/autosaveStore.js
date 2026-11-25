@@ -47,6 +47,13 @@ function fnv1a(str) {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
+/** Identifies a document by its text, ignoring line-ending style, a BOM and the
+ *  XML declaration (a packaged copy may carry one that Save XML doesn't). */
+export function textFingerprint(text) {
+  const normalized = text.replace(/\r\n?/g, '\n').replace(/^\uFEFF?\s*<\?xml[^>]*\?>/, '').trim();
+  return `${normalized.length}-${fnv1a(normalized)}`;
+}
+
 /**
  * A stable identity for "this schema set, rooted here", used as the snapshot's
  * primary key so recovery is only ever offered against the schema the work was

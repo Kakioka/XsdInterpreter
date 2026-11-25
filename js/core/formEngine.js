@@ -14,8 +14,9 @@
 export class FormInstanceKey {
   /**
    * @param {string} formName
-   * @param {string} [instanceId] same as formName for non-repeatable forms; a UUID
-   *   (or a documentId-derived id) for repeatable instances. Defaults to formName.
+   * @param {string} [instanceId] same as formName for non-repeatable forms; for
+   *   repeatable instances, the identity attribute's value or a generated id
+   *   (see instanceIdentity.js). Defaults to formName.
    */
   constructor(formName, instanceId) {
     this.formName = formName;

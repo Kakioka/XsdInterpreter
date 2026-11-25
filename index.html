@@ -22,6 +22,7 @@
           <div class="dropdown-content">
             <button id="load-schema-menu-btn" type="button">Load Schema Folder</button>
             <button id="switch-root-btn" type="button" disabled>Switch Root</button>
+            <button id="schema-settings-btn" type="button" disabled>Schema Settings</button>
             <hr>
             <button id="save-xml-btn" type="button" disabled>Save XML</button>
             <button id="load-xml-btn" type="button" disabled>Load XML</button>
@@ -130,6 +131,8 @@
     <!-- §20 Choose-root dropdown — built dynamically by js/ui/chooseRootDialog.js,
          same empty-container pattern as #package-dialog-overlay. -->
     <div id="choose-root-dialog-overlay" class="hidden"></div>
+    <!-- Per-schema settings — built dynamically by js/ui/schemaSettings.js. -->
+    <div id="schema-settings-overlay" class="hidden"></div>
     <!-- B.3 error boundary / C.1 crash recovery prompt — built dynamically by
          js/ui/errorBoundary.js and js/ui/autosave.js, same empty-container
          pattern as the dialogs above. -->

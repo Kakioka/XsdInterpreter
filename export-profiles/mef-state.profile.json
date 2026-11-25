@@ -1,0 +1,89 @@
+{
+  "formatVersion": 1,
+  "id": "mef-state",
+  "name": "MeF state submission",
+  "description": "State return package: submission manifest, return XML, attachments, and an optional federal return.",
+  "archiveName": "{submissionId}.zip",
+  "limits": { "maxEntryPathLength": 64 },
+  "fields": [
+    { "id": "submissionId", "section": "Manifest metadata", "label": "Submission ID", "required": true, "maxLength": 20,
+      "pattern": "[0-9]{13}[a-z0-9]{7}", "patternMessage": "must be 20 characters: 13 digits followed by 7 lowercase letters or digits.",
+      "hint": "13 digits + 7 lowercase letters or digits" },
+    { "id": "efin", "section": "Manifest metadata", "label": "EFIN", "required": true, "maxLength": 6,
+      "pattern": "[0-9]{6}", "patternMessage": "must be exactly 6 digits." },
+    { "id": "taxYear", "section": "Manifest metadata", "label": "Tax Year", "required": true, "maxLength": 4,
+      "pattern": "[0-9]{4}", "patternMessage": "must be exactly 4 digits." },
+    { "id": "governmentCode", "section": "Manifest metadata", "label": "Government Code", "required": true, "maxLength": 4,
+      "pattern": ".{4}", "patternMessage": "must be exactly 4 characters.", "hint": "State or agency code, e.g. HIST" },
+    { "id": "submissionType", "section": "Manifest metadata", "label": "Submission Type", "required": true, "maxLength": 15,
+      "pattern": "[A-Za-z0-9\\-]{1,15}", "patternMessage": "may contain only letters, digits and hyphens.", "placeholder": "e.g. HIN11" },
+    { "id": "category", "section": "Filer", "label": "Submission Category", "type": "select", "required": true, "default": "IND",
+      "options": [
+        { "value": "IND", "label": "IND — Individual" },
+        { "value": "CORP", "label": "CORP — Corporate" },
+        { "value": "EO", "label": "EO — Exempt Organization" },
+        { "value": "ETEC", "label": "ETEC — Electronic Transmitter" },
+        { "value": "PART", "label": "PART — Partnership" },
+        { "value": "ESTRST", "label": "ESTRST — Estate/Trust" }
+      ] },
+    { "id": "identityType", "section": "Filer", "label": "Identity Type", "type": "select", "required": true, "default": "SSN",
+      "options": [
+        { "value": "SSN", "label": "SSN — Social Security Number" },
+        { "value": "EIN", "label": "EIN — Federal Employer ID Number" },
+        { "value": "TempID", "label": "TempID — no permanent TIN assigned" }
+      ] },
+    { "id": "primarySSN", "section": "Filer", "label": "Primary SSN", "required": true, "remember": false, "maxLength": 9,
+      "pattern": "[0-9]{9}", "patternMessage": "must be exactly 9 digits.", "when": { "field": "identityType", "equals": "SSN" } },
+    { "id": "primaryNameControl", "section": "Filer", "label": "Primary Name Control", "required": true, "maxLength": 4,
+      "pattern": "[A-Z]{1,4}", "patternMessage": "must be 1-4 uppercase letters.", "when": { "field": "identityType", "equals": "SSN" } },
+    { "id": "spouseSSN", "section": "Filer", "label": "Spouse SSN", "remember": false, "maxLength": 9,
+      "pattern": "[0-9]{9}", "patternMessage": "must be exactly 9 digits.", "when": { "field": "identityType", "equals": "SSN" } },
+    { "id": "spouseNameControl", "section": "Filer", "label": "Spouse Name Control", "required": true, "maxLength": 4,
+      "pattern": "[A-Z]{1,4}", "patternMessage": "must be 1-4 uppercase letters.", "when": { "field": "spouseSSN", "notBlank": true } },
+    { "id": "ein", "section": "Filer", "label": "Federal EIN", "required": true, "maxLength": 9,
+      "pattern": "[0-9]{9}", "patternMessage": "must be exactly 9 digits.", "when": { "field": "identityType", "equals": "EIN" } },
+    { "id": "businessNameControl", "section": "Filer", "label": "Business Name Control", "required": true, "maxLength": 4,
+      "pattern": "[A-Z]{1,4}", "patternMessage": "must be 1-4 uppercase letters.", "when": { "field": "identityType", "equals": "EIN" } },
+    { "id": "tempId", "section": "Filer", "label": "Temp ID", "required": true, "remember": false, "maxLength": 9,
+      "pattern": "[A-Za-z0-9]{9}", "patternMessage": "must be exactly 9 letters or digits.", "when": { "field": "identityType", "equals": "TempID" } },
+    { "id": "irsSubmissionId", "section": "Optional", "label": "IRS Submission ID", "maxLength": 20,
+      "pattern": "[0-9]{13}[a-z0-9]{7}", "patternMessage": "must be 20 characters: 13 digits followed by 7 lowercase letters or digits." },
+    { "id": "stateSchemaVersionNum", "section": "Optional", "label": "State Schema Version", "maxLength": 50, "placeholder": "e.g. 2025v1.0" }
+  ],
+  "fileGroups": [
+    { "id": "stateAttachments", "label": "State attachments", "multiple": true, "maxCount": 50, "uniqueNames": true },
+    { "id": "federalReturnFile", "label": "Federal return XML", "accept": ".xml" },
+    { "id": "federalAttachments", "label": "Federal attachments", "multiple": true, "maxCount": 50, "uniqueNames": true }
+  ],
+  "entries": [
+    { "type": "document", "path": "manifest/manifest.xml",
+      "document": {
+        "name": "StateSubmissionManifest",
+        "namespace": "http://www.irs.gov/efile",
+        "prefix": "efile",
+        "children": [
+          { "name": "SubmissionId", "value": "{submissionId}" },
+          { "name": "EFIN", "value": "{efin}" },
+          { "name": "TaxYr", "value": "{taxYear}" },
+          { "name": "GovernmentCd", "value": "{governmentCode}" },
+          { "name": "StateSubmissionTyp", "value": "{submissionType}" },
+          { "name": "SubmissionCategoryCd", "value": "{category}" },
+          { "name": "FederalEIN", "value": "{ein}" },
+          { "name": "BusinessNameControlTxt", "value": "{businessNameControl}" },
+          { "name": "TempID", "value": "{tempId}" },
+          { "name": "PrimarySSN", "value": "{primarySSN}" },
+          { "name": "PrimaryNameControlTxt", "value": "{primaryNameControl}" },
+          { "name": "SpouseSSN", "value": "{spouseSSN}" },
+          { "name": "SpouseNameControlTxt", "value": "{spouseNameControl}" },
+          { "name": "IRSSubmissionId", "value": "{irsSubmissionId}" },
+          { "name": "StateSchemaVersionNum", "value": "{stateSchemaVersionNum}" }
+        ]
+      } },
+    { "type": "packet", "path": "xml/{submissionId}.xml", "xmlDeclaration": true },
+    { "type": "files", "group": "stateAttachments", "path": "attachment/{fileName}" },
+    { "type": "files", "group": "federalReturnFile", "path": "irs/xml/submission.xml" },
+    { "type": "files", "group": "federalAttachments", "path": "irs/attachment/{fileName}" },
+    { "type": "directory", "path": "attachment/" },
+    { "type": "directory", "path": "irs/xml/" }
+  ]
+}

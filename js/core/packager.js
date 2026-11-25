@@ -1,8 +1,9 @@
-// js/core/packager.js — MeF submission ZIP builder.
+// js/core/packager.js — ZIP writer and package assembly.
 //
-// See web-implementation-spec.md §19 (Packaging). Implemented in
-// IMPLEMENTATION_PLAN.md Phase 8. Note: the manifest XML shape described in §19
-// is a placeholder pending a real IRS/state MeF schema — see §25 / Phase 9.
+// See web-implementation-spec.md §19 (Packaging). What goes into a package —
+// fields, layout, manifest — is an export profile's business
+// (js/core/exportProfile.js, export-profiles/); this module only turns a
+// planned archive into bytes.
 //
 // Deviates from §19's suggested implementation in one way: rather than vendor
 // JSZip (an external dependency this project otherwise has none of — §23/§24
@@ -17,155 +18,7 @@
 // global used, CompressionStream, is a streams-and-bytes API, not a DOM one;
 // same category as DOMParser/XMLSerializer elsewhere in this codebase).
 
-// ---------------------------------------------------------------------------
-// Packaging Settings Validation (§19 workflow step 3 — "Validate all
-// required fields", the dialog's OWN fields; this is deliberately separate
-// from js/ui/validation.js's validateSchema, which checks the PACKET's data
-// against the XSD — see js/ui/packaging.js, which runs both and treats this
-// function's output as blocking and validateSchema's as a skippable warning,
-// matching §19 workflow steps 3 and 4 respectively).
-// ---------------------------------------------------------------------------
-
-function isBlank(value) {
-  return value === undefined || value === null || String(value).trim() === '';
-}
-
-/**
- * @param {object} settings see js/ui/packaging.js's gatherSettings() for the
- *   full shape; only the fields validated below are read here.
- * @returns {Array<{field: string, message: string}>} empty when settings pass
- */
-export function validatePackagingSettings(settings) {
-  const errors = [];
-  const require = (field, label) => {
-    if (isBlank(settings[field])) errors.push({ field, message: `${label} is required.` });
-  };
-
-  require('submissionId', 'Submission ID');
-  if (!isBlank(settings.submissionId) && !/^\d{13}[A-Za-z0-9]{7}$/.test(settings.submissionId)) {
-    errors.push({ field: 'submissionId', message: 'Submission ID must be 20 characters: 13 digits followed by 7 alphanumeric characters.' });
-  }
-
-  require('efin', 'EFIN');
-  if (!isBlank(settings.efin) && !/^\d{6}$/.test(settings.efin)) {
-    errors.push({ field: 'efin', message: 'EFIN must be exactly 6 digits.' });
-  }
-
-  require('taxYear', 'Tax Year');
-  if (!isBlank(settings.taxYear) && !/^\d{4}$/.test(settings.taxYear)) {
-    errors.push({ field: 'taxYear', message: 'Tax Year must be exactly 4 digits.' });
-  }
-
-  require('governmentCode', 'Government Code');
-  if (!isBlank(settings.governmentCode) && String(settings.governmentCode).length !== 4) {
-    errors.push({ field: 'governmentCode', message: 'Government Code must be exactly 4 characters.' });
-  }
-
-  require('submissionType', 'Submission Type');
-
-  if (settings.category !== 'Individual' && settings.category !== 'Business') {
-    errors.push({ field: 'category', message: 'Category must be Individual or Business.' });
-  } else if (settings.category === 'Individual') {
-    require('primarySSN', 'Primary SSN');
-    if (!isBlank(settings.primarySSN) && !/^\d{9}$/.test(settings.primarySSN)) {
-      errors.push({ field: 'primarySSN', message: 'Primary SSN must be exactly 9 digits.' });
-    }
-    require('primaryNameControl', 'Primary Name Control');
-    if (!isBlank(settings.primaryNameControl) && String(settings.primaryNameControl).length > 4) {
-      errors.push({ field: 'primaryNameControl', message: 'Primary Name Control must be at most 4 characters.' });
-    }
-    if (!isBlank(settings.spouseSSN) && !/^\d{9}$/.test(settings.spouseSSN)) {
-      errors.push({ field: 'spouseSSN', message: 'Spouse SSN must be exactly 9 digits.' });
-    }
-    if (!isBlank(settings.spouseNameControl) && String(settings.spouseNameControl).length > 4) {
-      errors.push({ field: 'spouseNameControl', message: 'Spouse Name Control must be at most 4 characters.' });
-    }
-  } else {
-    require('ein', 'EIN');
-    if (!isBlank(settings.ein) && !/^\d{9}$/.test(settings.ein)) {
-      errors.push({ field: 'ein', message: 'EIN must be exactly 9 digits.' });
-    }
-    require('businessNameControl', 'Business Name Control');
-    if (!isBlank(settings.businessNameControl) && String(settings.businessNameControl).length > 4) {
-      errors.push({ field: 'businessNameControl', message: 'Business Name Control must be at most 4 characters.' });
-    }
-  }
-
-  if (!isBlank(settings.irsSubmissionId) && String(settings.irsSubmissionId).length !== 20) {
-    errors.push({ field: 'irsSubmissionId', message: 'IRS Submission ID must be exactly 20 characters.' });
-  }
-
-  if ((settings.stateAttachmentCount ?? 0) > 50) {
-    errors.push({ field: 'stateAttachments', message: 'At most 50 state attachment files are allowed.' });
-  }
-  if ((settings.federalAttachmentCount ?? 0) > 50) {
-    errors.push({ field: 'federalAttachments', message: 'At most 50 federal attachment files are allowed.' });
-  }
-
-  return errors;
-}
-
-// ---------------------------------------------------------------------------
-// Manifest XML (§19 "Manifest XML")
-// ---------------------------------------------------------------------------
-
-function xmlEscape(value) {
-  return String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]);
-}
-
-function tag(name, value) {
-  return isBlank(value) ? '' : `  <${name}>${xmlEscape(value)}</${name}>\n`;
-}
-
-/** @param {object} settings @returns {string} */
-export function buildManifestXml(settings) {
-  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<StateManifest>\n';
-  xml += tag('SubmissionId', settings.submissionId);
-  xml += tag('EFIN', settings.efin);
-  xml += tag('TaxYear', settings.taxYear);
-  xml += tag('GovernmentCd', settings.governmentCode);
-  xml += tag('StateSubmissionTyp', settings.submissionType);
-  xml += tag('SubmissionCategoryCd', settings.category === 'Individual' ? 'IND' : settings.category === 'Business' ? 'BUS' : '');
-  if (settings.category === 'Individual') {
-    xml += tag('PrimarySSN', settings.primarySSN);
-    xml += tag('PrimaryNameControlTxt', settings.primaryNameControl);
-    xml += tag('SpouseSSN', settings.spouseSSN);
-    xml += tag('SpouseNameControlTxt', settings.spouseNameControl);
-  } else if (settings.category === 'Business') {
-    xml += tag('EIN', settings.ein);
-    xml += tag('BusinessNameControlTxt', settings.businessNameControl);
-  }
-  xml += tag('IRSSubmissionId', settings.irsSubmissionId);
-  xml += '</StateManifest>';
-  return xml;
-}
-
-// ---------------------------------------------------------------------------
-// Last-used dialog settings persistence (§19 "Persist last-used dialog
-// values to localStorage.xmlEditor.lastPackagingSettings")
-// ---------------------------------------------------------------------------
-
-const SETTINGS_STORAGE_KEY = 'xmlEditor.lastPackagingSettings';
-
-/** File lists aren't JSON-serializable/rehydratable, so only the text fields
- *  round-trip — attachments are always re-picked per package. */
-export function saveLastPackagingSettings(settings) {
-  const { stateAttachments, federalReturnFile, federalAttachments, stateAttachmentCount, federalAttachmentCount, ...persistable } = settings;
-  try {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(persistable));
-  } catch {
-    // ignore — packaging still works for this session
-  }
-}
-
-export function loadLastPackagingSettings() {
-  try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
+import { planArchive, validatePackage } from './exportProfile.js';
 
 // ---------------------------------------------------------------------------
 // ZIP container (hand-rolled — see file header comment)
@@ -288,34 +141,37 @@ export async function buildZip(entries) {
 }
 
 // ---------------------------------------------------------------------------
-// Full package assembly (§19 "Build the ZIP" layout)
+// Package assembly
 // ---------------------------------------------------------------------------
-
-async function fileToBytes(file) {
-  return new Uint8Array(await file.arrayBuffer());
-}
 
 /**
  * @param {object} params
- * @param {object} params.settings — see js/ui/packaging.js gatherSettings()
- * @param {string} params.packetXml — the built Packet_XML string (§10 buildPacketXml)
- * @param {string} params.packetFileName — `${manifest.packetName}.xml`
- * @param {File[]} [params.stateAttachments]
- * @param {File|null} [params.federalReturnFile]
- * @param {File[]} [params.federalAttachments]
+ * @param {object} params.profile a profile that passes validateProfile
+ * @param {object} params.values field values by field id
+ * @param {Object<string, File[]>} [params.files] picked files by file group id
+ * @param {string} params.packetXml the built Packet_XML string (§10 buildPacketXml)
+ * @param {string} params.packetName manifest.packetName
  * @returns {Promise<{blob: Blob, filename: string}>}
+ * @throws when the values or files don't satisfy the profile — callers show
+ *   validatePackage's errors first; this is the backstop against writing a
+ *   package that breaks its own rules.
  */
-export async function buildSubmissionPackage({ settings, packetXml, packetFileName, stateAttachments = [], federalReturnFile = null, federalAttachments = [] }) {
+export async function buildPackage({ profile, values, files = {}, packetXml, packetName }) {
+  const errors = validatePackage(profile, values, files, packetName);
+  if (errors.length > 0) throw new Error(`Cannot create the package: ${errors.map((e) => e.message).join(' ')}`);
+
   const encoder = new TextEncoder();
-  const entries = [
-    { name: 'manifest.xml', data: encoder.encode(buildManifestXml(settings)) },
-    { name: packetFileName, data: encoder.encode(packetXml) },
-  ];
-
-  for (const file of stateAttachments) entries.push({ name: file.name, data: await fileToBytes(file) });
-  if (federalReturnFile) entries.push({ name: 'federal/federal_return.xml', data: await fileToBytes(federalReturnFile) });
-  for (const file of federalAttachments) entries.push({ name: `federal/${file.name}`, data: await fileToBytes(file) });
-
-  const blob = await buildZip(entries);
-  return { blob, filename: `${settings.submissionId}.zip` };
+  const { filename, entries: planned } = planArchive(profile, values, files, packetName);
+  const entries = [];
+  for (const entry of planned) {
+    let data = new Uint8Array(0); // directory
+    if (entry.type === 'files') data = new Uint8Array(await entry.file.arrayBuffer());
+    else if (entry.type === 'document') data = encoder.encode(entry.text);
+    else if (entry.type === 'packet') {
+      const declare = entry.xmlDeclaration && !packetXml.startsWith('<?xml');
+      data = encoder.encode(declare ? `<?xml version="1.0" encoding="UTF-8"?>\n${packetXml}` : packetXml);
+    }
+    entries.push({ name: entry.path, data });
+  }
+  return { blob: await buildZip(entries), filename };
 }

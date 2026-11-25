@@ -8,6 +8,7 @@
 
 import { isTransparent, isAttribute, isLeaf, isRepeatingContentContainer, isChoiceOnlyContainer, joinPath, findSectionAncestry } from './parser.js';
 import { keyOf } from './formEngine.js';
+import { findInstanceIdAttribute, canHoldInstanceId } from './instanceIdentity.js';
 
 export function isEmpty(value) {
   return value === undefined || value === null || value === '';
@@ -45,12 +46,14 @@ function createElement(tagName) {
 }
 
 /** Ensures the written XML carries the same instance id the reader would derive
- *  on reload (§11), even if the user never touched the documentId field. */
+ *  on reload (§11), even if the user never touched the identity attribute's field.
+ *  An id the attribute can't legally hold is never written: better to leave it
+ *  empty, where Validate can point at it, than to emit invalid XML. */
 export function syncInstanceIdAttribute(schemaElement, state, instanceKey) {
-  const idAttr = schemaElement.children.find((c) => isAttribute(c) && c.isInstanceIdSource);
+  const idAttr = findInstanceIdAttribute(schemaElement);
   if (!idAttr || instanceKey.instanceId === instanceKey.formName) return; // non-repeatable form: no synthetic id
   const key = joinPath(schemaElement.elementName, idAttr.elementName).toLowerCase();
-  if (isEmpty(state.fieldValues[key])) state.fieldValues[key] = instanceKey.instanceId;
+  if (isEmpty(state.fieldValues[key]) && canHoldInstanceId(idAttr, instanceKey.instanceId)) state.fieldValues[key] = instanceKey.instanceId;
 }
 
 /**

@@ -137,7 +137,7 @@ export function wireToolbar({ onSchemaFilesSelected, onXmlTextSelected, onSaveXm
 
 /** Buttons that only make sense once a schema is loaded. */
 export function setSchemaDependentButtonsEnabled(enabled) {
-  for (const id of ['save-xml-btn', 'load-xml-btn', 'add-form-btn', 'validate-btn', 'fill-all-btn', 'fill-required-btn', 'clear-all-btn']) {
+  for (const id of ['save-xml-btn', 'load-xml-btn', 'add-form-btn', 'validate-btn', 'fill-all-btn', 'fill-required-btn', 'clear-all-btn', 'schema-settings-btn']) {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
   }

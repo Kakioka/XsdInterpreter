@@ -7,17 +7,7 @@
 
 import { isTransparent, isAttribute, isLeaf, isRepeatingContentContainer, isChoiceOnlyContainer, joinPath, findSectionAncestry } from './parser.js';
 import { FormInstanceKey, createEmptyFormState } from './formEngine.js';
-
-function generateUUID() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  // Fallback for environments without crypto.randomUUID (shouldn't be needed in
-  // any modern browser this app targets — see spec §24 Browser Compatibility Notes).
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
+import { findInstanceIdAttribute, assignInstanceIds } from './instanceIdentity.js';
 
 export function parseValue(rawText, schemaElement) {
   if (schemaElement.kind === 'Checkbox') {
@@ -68,6 +58,8 @@ function possibleDirectChildTagNames(children) {
  * @param {string} xmlString
  * @param {{sections: {elementName:string, isRepeatable:boolean}[]}} manifest
  * @param {{parseGlobalElement:(name:string)=>object|null}} schemaParser
+ * @param {Object<string, string[]>} [rememberedIds] form name → instance ids this
+ *   exact document was saved with (settingsStore.recallInstanceIds)
  * @returns {Map<string, object>} key.toString() (natural case — see note below) → FormState
  *
  * Keyed by the NATURAL-CASE FormInstanceKey.toString(), not the lowercased
@@ -76,7 +68,7 @@ function possibleDirectChildTagNames(children) {
  * into FormEngine (whose own restoreFormState() re-applies keyOf() itself, so
  * its case-insensitivity guarantee (§6) is unaffected either way).
  */
-export function readPacket(xmlString, manifest, schemaParser) {
+export function readPacket(xmlString, manifest, schemaParser, rememberedIds = {}) {
   const doc = new DOMParser().parseFromString(xmlString, 'application/xml');
   const parserError = doc.getElementsByTagName('parsererror')[0];
   if (parserError) throw new Error(`Failed to parse XML: ${parserError.textContent.trim()}`);
@@ -105,15 +97,16 @@ export function readPacket(xmlString, manifest, schemaParser) {
       }
       const parentDomEl = resolveParentDomEl(section.elementName);
       if (!parentDomEl) continue;
-      const elements = parentDomEl.querySelectorAll(`:scope > ${section.elementName}`);
-      for (const el of elements) {
-        const instanceId = section.isRepeatable ? el.getAttribute('documentId') || generateUUID() : section.elementName;
-        const key = new FormInstanceKey(section.elementName, instanceId);
-        const schemaElement = schemaParser.parseGlobalElement(section.elementName);
-        if (!schemaElement) continue; // unresolvable section — nothing to read it into
-        const state = extractFormState(el, schemaElement);
-        result.set(key.toString(), state);
-      }
+      const elements = [...parentDomEl.querySelectorAll(`:scope > ${section.elementName}`)];
+      if (elements.length === 0) continue;
+      const schemaElement = schemaParser.parseGlobalElement(section.elementName);
+      if (!schemaElement) continue; // unresolvable section — nothing to read it into
+      const instanceIds = section.isRepeatable
+        ? assignInstanceIds(elements, section.elementName, findInstanceIdAttribute(schemaElement), rememberedIds[section.elementName])
+        : elements.map(() => section.elementName);
+      elements.forEach((el, i) => {
+        result.set(new FormInstanceKey(section.elementName, instanceIds[i]).toString(), extractFormState(el, schemaElement));
+      });
     }
   }
   readSections(manifest.sections);

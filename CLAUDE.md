@@ -63,7 +63,7 @@ returning null, so add support there rather than working around it in the module
 
 What is covered: flattener, parser, xmlReader/xmlWriter (including the full fixture round-trip),
 facets (pattern→maxLength derivation, the native input constraints `controlFactory` applies),
-formEngine, coloringService, undoService, searchService, testDataFiller, packager (ZIP bytes
+formEngine, coloringService, undoService, searchService, testDataFiller, exportProfile, instanceIdentity, packager (ZIP bytes
 parsed back out of the central directory), autosaveStore, plus `test/moduleGraph.test.mjs` — a
 static check that every import resolves, every named import exists, `js/core/` imports no
 `js/ui/`, and `index.html` still declares every container the UI builds into. That last one is
@@ -252,8 +252,8 @@ Dot-separated, with `[i]` for repeat indices:
 ### Form identity: `FormInstanceKey`
 
 `{formName, instanceId}`, equality case-insensitive on both. `instanceId === formName` for
-non-repeatable forms; a UUID (or a `documentId`-derived id on XML load) for repeatable
-instances. It is the universal identity across `FormEngine` state routing, every undo action,
+non-repeatable forms; the identity attribute's value or a generated id (`FormName-n`)
+for repeatable instances. It is the universal identity across `FormEngine` state routing, every undo action,
 the nav tree, and `buildPacketXml`'s ordered key list. Never key form state by bare form name.
 
 ### Radio selections store *static* paths
@@ -309,6 +309,19 @@ Both exist because FormEngine state lives only in memory and the browser can tak
 - A successful Save XML calls `clearSnapshot()`. Every store function resolves rather than
   rejects on a storage failure; the one quiet notice goes to `#autosave-status`.
 
+### Configuration, not literals (`exportProfile.js`, `instanceIdentity.js`, `settingsStore.js`)
+
+- Packaging rules live in `export-profiles/*.profile.json`, interpreted by
+  `js/core/exportProfile.js`; `packager.js` only writes ZIPs. The packaging dialog is generated
+  from the profile. Don't add a program-specific field, path or regex to JS. Profiles can be
+  user files, so anything new in the format needs a check in `validateProfile`.
+- Which attribute identifies a repeatable form's instance is `parser.js`'s
+  `selectInstanceIdSource` (heuristic, or the per-schema override in File → Schema Settings).
+  Generated ids must be legal for that attribute, because the writer backfills them.
+- `settingsStore.js` is the only module in `core/` allowed to use `localStorage`
+  (`moduleGraph.test.mjs` enforces it). Per-schema settings are keyed more loosely than autosave
+  snapshots, so they survive a schema revision.
+
 ### Fixtures
 
 - `sample-schemas/SamplePacket.xsd` + `SampleCommonTypes.xsd` + `SampleGroups.xsd` +
@@ -347,7 +360,8 @@ path. The ones most often broken in practice:
 Do not treat current behavior as correct in these places — see `dev/PARITY_GAP_ANALYSIS.md`
 Tier 1 for the behavior each one should have instead:
 
-- **Packaging has no configuration layer.** Archive layout, metadata fields, validation regexes
-  and manifest element names are all literals in `js/core/packager.js`, encoding a partial copy
-  of one organization's rules. Neither general nor correct for that one case — see parity 1.4.
+- **The bundled export profile is unverified.** `export-profiles/mef-state.profile.json` carries
+  over the original app's rules; nobody has checked it against the published manifest schema.
+- `dev/phase6-check.html` and `dev/phase9-check.html` throw partway, and one `phase7-check.html`
+  row fails ("all 4 tab buttons"). All three predate Phase 3 of `dev/IMPLEMENTATION_ORDER.md`.
 - `#switch-root-btn` in `index.html` is wired to nothing.

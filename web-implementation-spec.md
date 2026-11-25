@@ -71,8 +71,8 @@ All models are plain JavaScript objects. Use JSDoc comments for type documentati
  * @property {boolean}  isAttribute         — true for xs:attribute-derived nodes;
  *                                             written/read via setAttribute/getAttribute
  *                                             on the PARENT element, never as its own child tag
- * @property {boolean}  isInstanceIdSource  — true for the one attribute (by convention,
- *                                             named `documentId`) that supplies
+ * @property {boolean}  isInstanceIdSource  — true for the one attribute (§4
+ *                                             "Instance-id source") that supplies
  *                                             FormInstanceKey.instanceId for a repeatable form
  * @property {EnumerationOption[]} enumerationValues
  * @property {ValidationRule[]}   validationRules
@@ -120,7 +120,8 @@ All models are plain JavaScript objects. Use JSDoc comments for type documentati
  * @typedef {Object} FormInstanceKey
  * @property {string} formName    — schema element name
  * @property {string} instanceId  — same as formName for non-repeatable;
- *                                   UUID for repeatable instances
+ *                                   the identity attribute's value or a
+ *                                   generated id for repeatable instances
  */
 // Equality: case-insensitive on both fields
 // toString: "formName" for non-repeatable, "formName#instanceId" for repeatable
@@ -311,7 +312,7 @@ After resolving a `complexType`'s children, also collect `xs:attribute` elements
 
 `isAttribute` nodes are never visited as ordinary element children by the XML writer/reader (§10, §11) — they are read via `element.getAttribute(name)` and written via `element.setAttribute(name, value)` on the attribute's *parent's* element, keyed in `FormState.fieldValues` the same way as any other child path (`parentPath.attributeName`).
 
-**Instance-id attribute convention:** if a repeatable form's complexType declares an attribute literally named `documentId`, mark that node `isInstanceIdSource = true`. It serves two roles: it is a normal editable field, and the XML reader uses its value to populate `FormInstanceKey.instanceId` (§11). Schemas that use a different attribute name for this purpose need to adjust this convention accordingly.
+**Instance-id source:** at most one of a form's own attributes is marked `isInstanceIdSource = true`, chosen by a per-schema setting (a named attribute, or none) and otherwise by heuristic: an attribute of type `xs:ID`, else the first required attribute named like an id, else the first optional one. References to other elements (`ref…`, `xs:IDREF`) are never candidates. It serves two roles: it is a normal editable field, and the XML reader uses its value to populate `FormInstanceKey.instanceId` (§11). Generated ids must be legal values of that attribute; a form with no such attribute gets generated ids that never reach the XML and are remembered per saved document instead.
 
 ### xs:group Expansion
 
@@ -870,7 +871,8 @@ function buildPacketXml(manifest, allFormStates, orderedInstanceKeys, targetName
   return new XMLSerializer().serializeToString(root)
 
 // Ensures the written XML carries the same instance id the reader would derive
-// on reload (§11), even if the user never touched the documentId field.
+// on reload (§11), even if the user never touched the identity attribute's field.
+// Skipped when the id is not a legal value of that attribute.
 function syncInstanceIdAttribute(schemaElement, state, instanceKey):
   const idAttr = schemaElement.children.find(c => isAttribute(c) && c.isInstanceIdSource)
   if (!idAttr || instanceKey.instanceId === instanceKey.formName): return  // non-repeatable form: no synthetic id
@@ -992,7 +994,7 @@ function readPacket(xmlString, manifest, schemaParser):
     elements = doc.querySelectorAll(':scope > ' + section.elementName)  // direct children of the packet root only
     for (i, el) of elements.entries():
       const instanceId = section.isRepeatable
-        ? (el.getAttribute('documentId') || generateUUID())
+        ? (el.getAttribute(idSourceAttributeName) || generatedId)  // §4; ids are kept distinct per form
         : section.elementName
       const key = new FormInstanceKey(section.elementName, instanceId)
       const schemaElement = schemaParser.parseGlobalElement(section.elementName)
@@ -1714,6 +1716,8 @@ Dismiss on outside click. Position the menu so it doesn't overflow the viewport.
 
 Uses the [JSZip](https://stuk.github.io/jszip/) library (the one acceptable external dependency given the complexity of ZIP creation; alternatively use the browser's `CompressionStream` API for a native approach).
 
+**This section describes one export profile, not the packaging mechanism.** Fields, rules, archive layout and manifest come from a profile (`export-profiles/`, interpreted by `js/core/exportProfile.js`); the workflow below is generic. The bundled `mef-state` profile follows the original application where it differs from the layout and manifest shown here.
+
 ### Workflow
 
 1. User clicks "Create Submission Package" (enabled only when schema loaded and form has data)
@@ -1772,7 +1776,7 @@ Generate an IRS-formatted manifest XML. The exact structure follows the MeF Stat
 </StateManifest>
 ```
 
-Persist last-used dialog values to `localStorage.xmlEditor.lastPackagingSettings`.
+Persist last-used dialog values to `localStorage.xmlEditor.lastPackagingSettings`, except fields the profile marks `remember: false` (SSNs and TempID in the bundled profile), which must never be stored.
 
 ---
 

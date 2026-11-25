@@ -140,10 +140,9 @@ test('js/core/ touches no DOM-rendering API', async () => {
       if (forbidden.test(line)) violations.push(`${key}:${i + 1} ${line.trim()}`);
     });
   }
-  // packager.js's settings-persistence localStorage calls are the one known
-  // exception, flagged in dev/IMPROVEMENT_BACKLOG.md B.2's own table (which is
-  // also why test/helpers/env.mjs stubs localStorage and nothing else).
-  const unexpected = violations.filter((v) => !/^js\/core\/packager\.js:\d+ .*localStorage/.test(v));
+  // settingsStore.js is the one module in core/ that persists settings, so it
+  // is the one known exception (and why test/helpers/env.mjs stubs localStorage).
+  const unexpected = violations.filter((v) => !/^js\/core\/settingsStore\.js:\d+ .*localStorage/.test(v));
   assert.deepEqual(unexpected, []);
 });
 
@@ -162,6 +161,7 @@ test('index.html loads app.js as a module and declares the containers the UI bui
     'context-menu',
     'package-dialog-overlay',
     'choose-root-dialog-overlay',
+    'schema-settings-overlay',
     'error-boundary-overlay',
     'recovery-dialog-overlay',
     'autosave-status',

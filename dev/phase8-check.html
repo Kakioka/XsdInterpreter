@@ -16,9 +16,10 @@
   <link rel="stylesheet" href="../css/main.css">
 </head>
 <body>
-  <h1>Phase 8 check — packager.js + packaging.js</h1>
-  <p>Open via a local server. Drives js/core/packager.js's pure ZIP/manifest/validation logic
-  directly, then js/ui/packaging.js's dialog against markup mirroring index.html.</p>
+  <h1>Phase 8 check — export profiles, packager.js, packaging.js, schemaSettings.js</h1>
+  <p>Open via a local server. Drives js/core/packager.js's ZIP writer and the bundled
+  export profile directly, then the packaging and schema-settings dialogs against markup mirroring
+  index.html. Profile rules are covered in full by test/exportProfile.test.mjs.</p>
 
   <div id="summary">running…</div>
   <div id="results"></div>
@@ -27,6 +28,8 @@
   <span id="top-status" class="toolbar-status"></span>
   <button id="create-package-btn" type="button" disabled>Create Submission Package</button>
   <div id="package-dialog-overlay" class="hidden"></div>
+  <button id="schema-settings-btn" type="button">Schema Settings</button>
+  <div id="schema-settings-overlay" class="hidden"></div>
   <div id="loading-overlay" class="hidden"><span id="loading-text"></span></div>
 
   <script type="module">
@@ -35,6 +38,9 @@
     import { FormEngine, FormInstanceKey } from '../js/core/formEngine.js';
     import { buildPacketXml } from '../js/core/xmlWriter.js';
     import * as packager from '../js/core/packager.js';
+    import * as exportProfile from '../js/core/exportProfile.js';
+    import * as settingsStore from '../js/core/settingsStore.js';
+    import * as schemaSettingsUi from '../js/ui/schemaSettings.js';
     import * as packagingUi from '../js/ui/packaging.js';
 
     const resultsEl = document.getElementById('results');
@@ -52,7 +58,9 @@
     }
 
     function clearLocalStorage() {
-      try { localStorage.removeItem('xmlEditor.lastPackagingSettings'); } catch {}
+      for (const key of ['lastPackagingSettings', 'exportProfiles', 'schemaSettings']) {
+        try { localStorage.removeItem(`xmlEditor.${key}`); } catch {}
+      }
     }
 
     // Minimal ZIP reader (inverse of packager.js's buildZip) — verifies the
@@ -119,75 +127,15 @@
       }
 
       // ==================================================================
-      // B. validatePackagingSettings — §19 workflow step 3
+      // B. Bundled export profile loads and is usable
       // ==================================================================
-      {
-        const empty = packager.validatePackagingSettings({});
-        check('An empty settings object fails validation', empty.length > 0);
-        check('...including a category error', empty.some((e) => e.field === 'category'));
-
-        const validIndividual = {
-          submissionId: '1234567890123ABCDEFG', efin: '123456', taxYear: '2024', governmentCode: 'CA01',
-          submissionType: 'HIN11', category: 'Individual', primarySSN: '123456789', primaryNameControl: 'SMIT',
-        };
-        check('A well-formed Individual settings object passes with no errors', packager.validatePackagingSettings(validIndividual).length === 0);
-
-        const validBusiness = {
-          submissionId: '1234567890123ABCDEFG', efin: '123456', taxYear: '2024', governmentCode: 'CA01',
-          submissionType: 'HIN11', category: 'Business', ein: '123456789', businessNameControl: 'ACME',
-        };
-        check('A well-formed Business settings object passes with no errors', packager.validatePackagingSettings(validBusiness).length === 0);
-
-        const badFormats = packager.validatePackagingSettings({
-          ...validIndividual, submissionId: 'tooshort', efin: '12', taxYear: '99', governmentCode: 'X', primarySSN: '123',
-        });
-        check('Malformed Submission ID is caught', badFormats.some((e) => e.field === 'submissionId'));
-        check('Malformed EFIN is caught', badFormats.some((e) => e.field === 'efin'));
-        check('Malformed Tax Year is caught', badFormats.some((e) => e.field === 'taxYear'));
-        check('Malformed Government Code is caught', badFormats.some((e) => e.field === 'governmentCode'));
-        check('Malformed Primary SSN is caught', badFormats.some((e) => e.field === 'primarySSN'));
-
-        check('Business category without EIN is caught', packager.validatePackagingSettings({ ...validBusiness, ein: '' }).some((e) => e.field === 'ein'));
-        check('More than 50 state attachments is caught', packager.validatePackagingSettings({ ...validIndividual, stateAttachmentCount: 51 }).some((e) => e.field === 'stateAttachments'));
-        check('IRS Submission ID, if given, must be 20 characters', packager.validatePackagingSettings({ ...validIndividual, irsSubmissionId: 'short' }).some((e) => e.field === 'irsSubmissionId'));
-        check('Optional Spouse SSN, when given, is still format-checked', packager.validatePackagingSettings({ ...validIndividual, spouseSSN: '123' }).some((e) => e.field === 'spouseSSN'));
-      }
-
-      // ==================================================================
-      // C. buildManifestXml — §19 "Manifest XML"
-      // ==================================================================
-      {
-        const ind = packager.buildManifestXml({
-          submissionId: '1234567890123ABCDEFG', efin: '123456', taxYear: '2024', governmentCode: 'CA01',
-          submissionType: 'HIN11', category: 'Individual', primarySSN: '123456789', primaryNameControl: 'SMIT',
-        });
-        check('Individual manifest contains SubmissionCategoryCd=IND', ind.includes('<SubmissionCategoryCd>IND</SubmissionCategoryCd>'));
-        check('Individual manifest contains PrimarySSN', ind.includes('<PrimarySSN>123456789</PrimarySSN>'));
-        check('Individual manifest omits EIN entirely', !ind.includes('<EIN>'));
-        check('Individual manifest omits optional SpouseSSN when not given', !ind.includes('<SpouseSSN>'));
-
-        const bus = packager.buildManifestXml({
-          submissionId: '1234567890123ABCDEFG', efin: '123456', taxYear: '2024', governmentCode: 'CA01',
-          submissionType: 'A & B', category: 'Business', ein: '123456789', businessNameControl: 'ACME',
-        });
-        check('Business manifest contains SubmissionCategoryCd=BUS', bus.includes('<SubmissionCategoryCd>BUS</SubmissionCategoryCd>'));
-        check('Business manifest contains EIN', bus.includes('<EIN>123456789</EIN>'));
-        check('Business manifest omits PrimarySSN entirely', !bus.includes('<PrimarySSN>'));
-        check('Text values are XML-escaped', bus.includes('<StateSubmissionTyp>A &amp; B</StateSubmissionTyp>'));
-      }
-
-      // ==================================================================
-      // D. Last-used settings persistence — File lists are stripped
-      // ==================================================================
-      {
-        clearLocalStorage();
-        const fakeFile = new File(['x'], 'a.pdf');
-        packager.saveLastPackagingSettings({ submissionId: '1234567890123ABCDEFG', category: 'Individual', stateAttachments: [fakeFile], stateAttachmentCount: 1 });
-        const loaded = packager.loadLastPackagingSettings();
-        check('Saved settings round-trip through localStorage', loaded?.submissionId === '1234567890123ABCDEFG');
-        check('File lists are NOT persisted (not JSON-serializable)', !('stateAttachments' in (loaded ?? {})));
-        check('Nothing saved yet returns null', (() => { clearLocalStorage(); return packager.loadLastPackagingSettings() === null; })());
-      }
+      const mef = await (await fetch('../export-profiles/mef-state.profile.json')).json();
+      check('Bundled profile passes validateProfile', exportProfile.validateProfile(mef).length === 0);
+      const validValues = {
+        submissionId: '1234567890123abcdefg', efin: '123456', taxYear: '2024', governmentCode: 'CA01',
+        submissionType: 'HIN11', category: 'IND', identityType: 'SSN', primarySSN: '555443333', primaryNameControl: 'SMIT',
+      };
+      check('A complete set of values passes', exportProfile.validatePackage(mef, validValues, {}, 'P').length === 0);
 
       // ==================================================================
       // E. buildZip — full round trip via the hand-rolled reader above
@@ -224,35 +172,29 @@
       }
 
       // ==================================================================
-      // F. buildSubmissionPackage — full file layout per §19's ZIP diagram
+      // F. buildPackage — real Files through the bundled layout
       // ==================================================================
       {
-        const settings = {
-          submissionId: '1234567890123ABCDEFG', efin: '123456', taxYear: '2024', governmentCode: 'CA01',
-          submissionType: 'HIN11', category: 'Individual', primarySSN: '123456789', primaryNameControl: 'SMIT',
-        };
-        const stateAttachment = new File(['%PDF-fake'], 'attachment1.pdf');
-        const federalReturn = new File(['<Federal/>'], 'ignored-name.xml');
-        const federalAttachment = new File(['%PDF-fake-2'], 'fed_attachment.pdf');
-
-        const { blob, filename } = await packager.buildSubmissionPackage({
-          settings,
+        const { blob, filename } = await packager.buildPackage({
+          profile: mef,
+          values: validValues,
           packetXml: '<SamplePacket><Foo>bar</Foo></SamplePacket>',
-          packetFileName: 'SamplePacket.xml',
-          stateAttachments: [stateAttachment],
-          federalReturnFile: federalReturn,
-          federalAttachments: [federalAttachment],
+          packetName: 'SamplePacket',
+          files: {
+            stateAttachments: [new File(['%PDF-fake'], 'attachment1.pdf')],
+            federalReturnFile: [new File(['<Federal/>'], 'ignored-name.xml')],
+            federalAttachments: [new File(['%PDF-fake-2'], 'fed_attachment.pdf')],
+          },
         });
-        check('Package filename is "[SubmissionId].zip"', filename === '1234567890123ABCDEFG.zip');
-
+        check('Package filename is "[SubmissionId].zip"', filename === '1234567890123abcdefg.zip');
         const entries = await readZip(blob);
-        const names = entries.map((e) => e.name).sort();
-        check('Archive contains exactly the documented file layout', JSON.stringify(names) === JSON.stringify(['attachment1.pdf', 'federal/fed_attachment.pdf', 'federal/federal_return.xml', 'manifest.xml', 'SamplePacket.xml'].sort()));
-        check('manifest.xml content is the generated StateManifest', entries.find((e) => e.name === 'manifest.xml')?.text.includes('<StateManifest>'));
-        check('Packet XML content matches what was passed in', entries.find((e) => e.name === 'SamplePacket.xml')?.text === '<SamplePacket><Foo>bar</Foo></SamplePacket>');
-        check('Federal return is renamed to federal_return.xml regardless of its original filename', entries.find((e) => e.name === 'federal/federal_return.xml')?.text === '<Federal/>');
-        check('State attachment keeps its original filename at the archive root', entries.find((e) => e.name === 'attachment1.pdf')?.text === '%PDF-fake');
-        check('Federal attachment keeps its original filename under federal/', entries.find((e) => e.name === 'federal/fed_attachment.pdf')?.text === '%PDF-fake-2');
+        const text = (name) => entries.find((e) => e.name === name)?.text;
+        check('Archive holds exactly the five files', entries.length === 5, entries.map((e) => e.name).join(', '));
+        const manifestDoc = new DOMParser().parseFromString(text('manifest/manifest.xml'), 'application/xml');
+        check('Manifest is well-formed XML with the profile\'s root', manifestDoc.documentElement.localName === 'StateSubmissionManifest');
+        check('Packet XML content is intact', text('xml/1234567890123abcdefg.xml')?.endsWith('<SamplePacket><Foo>bar</Foo></SamplePacket>'));
+        check('Federal return is renamed', text('irs/xml/submission.xml') === '<Federal/>');
+        check('Attachments keep their names', text('attachment/attachment1.pdf') === '%PDF-fake' && text('irs/attachment/fed_attachment.pdf') === '%PDF-fake-2');
       }
 
       // ==================================================================
@@ -271,7 +213,8 @@
 
         const formEngine = new FormEngine();
         const entityKey = new FormInstanceKey('SampleEntityForm');
-        const appState = { manifest: null, schemaParser: parser, formEngine, instanceKeys: [entityKey], currentInstanceKey: null, targetNamespace };
+        const appState = { manifest: null, schemaParser: parser, formEngine, instanceKeys: [entityKey], currentInstanceKey: null, targetNamespace, schemaSettingsKey: 'phase8' };
+        const settle = () => new Promise((r) => setTimeout(r, 150)); // opening fetches the bundled profile
 
         function buildCurrentPacketXml() {
           formEngine.flushRegisteredControls();
@@ -281,7 +224,15 @@
           return work(); // no real overlay DOM needed for this test
         }
 
-        packagingUi.wirePackaging({ appState, buildPacketXml: buildCurrentPacketXml, withBusyOverlay });
+        // Left over from before `remember` existed; wiring must delete it without the dialog being opened.
+        localStorage.setItem('xmlEditor.lastPackagingSettings', JSON.stringify({ primarySSN: '123456789', efin: '654321' }));
+        let writtenXml = null;
+        packagingUi.wirePackaging({ appState, buildPacketXml: buildCurrentPacketXml, withBusyOverlay, onPacketWritten: (xml) => { writtenXml = xml; } });
+
+        await settle();
+        check('An SSN stored by an earlier version is deleted at startup', !localStorage.getItem('xmlEditor.lastPackagingSettings').includes('123456789'));
+        check('...and other saved values are kept', settingsStore.loadLastPackagingSettings('mef-state')?.efin === '654321');
+        clearLocalStorage();
 
         const createPackageBtn = document.getElementById('create-package-btn');
         check('Create Package button starts disabled (no schema loaded yet)', createPackageBtn.disabled);
@@ -296,19 +247,26 @@
 
         // Open the dialog.
         createPackageBtn.click();
+        await settle();
         const overlay = document.getElementById('package-dialog-overlay');
         check('Clicking Create Package opens the dialog', !overlay.classList.contains('hidden'));
         check('Dialog renders the core text fields', !!document.getElementById('package-field-submissionId') && !!document.getElementById('package-field-efin'));
-        check('Category select defaults to Individual with its field group visible', document.getElementById('package-field-category').value === 'Individual' && !document.getElementById('package-individual-fields').classList.contains('hidden'));
-
-        // Switching to Business toggles the visible field groups.
-        const categorySelect = document.getElementById('package-field-category');
-        categorySelect.value = 'Business';
-        categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
-        check('Selecting Business shows the Business fields', !document.getElementById('package-business-fields').classList.contains('hidden'));
-        check('...and hides the Individual fields', document.getElementById('package-individual-fields').classList.contains('hidden'));
-        categorySelect.value = 'Individual';
-        categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+        const row = (id) => document.querySelector(`[data-profile-field="${id}"]`);
+        const visible = (id) => getComputedStyle(row(id)).display !== 'none';
+        const setField = (id, value) => {
+          const el = document.getElementById(`package-field-${id}`);
+          el.value = value;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        check('Conditional fields start on their defaults', visible('primarySSN') && !visible('ein') && !visible('tempId'));
+        setField('identityType', 'EIN');
+        check('Changing the controlling field swaps the visible fields', visible('ein') && !visible('primarySSN') && !visible('spouseSSN'));
+        setField('identityType', 'SSN');
+        check('A dependent of a blank field is hidden', !visible('spouseNameControl'));
+        setField('spouseSSN', '987654321');
+        check('...and appears as soon as that field has a value', visible('spouseNameControl'));
+        setField('spouseSSN', '');
 
         // Submitting with everything blank surfaces blocking errors and stays open.
         document.getElementById('package-create-btn').click();
@@ -316,17 +274,11 @@
         check('Submitting blank settings shows validation errors', document.getElementById('package-dialog-errors').children.length > 0);
         check('...and the dialog stays open', !overlay.classList.contains('hidden'));
 
-        // Fill valid Individual settings and submit for real, stubbing out the
+        // Fill valid settings and submit for real, stubbing out the
         // actual file download (a real click on a Blob-URL <a download> would
         // trigger a genuine browser download) and auto-confirming past the
         // schema-validation warning (this sample form is otherwise incomplete).
-        document.getElementById('package-field-submissionId').value = '1234567890123ABCDEFG';
-        document.getElementById('package-field-efin').value = '123456';
-        document.getElementById('package-field-taxYear').value = '2024';
-        document.getElementById('package-field-governmentCode').value = 'CA01';
-        document.getElementById('package-field-submissionType').value = 'HIN11';
-        document.getElementById('package-field-primarySSN').value = '123456789';
-        document.getElementById('package-field-primaryNameControl').value = 'SMIT';
+        for (const [id, value] of Object.entries(validValues)) setField(id, value);
 
         const originalConfirm = window.confirm;
         const originalClick = HTMLAnchorElement.prototype.click;
@@ -335,19 +287,51 @@
         HTMLAnchorElement.prototype.click = function () { anchorClicked = true; };
         try {
           document.getElementById('package-create-btn').click();
-          await new Promise((r) => setTimeout(r, 50)); // buildSubmissionPackage/flush are async
+          await settle(); // buildPackage/flush are async
         } finally {
           window.confirm = originalConfirm;
           HTMLAnchorElement.prototype.click = originalClick;
         }
         check('A valid submission triggers a download', anchorClicked);
         check('The dialog closes after a successful package build', document.getElementById('package-dialog-overlay').classList.contains('hidden'));
-        check('The top status bar reflects the created filename', document.getElementById('top-status').textContent.includes('1234567890123ABCDEFG.zip'));
-        check('Settings are persisted for next time', packager.loadLastPackagingSettings()?.submissionId === '1234567890123ABCDEFG');
+        check('The top status bar reflects the created filename', document.getElementById('top-status').textContent.includes('1234567890123abcdefg.zip'));
+        check('Settings are persisted for next time', settingsStore.loadLastPackagingSettings('mef-state')?.submissionId === '1234567890123abcdefg');
+
+        check('The SSN is nowhere in localStorage', !Object.values(localStorage).some((v) => v.includes(validValues.primarySSN)));
+        check('The written packet is reported to the app', writtenXml?.includes('Acme Corp'));
 
         // Reopening prefills from the just-saved settings.
         createPackageBtn.click();
-        check('Reopening the dialog prefills the Submission ID from last time', document.getElementById('package-field-submissionId').value === '1234567890123ABCDEFG');
+        await settle();
+        check('Reopening the dialog prefills the Submission ID from last time', document.getElementById('package-field-submissionId').value === '1234567890123abcdefg');
+
+        // Loading a profile from a file.
+        const pickProfile = async (text) => {
+          const input = document.getElementById('package-profile-file');
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([text], 'custom.json'));
+          input.files = transfer.files;
+          const list = document.getElementById('package-dialog-errors');
+          list.innerHTML = '<li>pending</li>'; // the handler always re-renders this list when it finishes
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          for (let i = 0; i < 100 && list.textContent === 'pending'; i++) await new Promise((r) => setTimeout(r, 20));
+        };
+        const errorCount = () => document.getElementById('package-dialog-errors').children.length;
+        const profileSelect = document.getElementById('package-profile-select');
+        await pickProfile('not json');
+        check('A file that is not JSON is refused', errorCount() > 0 && profileSelect.options.length === 1);
+        await pickProfile(JSON.stringify({ ...mef, name: 'Impostor' }));
+        check('A bundled profile cannot be replaced', errorCount() > 0 && profileSelect.options.length === 1);
+        await pickProfile(JSON.stringify({ formatVersion: 1, id: 'plain', name: 'Plain', archiveName: '{packetName}.zip', fields: [{ id: 'note', label: 'Note' }], entries: [{ type: 'packet', path: '{packetName}.xml' }] }));
+        check('A custom profile is selected and its fields replace the old ones', profileSelect.value === 'plain' && !!row('note') && !row('efin') && errorCount() === 0);
+        document.querySelector('#package-dialog-footer button').click();
+        createPackageBtn.click();
+        await settle();
+        check('The choice is remembered for this schema', profileSelect.value === 'plain');
+        document.getElementById('package-profile-remove-btn').click();
+        check('Removing it falls back to the bundled profile', profileSelect.value === 'mef-state' && !!row('efin') && settingsStore.loadUserProfiles().length === 0);
+
+        check('The SSN field is blank on reopening', document.getElementById('package-field-primarySSN').value === '');
 
         // Cancel closes without side effects.
         document.querySelector('#package-dialog-footer button').click();
@@ -355,8 +339,35 @@
 
         // Clicking the dimmed backdrop also closes it.
         createPackageBtn.click();
+        await settle();
         document.getElementById('package-dialog-overlay').dispatchEvent(new MouseEvent('click', { bubbles: true }));
         check('Clicking the overlay backdrop closes the dialog', document.getElementById('package-dialog-overlay').classList.contains('hidden'));
+      }
+
+      // ==================================================================
+      // H. schemaSettings.js — instance-id source override
+      // ==================================================================
+      {
+        const files = new Map();
+        for (const name of ['SamplePacket.xsd', 'SampleCommonTypes.xsd', 'SampleGroups.xsd']) files.set(name, await (await fetch(`../sample-schemas/${name}`)).text());
+        const { doc } = flattenFromRoot(files, findRootFileCandidates(files)[0]);
+        const [rootName] = findRootElementCandidates(doc);
+        const schemaParser = new SchemaParser(doc, rootName);
+        schemaSettingsUi.wireSchemaSettings({ appState: { manifest: analyzePacket(doc, rootName), schemaParser, schemaSettingsKey: 'phase8' } });
+        document.getElementById('schema-settings-btn').click();
+        const overlay = document.getElementById('schema-settings-overlay');
+        const select = document.getElementById('schema-settings-id-source');
+        const forms = () => document.getElementById('schema-settings-forms').textContent;
+        check('Schema Settings opens on automatic detection', !overlay.classList.contains('hidden') && select.value === 'auto');
+        check('...and shows what that resolves to', forms().includes('SampleEventLog: documentId'), forms());
+        select.value = 'none';
+        select.dispatchEvent(new Event('change'));
+        check('The preview follows the choice', forms().includes('SampleEventLog: no identity attribute'));
+        check('...without applying it yet', schemaParser.instanceIdSource === null);
+        document.getElementById('schema-settings-save-btn').click();
+        check('Save applies and persists it', schemaParser.instanceIdSource.mode === 'none' && settingsStore.loadSchemaSettings('phase8').instanceIdSource.mode === 'none');
+        check('Save closes the dialog', overlay.classList.contains('hidden'));
+        clearLocalStorage();
       }
 
       summaryEl.textContent = `${pass} passed, ${fail} failed`;

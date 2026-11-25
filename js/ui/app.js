@@ -26,9 +26,12 @@ import * as contextMenuUi from './contextMenu.js';
 import * as themeUi from './theme.js';
 import * as debugUi from './debug.js';
 import * as packagingUi from './packaging.js';
+import * as schemaSettingsUi from './schemaSettings.js';
 import * as autosaveUi from './autosave.js';
 import { installErrorBoundary } from './errorBoundary.js';
 import { computeSchemaKey } from '../core/autosaveStore.js';
+import { findInstanceIdAttribute, generateInstanceId } from '../core/instanceIdentity.js';
+import { schemaSettingsKey, loadSchemaSettings, rememberInstanceIds, recallInstanceIds } from '../core/settingsStore.js';
 import { chooseOne } from './chooseRootDialog.js';
 
 const appState = {
@@ -37,6 +40,7 @@ const appState = {
   flatDoc: null,
   targetNamespace: null, // from flattener.flattenFromRoot (§3); threaded into buildPacketXml (§10) on Save XML
   schemaParser: null,
+  schemaSettingsKey: null, // settingsStore.js — which schema the per-schema settings belong to
   formEngine: new FormEngine(),
   undoService: new UndoService(),
   instanceKeys: [], // ordered FormInstanceKey[] — the nav tree's source of truth
@@ -109,7 +113,9 @@ async function loadSchema(fileTextMap) {
     );
     if (!rootElementName) return false;
 
-    appState.schemaParser = new SchemaParser(flatDoc, rootElementName);
+    appState.schemaSettingsKey = schemaSettingsKey(targetNamespace, rootFileName, rootElementName);
+    const { instanceIdSource } = loadSchemaSettings(appState.schemaSettingsKey);
+    appState.schemaParser = new SchemaParser(flatDoc, rootElementName, instanceIdSource);
     appState.manifest = analyzePacket(flatDoc, rootElementName);
 
     appState.formEngine.reset();
@@ -226,18 +232,27 @@ function rebuildNavTree() {
   sidebar.buildNavTree(document.getElementById('nav-tree'), appState.instanceKeys, appState.currentInstanceKey, switchToForm, appState.manifest, removeFormInstance);
 }
 
+/** An id no instance of this form uses, either as its key or as a value typed
+ *  into its identity attribute. */
+function newInstanceId(formName) {
+  const idAttr = findInstanceIdAttribute(appState.schemaParser.parseGlobalElement(formName));
+  const taken = [];
+  for (const key of appState.instanceKeys.filter((k) => k.formName === formName)) {
+    taken.push(key.instanceId);
+    const typed = idAttr && appState.formEngine.getFormState(key)?.fieldValues[joinPath(formName, idAttr.elementName).toLowerCase()];
+    if (typed) taken.push(typed);
+  }
+  return generateInstanceId(formName, idAttr, taken);
+}
+
 function addFormInstance(sectionName) {
   // Non-repeatable forms (e.g. optional single-instance schedules like SchCR)
   // use the formName itself as the instanceId — same convention as every
   // other non-repeatable key (§2) — so the nav tree shows "SchCR", not a
-  // random "SchCR#<uuid>". Only a genuinely repeatable section needs a
-  // synthetic per-instance id.
+  // generated id. Only a genuinely repeatable section needs a synthetic
+  // per-instance id.
   const section = sidebar.findSection(appState.manifest?.sections, sectionName);
-  const instanceId = section?.isRepeatable
-    ? typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `new-${Date.now()}`
-    : sectionName;
+  const instanceId = section?.isRepeatable ? newInstanceId(sectionName) : sectionName;
   const key = new FormInstanceKey(sectionName, instanceId);
   const priorInstanceKey = appState.currentInstanceKey;
   appState.instanceKeys.push(key);
@@ -293,7 +308,8 @@ function removeFormInstance(instanceKey) {
 async function loadXmlText(xmlText) {
   if (!appState.manifest) return;
   await withBusyOverlay('Reading XML…', async () => {
-    const stateMap = readPacket(xmlText, appState.manifest, appState.schemaParser); // key.toString() (natural case) → FormState — see xmlReader.js
+    const rememberedIds = recallInstanceIds(appState.schemaSettingsKey, xmlText);
+    const stateMap = readPacket(xmlText, appState.manifest, appState.schemaParser, rememberedIds); // key.toString() (natural case) → FormState — see xmlReader.js
     appState.formEngine.reset();
     appState.undoService.clearHistory(); // §22 invariant 23
 
@@ -387,6 +403,15 @@ function buildCurrentPacketXml() {
   return buildPacketXml(appState.manifest, allFormStates, appState.instanceKeys, appState.schemaParser, appState.targetNamespace);
 }
 
+/** Call once a document has actually been handed to the user (Save XML, a
+ *  package): instance ids the XML can't carry are remembered beside it, so
+ *  loading that same file back gives every instance the id it had. */
+function rememberWrittenDocument(xmlString) {
+  const states = appState.formEngine.getAllFormStates();
+  const written = appState.instanceKeys.filter((k) => states.has(keyOf(k)));
+  rememberInstanceIds(appState.schemaSettingsKey, xmlString, written);
+}
+
 async function saveXml() {
   if (!appState.manifest) return;
 
@@ -407,6 +432,7 @@ async function saveXml() {
     const xmlString = buildCurrentPacketXml();
     const allFormStates = appState.formEngine.getAllFormStates();
     toolbar.downloadXmlString(xmlString, `${appState.manifest.packetName}.xml`);
+    rememberWrittenDocument(xmlString);
     toolbar.setStatus('Saved');
     // The work is on disk now, so the autosave snapshot would only serve to
     // offer back on the next load something the user already has (C.1).
@@ -656,7 +682,8 @@ function init() {
   searchUi.wireSearch({ appState, switchToForm });
   contextMenuUi.wireContextMenu({ appState, fillActiveForm, clearActiveFormSection });
   debugUi.wireDebug({ appState });
-  packagingUi.wirePackaging({ appState, buildPacketXml: buildCurrentPacketXml, withBusyOverlay });
+  packagingUi.wirePackaging({ appState, buildPacketXml: buildCurrentPacketXml, withBusyOverlay, onPacketWritten: rememberWrittenDocument });
+  schemaSettingsUi.wireSchemaSettings({ appState });
   themeUi.wireTheme();
   toolbar.wireSplitter();
   toolbar.wireZoom();

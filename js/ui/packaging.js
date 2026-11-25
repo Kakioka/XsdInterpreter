@@ -1,27 +1,37 @@
 // js/ui/packaging.js — "Create Submission Package" dialog.
 //
-// See web-implementation-spec.md §19 (Packaging). IMPLEMENTATION_PLAN.md
-// Phase 8. Not in §23's file listing (only js/core/packager.js is named
-// there), but every other multi-step UI concern in this codebase — search,
-// validation, the context menu, the debug panel — gets its own js/ui/*.js
-// file built the same way: index.html gives it one empty container
-// (#package-dialog-overlay) and this module builds the real DOM into it on
-// first wire, same pattern as debug.js/contextMenu.js.
+// See web-implementation-spec.md §19 (Packaging), dev/PARITY_GAP_ANALYSIS.md
+// 1.4. The dialog is generated from an export profile (js/core/exportProfile.js,
+// export-profiles/README.md) the same way forms are generated from a schema:
+// nothing here knows what any particular package contains. index.html gives it
+// one empty container (#package-dialog-overlay) and this module builds the DOM
+// into it, same pattern as debug.js/contextMenu.js.
 //
 // §19 workflow steps 3 and 4 name two distinct kinds of "validate": the
-// dialog's OWN fields (SubmissionId, EFIN, ...) are hard-blocking (step 3),
-// while the PACKET's data against the XSD is a skippable warning (step 4,
-// "option to continue or cancel"). This module keeps that split literally:
-// packager.validatePackagingSettings() blocks the Create click outright;
-// validation.validateSchema() (Phase 5) only prompts a confirm().
+// dialog's OWN fields and files are hard-blocking (step 3), while the PACKET's
+// data against the XSD is a skippable warning (step 4, "option to continue or
+// cancel"). This module keeps that split literally: exportProfile's
+// validatePackage() blocks the Create click outright;
+// validation.validateSchema() only prompts a confirm().
 
 import { validateSchema } from './validation.js';
-import * as packager from '../core/packager.js';
+import { buildPackage } from '../core/packager.js';
+import { validateProfile, validatePackage, activeValues, isBlank } from '../core/exportProfile.js';
+import * as settingsStore from '../core/settingsStore.js';
 import * as toolbar from './toolbar.js';
+
+// Resolved against this module, not the page — see theme.js.
+const BUNDLED_PROFILE_URLS = [new URL('../../export-profiles/mef-state.profile.json', import.meta.url)];
 
 let _appState = null;
 let _buildPacketXml = null; // () => string — app.js's own flush-and-serialize logic (shared with Save XML)
 let _withBusyOverlay = null; // (message, work) => Promise — app.js's busy-overlay wrapper (§13)
+
+let _onPacketWritten = null; // (xmlString) => void — told once a package has been handed over
+
+let bundledProfiles = null; // loaded once, on first open
+let userProfiles = []; // survives the session even if localStorage doesn't
+let activeProfile = null;
 
 function isEmptyValue(value) {
   return value === undefined || value === null || value === '';
@@ -47,9 +57,11 @@ export function refreshCreatePackageButton(appState) {
 /**
  * @param {{appState: object,
  *   buildPacketXml: () => string,
- *   withBusyOverlay: (message: string, work: () => Promise<any>) => Promise<any>}} ctx
+ *   withBusyOverlay: (message: string, work: () => Promise<any>) => Promise<any>,
+ *   onPacketWritten?: (xmlString: string) => void}} ctx
  */
-export function wirePackaging({ appState, buildPacketXml, withBusyOverlay }) {
+export function wirePackaging({ appState, buildPacketXml, withBusyOverlay, onPacketWritten = null }) {
+  _onPacketWritten = onPacketWritten;
   _appState = appState;
   _buildPacketXml = buildPacketXml;
   _withBusyOverlay = withBusyOverlay;
@@ -68,59 +80,91 @@ export function wirePackaging({ appState, buildPacketXml, withBusyOverlay }) {
   appState.formEngine.addEventListener('dirtyChanged', () => refreshCreatePackageButton(appState));
   appState.formEngine.addEventListener('controlValueChanged', () => refreshCreatePackageButton(appState));
   refreshCreatePackageButton(appState);
+
+  // At startup rather than on first open: values that should never have been
+  // stored shouldn't wait for the dialog. A failure here resurfaces on open.
+  loadProfiles().catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// Profiles
+// ---------------------------------------------------------------------------
+
+async function loadProfiles() {
+  if (bundledProfiles) return;
+  // First, so a bundled profile that won't load doesn't take the user's own down with it.
+  userProfiles = settingsStore.loadUserProfiles().filter((p) => validateProfile(p).length === 0);
+  const loaded = [];
+  for (const url of BUNDLED_PROFILE_URLS) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`${url.pathname} could not be loaded (${response.status}).`);
+    loaded.push(await response.json());
+  }
+  bundledProfiles = loaded;
+  settingsStore.forgetUnrememberedValues(allProfiles());
+}
+
+function allProfiles() {
+  return [...(bundledProfiles ?? []), ...userProfiles];
+}
+
+function rememberChoice() {
+  if (_appState.schemaSettingsKey) settingsStore.updateSchemaSettings(_appState.schemaSettingsKey, { exportProfileId: activeProfile.id });
+}
+
+/** The profile chosen for this schema, else the first available. */
+function preferredProfile() {
+  const key = _appState.schemaSettingsKey;
+  const preferredId = key ? settingsStore.loadSchemaSettings(key).exportProfileId : undefined;
+  const profiles = allProfiles();
+  return profiles.find((p) => p.id === preferredId) ?? profiles[0] ?? null;
+}
+
+async function handleProfileFile(event) {
+  const file = event.target.files[0];
+  event.target.value = ''; // so picking the same (edited) file again still fires change
+  if (!file) return;
+  let profile;
+  try {
+    profile = JSON.parse(await file.text());
+  } catch {
+    renderErrors([{ message: `${file.name} is not valid JSON.` }]);
+    return;
+  }
+  const problems = validateProfile(profile);
+  if (problems.length === 0 && (bundledProfiles ?? []).some((p) => p.id === profile.id)) {
+    problems.push(`The id "${profile.id}" belongs to a bundled profile. Give this one a different id.`);
+  }
+  if (problems.length > 0) {
+    renderErrors(problems.map((message) => ({ message: `${file.name}: ${message}` })));
+    return;
+  }
+  userProfiles = [...userProfiles.filter((p) => p.id !== profile.id), profile];
+  const stored = settingsStore.saveUserProfiles(userProfiles);
+  settingsStore.forgetUnrememberedValues(allProfiles());
+  selectProfile(profile);
+  rememberChoice();
+  if (!stored) renderErrors([{ message: 'Browser storage is unavailable, so this profile will have to be loaded again next time.' }]);
+}
+
+function removeActiveProfile() {
+  if (!userProfiles.includes(activeProfile)) return;
+  userProfiles = userProfiles.filter((p) => p !== activeProfile);
+  settingsStore.saveUserProfiles(userProfiles);
+  selectProfile(preferredProfile());
 }
 
 // ---------------------------------------------------------------------------
 // Dialog shell
 // ---------------------------------------------------------------------------
 
-const FIELD_SPECS = [
-  { id: 'submissionId', label: 'Submission ID', maxLength: 20, placeholder: '13 digits + 7 alphanumeric' },
-  { id: 'efin', label: 'EFIN', maxLength: 6 },
-  { id: 'taxYear', label: 'Tax Year', maxLength: 4 },
-  { id: 'governmentCode', label: 'Government Code', maxLength: 4 },
-  { id: 'submissionType', label: 'Submission Type', placeholder: 'e.g. HIN11' },
-];
-
-const INDIVIDUAL_FIELD_SPECS = [
-  { id: 'primarySSN', label: 'Primary SSN', maxLength: 9 },
-  { id: 'primaryNameControl', label: 'Primary Name Control', maxLength: 4 },
-  { id: 'spouseSSN', label: 'Spouse SSN (optional)', maxLength: 9 },
-  { id: 'spouseNameControl', label: 'Spouse Name Control (optional)', maxLength: 4 },
-];
-
-const BUSINESS_FIELD_SPECS = [
-  { id: 'ein', label: 'EIN', maxLength: 9 },
-  { id: 'businessNameControl', label: 'Business Name Control', maxLength: 4 },
-];
-
-function buildTextField(spec) {
-  const wrap = document.createElement('div');
-  wrap.className = 'field-wrapper';
-  const label = document.createElement('label');
-  label.textContent = spec.label;
-  label.htmlFor = `package-field-${spec.id}`;
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.id = `package-field-${spec.id}`;
-  if (spec.maxLength) input.maxLength = spec.maxLength;
-  if (spec.placeholder) input.placeholder = spec.placeholder;
-  wrap.append(label, input);
-  return wrap;
-}
-
-function buildFileField(id, label, multiple) {
-  const wrap = document.createElement('div');
-  wrap.className = 'field-wrapper';
-  const labelEl = document.createElement('label');
-  labelEl.textContent = label;
-  labelEl.htmlFor = `package-field-${id}`;
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.id = `package-field-${id}`;
-  if (multiple) input.multiple = true;
-  wrap.append(labelEl, input);
-  return wrap;
+function button(text, onClick, id) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = text;
+  if (id) btn.id = id;
+  btn.addEventListener('click', onClick);
+  return btn;
 }
 
 function buildDialog(overlay) {
@@ -133,69 +177,50 @@ function buildDialog(overlay) {
   header.id = 'package-dialog-header';
   const title = document.createElement('span');
   title.textContent = 'Create Submission Package';
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.textContent = '✕';
-  closeBtn.addEventListener('click', closeDialog);
-  header.append(title, closeBtn);
+  header.append(title, button('✕', closeDialog));
 
   const body = document.createElement('div');
   body.id = 'package-dialog-body';
-  for (const spec of FIELD_SPECS) body.appendChild(buildTextField(spec));
 
-  const categoryWrap = document.createElement('div');
-  categoryWrap.className = 'field-wrapper';
-  const categoryLabel = document.createElement('label');
-  categoryLabel.textContent = 'Category';
-  categoryLabel.htmlFor = 'package-field-category';
-  const categorySelect = document.createElement('select');
-  categorySelect.id = 'package-field-category';
-  for (const value of ['Individual', 'Business']) {
-    const opt = document.createElement('option');
-    opt.value = value;
-    opt.textContent = value;
-    categorySelect.appendChild(opt);
-  }
-  categoryWrap.append(categoryLabel, categorySelect);
-  body.appendChild(categoryWrap);
-
-  const individualGroup = document.createElement('div');
-  individualGroup.id = 'package-individual-fields';
-  for (const spec of INDIVIDUAL_FIELD_SPECS) individualGroup.appendChild(buildTextField(spec));
-  body.appendChild(individualGroup);
-
-  const businessGroup = document.createElement('div');
-  businessGroup.id = 'package-business-fields';
-  businessGroup.className = 'hidden';
-  for (const spec of BUSINESS_FIELD_SPECS) businessGroup.appendChild(buildTextField(spec));
-  body.appendChild(businessGroup);
-
-  categorySelect.addEventListener('change', () => {
-    individualGroup.classList.toggle('hidden', categorySelect.value !== 'Individual');
-    businessGroup.classList.toggle('hidden', categorySelect.value !== 'Business');
+  const profileRow = document.createElement('div');
+  profileRow.className = 'field-wrapper';
+  const profileLabel = document.createElement('label');
+  profileLabel.textContent = 'Package profile';
+  profileLabel.htmlFor = 'package-profile-select';
+  const profileSelect = document.createElement('select');
+  profileSelect.id = 'package-profile-select';
+  profileSelect.addEventListener('change', () => {
+    selectProfile(allProfiles().find((p) => p.id === profileSelect.value));
+    rememberChoice();
   });
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.id = 'package-profile-file';
+  fileInput.accept = '.json,application/json';
+  fileInput.style.display = 'none';
+  fileInput.addEventListener('change', handleProfileFile);
+  profileRow.append(profileLabel, profileSelect, fileInput);
 
-  body.appendChild(buildTextField({ id: 'irsSubmissionId', label: 'IRS Submission ID (optional)', maxLength: 20 }));
-  body.appendChild(buildFileField('stateAttachments', 'State Attachment Files (0–50)', true));
-  body.appendChild(buildFileField('federalReturnFile', 'Federal Return XML (optional)', false));
-  body.appendChild(buildFileField('federalAttachments', 'Federal Attachment Files (0–50)', true));
+  const profileActions = document.createElement('div');
+  profileActions.id = 'package-profile-actions';
+  profileActions.append(button('Load profile…', () => fileInput.click()), button('Remove profile', removeActiveProfile, 'package-profile-remove-btn'));
+
+  const description = document.createElement('p');
+  description.id = 'package-profile-description';
+  description.className = 'hint';
+
+  const fields = document.createElement('div');
+  fields.id = 'package-dialog-fields';
+  fields.addEventListener('input', refreshFieldVisibility);
+  fields.addEventListener('change', refreshFieldVisibility);
 
   const errorList = document.createElement('ul');
   errorList.id = 'package-dialog-errors';
-  body.appendChild(errorList);
+  body.append(profileRow, profileActions, description, fields, errorList);
 
   const footer = document.createElement('div');
   footer.id = 'package-dialog-footer';
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.addEventListener('click', closeDialog);
-  const createBtn = document.createElement('button');
-  createBtn.type = 'button';
-  createBtn.id = 'package-create-btn';
-  createBtn.textContent = 'Create Package';
-  createBtn.addEventListener('click', handleCreateClicked);
-  footer.append(cancelBtn, createBtn);
+  footer.append(button('Cancel', closeDialog), button('Create Package', handleCreateClicked, 'package-create-btn'));
 
   dialog.append(header, body, footer);
   overlay.appendChild(dialog);
@@ -205,63 +230,138 @@ function buildDialog(overlay) {
   });
 }
 
-function openDialog() {
+async function openDialog() {
   const overlay = document.getElementById('package-dialog-overlay');
   if (!overlay) return;
-  prefillFromLastSettings();
-  document.getElementById('package-dialog-errors').innerHTML = '';
+  renderErrors([]);
   overlay.classList.remove('hidden');
+  let failure = null;
+  try {
+    await loadProfiles();
+  } catch (err) {
+    failure = err;
+  }
+  selectProfile(preferredProfile());
+  if (failure) renderErrors([{ message: `Could not load the bundled package profiles: ${failure.message}` }]);
 }
 
 function closeDialog() {
   document.getElementById('package-dialog-overlay')?.classList.add('hidden');
 }
 
-function prefillFromLastSettings() {
-  const saved = packager.loadLastPackagingSettings();
-  const category = saved?.category === 'Business' ? 'Business' : 'Individual';
-  document.getElementById('package-field-category').value = category;
-  document.getElementById('package-individual-fields').classList.toggle('hidden', category !== 'Individual');
-  document.getElementById('package-business-fields').classList.toggle('hidden', category !== 'Business');
-  for (const spec of [...FIELD_SPECS, ...INDIVIDUAL_FIELD_SPECS, ...BUSINESS_FIELD_SPECS, { id: 'irsSubmissionId' }]) {
-    const input = document.getElementById(`package-field-${spec.id}`);
-    if (input) input.value = saved?.[spec.id] ?? '';
+// ---------------------------------------------------------------------------
+// Profile-driven fields
+// ---------------------------------------------------------------------------
+
+function buildRow(id, labelText, control, hint) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field-wrapper';
+  wrap.dataset.profileField = id;
+  const label = document.createElement('label');
+  label.textContent = labelText;
+  control.id = `package-field-${id}`;
+  label.htmlFor = control.id;
+  wrap.append(label, control);
+  if (hint) control.title = hint;
+  return wrap;
+}
+
+function buildField(field, saved) {
+  let control;
+  if (field.type === 'select') {
+    control = document.createElement('select');
+    for (const option of field.options) {
+      const opt = document.createElement('option');
+      opt.value = option.value;
+      opt.textContent = option.label ?? option.value;
+      control.appendChild(opt);
+    }
+    const initial = [saved, field.default].find((v) => field.options.some((o) => o.value === v));
+    control.value = initial ?? field.options[0].value;
+  } else {
+    control = document.createElement('input');
+    control.type = 'text';
+    if (field.maxLength) control.maxLength = field.maxLength;
+    if (field.remember === false) control.autocomplete = 'off'; // the browser's own form history counts as storage too
+    control.placeholder = field.placeholder ?? field.hint ?? '';
+    control.value = saved ?? field.default ?? '';
+  }
+  return buildRow(field.id, field.required ? field.label : `${field.label} (optional)`, control, field.hint);
+}
+
+function buildFileGroup(group) {
+  const control = document.createElement('input');
+  control.type = 'file';
+  control.multiple = group.multiple === true;
+  if (group.accept) control.accept = group.accept;
+  const limit = group.multiple && group.maxCount ? `, up to ${group.maxCount}` : '';
+  return buildRow(group.id, group.required ? `${group.label}${limit}` : `${group.label} (optional${limit})`, control);
+}
+
+function buildHeading(text) {
+  const heading = document.createElement('h3');
+  heading.className = 'package-section-heading';
+  heading.textContent = text;
+  return heading;
+}
+
+/** Makes `profile` the one being filled in and regenerates the dialog's fields. */
+function selectProfile(profile) {
+  activeProfile = profile;
+  const select = document.getElementById('package-profile-select');
+  select.innerHTML = '';
+  for (const p of allProfiles()) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.name;
+    select.appendChild(opt);
+  }
+  if (profile) select.value = profile.id;
+  document.getElementById('package-profile-description').textContent = profile?.description ?? '';
+  document.getElementById('package-profile-remove-btn').classList.toggle('hidden', !userProfiles.includes(profile));
+  document.getElementById('package-create-btn').disabled = !profile;
+
+  const host = document.getElementById('package-dialog-fields');
+  host.innerHTML = '';
+  if (!profile) return;
+  renderErrors([]);
+
+  const saved = settingsStore.loadLastPackagingSettings(profile.id) ?? {};
+  let section = null;
+  for (const field of profile.fields ?? []) {
+    if (field.section && field.section !== section) host.appendChild(buildHeading(field.section));
+    section = field.section ?? section;
+    host.appendChild(buildField(field, saved[field.id]));
+  }
+  if (profile.fileGroups?.length) host.appendChild(buildHeading('Files'));
+  for (const group of profile.fileGroups ?? []) host.appendChild(buildFileGroup(group));
+  refreshFieldVisibility();
+}
+
+function gatherValues() {
+  const values = {};
+  for (const field of activeProfile.fields ?? []) values[field.id] = document.getElementById(`package-field-${field.id}`)?.value ?? '';
+  return values;
+}
+
+function gatherFiles() {
+  const files = {};
+  for (const group of activeProfile.fileGroups ?? []) files[group.id] = Array.from(document.getElementById(`package-field-${group.id}`)?.files ?? []);
+  return files;
+}
+
+function refreshFieldVisibility() {
+  if (!activeProfile) return;
+  const active = activeValues(activeProfile, gatherValues());
+  for (const field of activeProfile.fields ?? []) {
+    const row = document.querySelector(`#package-dialog-fields [data-profile-field="${field.id}"]`);
+    row?.classList.toggle('hidden', !(field.id in active));
   }
 }
 
 // ---------------------------------------------------------------------------
-// Gather + validate + build
+// Validate + build
 // ---------------------------------------------------------------------------
-
-function textValue(id) {
-  return document.getElementById(`package-field-${id}`)?.value.trim() ?? '';
-}
-
-function gatherSettings() {
-  const stateAttachments = Array.from(document.getElementById('package-field-stateAttachments')?.files ?? []);
-  const federalAttachments = Array.from(document.getElementById('package-field-federalAttachments')?.files ?? []);
-  const federalReturnFiles = document.getElementById('package-field-federalReturnFile')?.files ?? [];
-  return {
-    submissionId: textValue('submissionId'),
-    efin: textValue('efin'),
-    taxYear: textValue('taxYear'),
-    governmentCode: textValue('governmentCode'),
-    submissionType: textValue('submissionType'),
-    category: document.getElementById('package-field-category').value,
-    primarySSN: textValue('primarySSN'),
-    primaryNameControl: textValue('primaryNameControl'),
-    spouseSSN: textValue('spouseSSN'),
-    spouseNameControl: textValue('spouseNameControl'),
-    ein: textValue('ein'),
-    businessNameControl: textValue('businessNameControl'),
-    irsSubmissionId: textValue('irsSubmissionId'),
-    stateAttachments,
-    stateAttachmentCount: stateAttachments.length,
-    federalReturnFile: federalReturnFiles[0] ?? null,
-    federalAttachments,
-    federalAttachmentCount: federalAttachments.length,
-  };
-}
 
 function renderErrors(errors) {
   const list = document.getElementById('package-dialog-errors');
@@ -274,13 +374,17 @@ function renderErrors(errors) {
 }
 
 async function handleCreateClicked() {
-  const settings = gatherSettings();
-  const settingsErrors = packager.validatePackagingSettings(settings);
-  if (settingsErrors.length > 0) {
-    renderErrors(settingsErrors);
+  if (!activeProfile) return;
+  const profile = activeProfile;
+  const values = gatherValues();
+  const files = gatherFiles();
+  const packetName = _appState.manifest.packetName;
+  const errors = validatePackage(profile, values, files, packetName);
+  renderErrors(errors);
+  if (errors.length > 0) {
+    document.getElementById('package-dialog-errors').scrollIntoView({ block: 'nearest' });
     return;
   }
-  renderErrors([]);
 
   // §19 step 4: schema-validity warnings are a confirm-to-continue, not a
   // block — this packet may legitimately be filed incomplete during testing.
@@ -297,17 +401,11 @@ async function handleCreateClicked() {
 
   await _withBusyOverlay('Building submission package…', async () => {
     const packetXml = _buildPacketXml();
-    const packetFileName = `${_appState.manifest.packetName}.xml`;
-    const { blob, filename } = await packager.buildSubmissionPackage({
-      settings,
-      packetXml,
-      packetFileName,
-      stateAttachments: settings.stateAttachments,
-      federalReturnFile: settings.federalReturnFile,
-      federalAttachments: settings.federalAttachments,
-    });
+    const { blob, filename } = await buildPackage({ profile, values, files, packetXml, packetName });
     toolbar.downloadBlob(blob, filename);
-    packager.saveLastPackagingSettings(settings);
+    _onPacketWritten?.(packetXml);
+    // Blank values are kept too: clearing an optional field should stick.
+    settingsStore.saveLastPackagingSettings(profile, Object.fromEntries(Object.entries(values).map(([k, v]) => [k, isBlank(v) ? '' : v.trim()])));
     toolbar.setStatus(`Created ${filename}`);
   });
 
