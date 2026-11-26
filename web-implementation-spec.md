@@ -1374,7 +1374,7 @@ async function withBusyOverlay(message, work) {
 
 **File:** `js/core/undoService.js`
 
-Command pattern. Each user action produces an action object with `undo()` and `redo()` methods. Two bounded arrays act as stacks (max 50 entries each).
+Command pattern. Each user action produces an action object with `undo()` and `redo()` methods. Two bounded arrays act as stacks. The cap is `DEFAULT_UNDO_LIMIT` (500), not the original 50 — on a large form 50 entries is a few minutes of work, and actions store only paths/values/flags (`dev/IMPROVEMENT_BACKLOG.md` A.4). The undo button's tooltip reports the stack depth and says when the oldest entries have been dropped.
 
 ```js
 class UndoService {
@@ -1516,7 +1516,9 @@ A slide-in panel (Ctrl+F):
 - Checkboxes: Case sensitive, Include documentation, Line number mode
 - Result list: click to navigate to that form and highlight the field
 
-**Highlight:** Add class `search-highlight` to the matching `.field-wrapper`. On navigation, scroll the element into view (`el.scrollIntoView({ behavior: 'smooth', block: 'center' })`).
+**Highlight:** Add class `search-highlight` to the matching `.field-wrapper`. On navigation, scroll the element into view (`el.scrollIntoView({ behavior: 'smooth', block: 'center' })`). Rendered paths are compared with their `[i]` indices stripped (`staticPathOf`), so a field inside a repeating section lands on its first instance.
+
+If the field has no layout box — inside an unselected radio branch (`display: none`) or a repeating section with no rows (not in the DOM) — walk up the result's path (`highlightCandidatePaths`) and highlight the nearest ancestor that is rendered, with a line in `#search-status` saying so. If nothing on the form matches, `#search-status` says that instead of the click doing nothing.
 
 **Cross-form:** Clicking a result from a different form calls `switchToForm(formName)` first, then highlights after the form renders.
 
@@ -1833,6 +1835,12 @@ Steps 3–9 (reading files through packet analysis) run inside `withBusyOverlay(
 13. Enable toolbar buttons
 14. Switch to first form
 ```
+
+**Switch Root** (File menu) re-runs step 9 against the cached `flatDoc` — no folder re-read, no
+re-flatten — then steps 10–14. The current root is preselected in the Choose Root modal; with
+only one candidate there is nothing to switch to and the button says so. If the outgoing packet
+holds any data, the user confirms first, and its autosave snapshot is flushed under the outgoing
+root's key (snapshots are keyed per root element), so switching back offers it for recovery.
 
 ### Form Switch Flow
 

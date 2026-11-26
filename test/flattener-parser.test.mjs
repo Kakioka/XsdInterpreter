@@ -26,6 +26,23 @@ test('BOM scan reports nothing for the clean sample files', async () => {
   assert.equal(stripBom(withBom).startsWith('<?xml'), true);
 });
 
+test('BOM scan reports interior marks whether or not a leading BOM is present (parity 1.11)', async () => {
+  const { scanForBom, stripBom } = await import('../js/core/flattener.js');
+  const BOM = '﻿';
+  const files = new Map([
+    ['LeadingOnly.xsd', `${BOM}<root/>`],
+    ['InteriorOnly.xsd', `<root>${BOM}</root>`],
+    ['Both.xsd', `${BOM}<root>${BOM}</root>`],
+    ['Clean.xsd', '<root/>'],
+  ]);
+  const byName = Object.fromEntries(scanForBom(files).map((h) => [h.name, h]));
+  assert.deepEqual(Object.keys(byName).sort(), ['Both.xsd', 'InteriorOnly.xsd', 'LeadingOnly.xsd']);
+  assert.deepEqual(byName['LeadingOnly.xsd'], { name: 'LeadingOnly.xsd', hasLeadingBom: true, hasInterior: false });
+  assert.deepEqual(byName['InteriorOnly.xsd'], { name: 'InteriorOnly.xsd', hasLeadingBom: false, hasInterior: true });
+  assert.deepEqual(byName['Both.xsd'], { name: 'Both.xsd', hasLeadingBom: true, hasInterior: true });
+  assert.equal(stripBom(files.get('Both.xsd')), '<root></root>');
+});
+
 test('root file detection finds exactly SamplePacket.xsd', () => {
   assert.deepEqual(pipeline.rootFileCandidates, ['SamplePacket.xsd']);
 });

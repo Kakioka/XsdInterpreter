@@ -7,7 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { matchesQuery, walkForSearch, search } from '../js/core/searchService.js';
+import { matchesQuery, walkForSearch, search, staticPathOf, highlightCandidatePaths } from '../js/core/searchService.js';
 import { loadSamplePipeline } from './helpers/env.mjs';
 
 const { parser, manifest } = await loadSamplePipeline();
@@ -106,5 +106,38 @@ test('each result carries the fields ui/search.js renders', () => {
   assert.ok(result);
   for (const key of ['formName', 'elementPath', 'label', 'lineNumber', 'documentation']) {
     assert.ok(key in result, `result is missing ${key}`);
+  }
+});
+
+test('staticPathOf strips every repeat index so rendered paths compare to result paths (parity 1.7)', () => {
+  assert.equal(staticPathOf('F.List.ListEntry[1].Field'), 'F.List.ListEntry.Field');
+  assert.equal(staticPathOf('F.Outer[0].Inner[12].Leaf'), 'F.Outer.Inner.Leaf');
+  assert.equal(staticPathOf('F.Plain'), 'F.Plain');
+});
+
+test('highlightCandidatePaths lists the path then each ancestor, nearest first', () => {
+  assert.deepEqual(highlightCandidatePaths('F.Choice.Option1.Field'), ['F.Choice.Option1.Field', 'F.Choice.Option1', 'F.Choice', 'F']);
+  assert.deepEqual(highlightCandidatePaths('F'), ['F']);
+  assert.deepEqual(highlightCandidatePaths(''), []);
+});
+
+test("every ancestor in a result's fallback chain is a real schema node on the sample packet", () => {
+  // The walk-up only helps if each step lands on something the renderer
+  // stamps a data-path on — i.e. result paths are built from their ancestors'.
+  for (const formName of formNames) {
+    const root = parser.parseGlobalElement(formName);
+    if (!root) continue;
+    const known = new Set();
+    const collect = (el) => {
+      known.add(el.elementPath);
+      el.children.forEach(collect);
+    };
+    collect(root);
+    for (const r of search('a', [formName], parser)) {
+      assert.equal(staticPathOf(r.elementPath), r.elementPath, 'result paths are static');
+      for (const candidate of highlightCandidatePaths(r.elementPath)) {
+        assert.ok(known.has(candidate), `${candidate} (from ${r.elementPath}) is not a schema node`);
+      }
+    }
   }
 });

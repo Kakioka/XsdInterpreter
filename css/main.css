@@ -724,6 +724,18 @@ body.layout-wrap .branch-content > *:not(.field-wrapper) {
   border-bottom: 1px solid var(--control-border);
 }
 
+/* Parity 1.7: says why a result landed on its container rather than itself. */
+#search-status {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--secondary-text);
+  border-bottom: 1px solid var(--control-border);
+}
+
+#search-status[hidden] {
+  display: none;
+}
+
 #search-result-list {
   margin: 0;
   padding: 4px 0;

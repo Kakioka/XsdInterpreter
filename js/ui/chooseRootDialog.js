@@ -62,8 +62,9 @@ function buildDialog(overlay) {
 /** Same contract as the old window.prompt-based chooseOne it replaces:
  *  candidates.length === 1 → auto-pick, no dialog shown. 0 → alert + null.
  *  >1 → a dropdown of the detected candidates with OK/Cancel; resolves to the
- *  chosen candidate, or null if cancelled/closed. */
-export async function chooseOne(candidates, emptyMessage, multipleMessage) {
+ *  chosen candidate, or null if cancelled/closed. `initial`, when it is one of
+ *  the candidates, is preselected (Switch Root passes the current root). */
+export async function chooseOne(candidates, emptyMessage, multipleMessage, initial = null) {
   if (candidates.length === 1) return candidates[0];
   if (candidates.length === 0) {
     window.alert(emptyMessage);
@@ -73,7 +74,7 @@ export async function chooseOne(candidates, emptyMessage, multipleMessage) {
   const overlay = document.getElementById('choose-root-dialog-overlay');
   if (!overlay) {
     // Fallback for harnesses (dev/*.html) that don't include the dialog container.
-    const chosen = window.prompt(`${multipleMessage}\n(${candidates.join(', ')})`, candidates[0]);
+    const chosen = window.prompt(`${multipleMessage}\n(${candidates.join(', ')})`, candidates.includes(initial) ? initial : candidates[0]);
     return chosen && candidates.includes(chosen) ? chosen : null;
   }
 
@@ -86,6 +87,7 @@ export async function chooseOne(candidates, emptyMessage, multipleMessage) {
     opt.textContent = candidate;
     select.appendChild(opt);
   }
+  if (candidates.includes(initial)) select.value = initial;
   overlay.classList.remove('hidden');
   select.focus();
 

@@ -15,8 +15,19 @@ export function wireUndo(undoService, ctx) {
   const redoBtn = document.getElementById('redo-btn');
 
   function refreshButtons() {
-    if (undoBtn) undoBtn.disabled = !undoService.canUndo;
-    if (redoBtn) redoBtn.disabled = !undoService.canRedo;
+    if (undoBtn) {
+      undoBtn.disabled = !undoService.canUndo;
+      const n = undoService.undoCount;
+      undoBtn.title = n
+        ? `Undo (Ctrl+Z) — ${n} step${n === 1 ? '' : 's'} available` +
+          (undoService.historyTruncated ? `; only the most recent ${undoService.maxSize} are kept` : '')
+        : 'Undo (Ctrl+Z)';
+    }
+    if (redoBtn) {
+      redoBtn.disabled = !undoService.canRedo;
+      const n = undoService.redoCount;
+      redoBtn.title = n ? `Redo (Ctrl+Y) — ${n} step${n === 1 ? '' : 's'} available` : 'Redo (Ctrl+Y)';
+    }
   }
 
   undoService.addEventListener('changed', refreshButtons);

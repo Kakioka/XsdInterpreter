@@ -38,6 +38,7 @@ const appState = {
   manifest: null,
   currentInstanceKey: null,
   flatDoc: null,
+  schemaSource: null, // {fileTextMap, rootFileName, rootElementName} — what Switch Root re-runs against
   targetNamespace: null, // from flattener.flattenFromRoot (§3); threaded into buildPacketXml (§10) on Save XML
   schemaParser: null,
   schemaSettingsKey: null, // settingsStore.js — which schema the per-schema settings belong to
@@ -81,6 +82,9 @@ async function withBusyOverlay(message, work) {
 // ---------------------------------------------------------------------------
 
 async function loadSchema(fileTextMap) {
+  // Write the outgoing schema's latest edits under ITS key now: setSchemaIdentity
+  // (via activateRootElement) drops any write still pending in the debounce.
+  if (appState.manifest) await autosaveUi.flushAutosave();
   const loaded = await withBusyOverlay('Parsing schema…', async () => {
     const bomHits = scanForBom(fileTextMap);
     if (bomHits.length > 0) {
@@ -113,32 +117,11 @@ async function loadSchema(fileTextMap) {
     );
     if (!rootElementName) return false;
 
-    appState.schemaSettingsKey = schemaSettingsKey(targetNamespace, rootFileName, rootElementName);
-    const { instanceIdSource } = loadSchemaSettings(appState.schemaSettingsKey);
-    appState.schemaParser = new SchemaParser(flatDoc, rootElementName, instanceIdSource);
-    appState.manifest = analyzePacket(flatDoc, rootElementName);
-
-    appState.formEngine.reset();
-    appState.undoService.clearHistory(); // §22 invariant 23
-    appState.instanceKeys = buildInitialInstanceKeys(appState.manifest);
-    appState.currentInstanceKey = null;
-
-    document.getElementById('load-schema-prompt')?.remove();
-    sidebar.setCurrentRootLabel(document.getElementById('current-root-label'), appState.manifest.packetName);
-    rebuildNavTree();
-    toolbar.setSchemaDependentButtonsEnabled(true);
-    packagingUi.refreshCreatePackageButton(appState); // formEngine.reset() above doesn't fire dirtyChanged/controlValueChanged
+    // Kept for Switch Root, which re-runs only the root-element step below
+    // against the already-flattened document (parity 1.6).
+    appState.schemaSource = { fileTextMap, rootFileName, rootElementName };
+    activateRootElement(rootElementName);
     toolbar.setStatus(`Loaded ${appState.manifest.packetName}`);
-
-    // Autosave keys its snapshot by schema identity (C.1), so it can only be
-    // told what that is once the root file/element are actually settled.
-    // Deliberately AFTER clearHistory() above — that dispatches undoService's
-    // 'changed', which autosave listens to, and a blank-state write landing
-    // before offerRecovery() has read the stored snapshot would be writing
-    // over the very work we are about to offer back.
-    autosaveUi.setSchemaIdentity(computeSchemaKey(fileTextMap, rootFileName, rootElementName), appState.manifest.packetName);
-
-    if (appState.instanceKeys.length > 0) switchToForm(appState.instanceKeys[0]);
     return true;
   });
 
@@ -147,6 +130,105 @@ async function loadSchema(fileTextMap) {
   // it silently swallows its own clicks (the trap documented on
   // #choose-root-dialog-overlay in css/main.css).
   if (loaded) await autosaveUi.offerRecovery();
+}
+
+/**
+ * The half of the Schema Load Flow that depends on the root ELEMENT, run
+ * against `appState.flatDoc`: parser + manifest, a blank FormEngine, cleared
+ * undo history (§22 invariant 23), nav tree, autosave identity, first form.
+ * Shared by loadSchema and switchRoot. Synchronous — callers wrap it in
+ * withBusyOverlay and call autosaveUi.offerRecovery() after the overlay is down.
+ */
+function activateRootElement(rootElementName) {
+  const { fileTextMap, rootFileName } = appState.schemaSource;
+  const flatDoc = appState.flatDoc;
+  appState.schemaSource.rootElementName = rootElementName;
+
+  appState.schemaSettingsKey = schemaSettingsKey(appState.targetNamespace, rootFileName, rootElementName);
+  const { instanceIdSource } = loadSchemaSettings(appState.schemaSettingsKey);
+  appState.schemaParser = new SchemaParser(flatDoc, rootElementName, instanceIdSource);
+  appState.manifest = analyzePacket(flatDoc, rootElementName);
+
+  appState.formEngine.reset();
+  appState.undoService.clearHistory(); // §22 invariant 23
+  appState.instanceKeys = buildInitialInstanceKeys(appState.manifest);
+  appState.currentInstanceKey = null;
+
+  document.getElementById('load-schema-prompt')?.remove();
+  // A root with no required leaf forms renders nothing below, so the previous
+  // root's form must not be left on screen bound to state that no longer exists.
+  document.getElementById('form-content-host').innerHTML = '';
+  validationUi.closeValidationPanel();
+  sidebar.setCurrentRootLabel(document.getElementById('current-root-label'), appState.manifest.packetName);
+  rebuildNavTree();
+  toolbar.setSchemaDependentButtonsEnabled(true);
+  packagingUi.refreshCreatePackageButton(appState); // formEngine.reset() above doesn't fire dirtyChanged/controlValueChanged
+
+  // Autosave keys its snapshot by schema identity (C.1), so it can only be
+  // told what that is once the root file/element are actually settled. This
+  // also puts autosave on hold until offerRecovery() settles: clearHistory()
+  // above and switchToForm() below both schedule a write of the blank state,
+  // which would otherwise overwrite the snapshot the recovery prompt offers.
+  // So it must stay AFTER clearHistory() (setSchemaIdentity cancels the write
+  // that schedules), and every caller must end in offerRecovery().
+  autosaveUi.setSchemaIdentity(computeSchemaKey(fileTextMap, rootFileName, rootElementName), appState.manifest.packetName);
+
+  if (appState.instanceKeys.length > 0) switchToForm(appState.instanceKeys[0]);
+  refreshSaveStatus();
+}
+
+/**
+ * File → Switch Root (parity 1.6): pick a different root element from the
+ * already-loaded schema set without re-reading the folder. Like the WPF
+ * app's SwitchRoot, this starts the new root blank and clears undo history.
+ *
+ * The current root's work isn't lost: autosave snapshots are keyed per root
+ * element, so it is flushed under the current key first and offered back on
+ * switching to that root again.
+ */
+async function switchRoot() {
+  if (!appState.flatDoc || !appState.schemaSource) return;
+  const current = appState.schemaSource.rootElementName;
+  const candidates = findRootElementCandidates(appState.flatDoc);
+  if (candidates.length < 2) {
+    window.alert(
+      candidates.length === 1
+        ? `${candidates[0]} is the only root element this schema set declares, so there is nothing to switch to.`
+        : 'Could not determine a root packet element — every global element is referenced by another via xs:element ref=.'
+    );
+    return;
+  }
+
+  const chosen = await chooseOne(candidates, '', `Switch root element (currently ${current}):`, current);
+  if (!chosen || chosen === current) return;
+
+  // Any entered data counts, not just the dirty flag: a field mid-edit hasn't
+  // flipped it yet, and data loaded from an XML file is clean but still on
+  // screen. Flushing first is what makes the mid-edit value visible here.
+  appState.formEngine.flushRegisteredControls();
+  const hasWork = [...appState.formEngine.getAllFormStates().values()].some(
+    (s) =>
+      s.isDirty ||
+      Object.values(s.fieldValues || {}).some((v) => !isEmptyValue(v) && v !== false) || // an unticked checkbox stores false
+      Object.values(s.radioSelections || {}).some(Boolean)
+  );
+  if (
+    hasWork &&
+    !window.confirm(
+      `Switching to ${chosen} starts a blank packet and clears undo history.\n\n` +
+        `Unsaved work on ${appState.manifest.packetName} is kept in this browser's autosave and offered back if you switch to it again. Continue?`
+    )
+  ) {
+    return;
+  }
+
+  await autosaveUi.flushAutosave(); // under the CURRENT root's key — activateRootElement moves it
+  const switched = await withBusyOverlay('Switching root…', async () => {
+    activateRootElement(chosen);
+    toolbar.setStatus(`Switched root to ${appState.manifest.packetName}`);
+    return true;
+  });
+  if (switched) await autosaveUi.offerRecovery();
 }
 
 /** One instance key per required, non-repeatable LEAF form (e.g. FormN11), in
@@ -670,6 +752,12 @@ function init() {
     onSchemaFilesSelected: loadSchema,
     onXmlTextSelected: loadXmlText,
     onSaveXmlRequested: saveXml,
+  });
+  document.getElementById('switch-root-btn')?.addEventListener('click', () => {
+    switchRoot().catch((err) => {
+      console.error(err);
+      window.alert(`Failed to switch root: ${err.message}`);
+    });
   });
   sidebar.wireAddFormButton(document.getElementById('add-form-btn'), () => appState.manifest, () => appState.instanceKeys, addFormInstance);
 

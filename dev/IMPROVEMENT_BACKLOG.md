@@ -93,7 +93,12 @@ three facets and will have to add them twice.
 **Do:** one exported predicate in `core/` returning `{valid, message}`; let the coloring path
 ignore `message`.
 
-### A.4 Undo is a bounded 50-entry stack with no visibility
+### A.4 Undo is a bounded 50-entry stack with no visibility — **DONE**
+
+> **Done** in Phase 4 of `dev/IMPLEMENTATION_ORDER.md`: the cap is `DEFAULT_UNDO_LIMIT` (500,
+> overridable per `UndoService`), kept finite because `FillTestData`/`ClearAll` each carry a
+> whole-form snapshot. The undo/redo tooltips show stack depth and say when the oldest entries
+> have been dropped. An undo-history list was not built.
 
 Matches WPF. On a form with hundreds of fields, 50 entries is a few minutes of work, and there's
 no indication when the oldest entry falls off or any way to see what's on the stack.

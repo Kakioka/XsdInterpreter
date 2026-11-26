@@ -48,13 +48,39 @@ function restoreScopedState(formEngine, pathPrefix, snapshot) {
 // UndoService (spec §14)
 // ---------------------------------------------------------------------------
 
+/** Backlog A.4: the spec's (and the WPF app's) 50 is a few minutes of work on
+ *  a large form. Actions hold paths/values/flags only, so the cost per entry
+ *  is small; the whole-form actions (FillTestData, ClearAll) carry one form's
+ *  state snapshot each, which is what keeps this finite rather than unbounded. */
+export const DEFAULT_UNDO_LIMIT = 500;
+
 export class UndoService extends EventTarget {
-  constructor() {
+  /** @param {{maxSize?: number}} [options] */
+  constructor({ maxSize = DEFAULT_UNDO_LIMIT } = {}) {
     super();
     this._undoStack = [];
     this._redoStack = [];
     this._isReplaying = false;
-    this._maxSize = 50;
+    this._maxSize = maxSize;
+    this._droppedSinceClear = 0;
+  }
+
+  get maxSize() {
+    return this._maxSize;
+  }
+
+  get undoCount() {
+    return this._undoStack.length;
+  }
+
+  get redoCount() {
+    return this._redoStack.length;
+  }
+
+  /** True once the oldest entry has fallen off since the last clearHistory()
+   *  — so the UI can say undo no longer reaches back to the start. */
+  get historyTruncated() {
+    return this._droppedSinceClear > 0;
   }
 
   get isReplaying() {
@@ -74,7 +100,10 @@ export class UndoService extends EventTarget {
   recordAction(action) {
     if (this._isReplaying) return;
     this._undoStack.push(action);
-    if (this._undoStack.length > this._maxSize) this._undoStack.shift();
+    if (this._undoStack.length > this._maxSize) {
+      this._undoStack.shift();
+      this._droppedSinceClear++;
+    }
     this._redoStack = [];
     this._notifyChanged();
   }
@@ -110,6 +139,7 @@ export class UndoService extends EventTarget {
   clearHistory() {
     this._undoStack = [];
     this._redoStack = [];
+    this._droppedSinceClear = 0;
     this._notifyChanged();
   }
 

@@ -27,7 +27,10 @@ export function scanForBom(fileTextMap) {
   const affected = [];
   for (const [name, text] of fileTextMap) {
     const hasLeadingBom = text.charCodeAt(0) === 0xfeff;
-    const hasInterior = text.indexOf('\uFEFF') >= (hasLeadingBom ? 1 : 0);
+    // Search from past the leading BOM, not "indexOf >= 1": with a leading
+    // BOM indexOf returns 0, so interior marks after it went unreported
+    // (parity 1.11).
+    const hasInterior = text.indexOf('\uFEFF', hasLeadingBom ? 1 : 0) !== -1;
     if (hasLeadingBom || hasInterior) affected.push({ name, hasLeadingBom, hasInterior });
   }
   return affected;

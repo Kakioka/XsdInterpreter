@@ -66,3 +66,26 @@ export function search(query, formNames, schemaParser, options = {}) {
   }
   return results;
 }
+
+// ---------------------------------------------------------------------------
+// Highlight target resolution (parity 1.7)
+// ---------------------------------------------------------------------------
+
+/** A rendered node's data-path with every repeat index removed — the form a
+ *  search result's static `elementPath` can be compared against.
+ *  `List.ListEntry[1].Field` → `List.ListEntry.Field`. */
+export function staticPathOf(runtimePath) {
+  return runtimePath.replace(/\[\d+\]/g, '');
+}
+
+/** The result's own path, then each ancestor up to the outermost segment, in
+ *  the order js/ui/search.js tries them: a field the DOM doesn't show (an
+ *  unselected radio branch, a repeating section with no rows) is highlighted
+ *  through the nearest ancestor that IS shown. */
+export function highlightCandidatePaths(elementPath) {
+  if (!elementPath) return [];
+  const segments = elementPath.split('.');
+  const candidates = [];
+  for (let n = segments.length; n > 0; n--) candidates.push(segments.slice(0, n).join('.'));
+  return candidates;
+}

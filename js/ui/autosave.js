@@ -64,7 +64,7 @@ function currentSnapshot() {
 }
 
 async function writeNow() {
-  if (!state?.schemaKey) return;
+  if (!state?.schemaKey || state.recoveryPending) return;
   // Capture an in-progress edit that hasn't fired `change` yet — the same
   // reason saveXml and buildCurrentPacketXml flush first (§6, §22 invariant 3).
   // Without this, autosave lags one field behind whatever is focused, which is
@@ -85,7 +85,7 @@ async function writeNow() {
  *  changes — a caller that finds a path they don't cover should export this
  *  rather than reaching for a timer of its own. */
 function scheduleAutosave() {
-  if (!state?.schemaKey) return;
+  if (!state?.schemaKey || state.recoveryPending) return;
   if (!isAutosaveAvailable()) {
     reportUnavailableOnce();
     return;
@@ -100,16 +100,17 @@ function scheduleAutosave() {
   }, DEBOUNCE_MS);
 }
 
-/** Writes immediately, skipping the debounce (used on page hide). */
-function flushAutosave() {
+/** Writes immediately, skipping the debounce. Page hide calls it
+ *  fire-and-forget (an unload handler can't await anything, but an IndexedDB
+ *  write started there usually still completes); app.js's switchRoot awaits
+ *  it, so the write lands under the outgoing root's key before the key moves.
+ *  Never rejects. */
+export function flushAutosave() {
   if (debounceTimer !== null) {
     clearTimeout(debounceTimer);
     debounceTimer = null;
   }
-  // Fire-and-forget on purpose: an unload handler can't await anything, but an
-  // IndexedDB write started here usually still completes, and if it doesn't,
-  // the last debounced write is at most DEBOUNCE_MS stale.
-  writeNow().catch(() => reportUnavailableOnce());
+  return writeNow().catch(() => reportUnavailableOnce());
 }
 
 /** Called after a successful Save XML — the work is on disk now, so a
@@ -136,13 +137,30 @@ export async function clearSnapshot() {
  */
 export function setSchemaIdentity(schemaKey, packetName) {
   if (!state) return;
+  // Hold every write until offerRecovery() has settled. The schema load
+  // around this call clears undo history and renders the first form, both of
+  // which schedule a write — of the BLANK state, which would land under this
+  // key while the recovery prompt is still open and overwrite the very
+  // snapshot being offered. A write already pending from before the switch
+  // would land under the new key too, so it's dropped (switchRoot flushes
+  // its outgoing root before getting here). Page-hide flushes are held as
+  // well: a tab dying with the prompt open is exactly when the stored copy
+  // matters.
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  state.recoveryPending = true;
   state.schemaKey = schemaKey;
   state.packetName = packetName;
   if (!isAutosaveAvailable()) {
     reportUnavailableOnce();
     return;
   }
-  setAutosaveStatus('Autosave ready', 'Work in progress is stored in this browser and offered back if the tab closes unexpectedly.');
+  // Stays this way if the load throws before offerRecovery() runs: the
+  // half-built state shouldn't be written over a good snapshot, and the
+  // status says so rather than claiming autosave is running.
+  setAutosaveStatus('Autosave paused', 'Checking this browser for unsaved work on this schema before autosaving resumes.');
   // Housekeeping, not on the autosave path: keep the current schema's snapshot
   // whatever its age, prune everything else down to the cap.
   pruneSnapshots({ keepSchemaKey: schemaKey }).catch(() => {});
@@ -230,17 +248,36 @@ function askToRestore(snapshot) {
  * @returns {Promise<boolean>} true if the caller's restore callback ran
  */
 export async function offerRecovery() {
-  if (!state?.schemaKey || !isAutosaveAvailable()) return false;
-  const snapshot = await getSnapshot(state.schemaKey);
-  if (!snapshot || !snapshotHasWork(snapshot)) return false;
+  if (!state?.schemaKey) return false;
+  try {
+    if (!isAutosaveAvailable()) return false;
+    const snapshot = await getSnapshot(state.schemaKey);
+    if (!snapshot || !snapshotHasWork(snapshot)) return false;
 
-  const restore = await askToRestore(snapshot);
-  if (!restore) {
-    await deleteSnapshot(state.schemaKey);
-    return false;
+    const restore = await askToRestore(snapshot);
+    if (!restore) {
+      await deleteSnapshot(state.schemaKey);
+      return false;
+    }
+    // Release the hold BEFORE restoring, so the restore's own state changes
+    // schedule a write of the restored work like any other edit would.
+    releaseRecoveryHold();
+    state.restoreSnapshot(snapshot);
+    return true;
+  } finally {
+    releaseRecoveryHold();
   }
-  state.restoreSnapshot(snapshot);
-  return true;
+}
+
+function releaseRecoveryHold() {
+  if (!state?.recoveryPending) return;
+  state.recoveryPending = false;
+  if (isAutosaveAvailable() && !reportedUnavailable) {
+    setAutosaveStatus('Autosave ready', 'Work in progress is stored in this browser and offered back if the tab closes unexpectedly.');
+  }
+  // Anything typed while the prompt was up (nothing, normally — it's modal)
+  // or left over from the load gets written now under the settled key.
+  if (hasUnsavedWork()) scheduleAutosave();
 }
 
 // ---------------------------------------------------------------------------
@@ -262,7 +299,7 @@ function hasUnsavedWork() {
  *   rebuilds instanceKeys + FormEngine state from a snapshot and re-renders.
  */
 export function wireAutosave({ appState, restoreSnapshot }) {
-  state = { appState, restoreSnapshot, schemaKey: null, packetName: null };
+  state = { appState, restoreSnapshot, schemaKey: null, packetName: null, recoveryPending: false };
 
   // Value edits and dirty flips cover ordinary data entry; undoService's
   // 'changed' covers undo/redo, which mutates state without going through

@@ -207,7 +207,7 @@ folder of .xsd
 ```
 
 `js/ui/app.js` is the only orchestrator — it holds `appState` and owns `loadSchema`,
-`switchToForm`, `addFormInstance`, `removeFormInstance`, `loadXmlText`, `saveXml`,
+`switchRoot`, `switchToForm`, `addFormInstance`, `removeFormInstance`, `loadXmlText`, `saveXml`,
 `restoreFromSnapshot`. Every other `ui/` module is wired from its `init()` and receives the
 pieces it needs. There is no framework
 and no reactive layer; `FormEngine` extends `EventTarget` and fires `controlValueChanged` /
@@ -283,7 +283,8 @@ setActiveForm (persists prior values, then clears registration)
 
 ### Undo/redo
 
-Command pattern, ten action classes in `js/core/undoService.js`, two bounded 50-entry stacks.
+Command pattern, ten action classes in `js/core/undoService.js`, two stacks bounded at
+`DEFAULT_UNDO_LIMIT` (500 — the spec's original 50 was raised, backlog A.4).
 Actions store **paths, values, keys and flags only** — never live DOM or control references.
 They mutate state through `switchToForm`'s `mutateState` callback and let the DOM rebuild from
 scratch, which is what makes cross-form undo work without patching live DOM. Every recording
@@ -306,6 +307,9 @@ Both exist because FormEngine state lives only in memory and the browser can tak
   `css/main.css`). `setSchemaIdentity` is called after `undoService.clearHistory()` for the
   opposite reason: `clearHistory` fires `changed`, which autosave listens to, and a blank-state
   write must not land before the stored snapshot has been read.
+- `setSchemaIdentity` holds every autosave write until `offerRecovery()` settles — the load
+  itself schedules blank-state writes that would otherwise overwrite the snapshot being offered.
+  So any new path that sets the identity must end in `offerRecovery()`, or autosave stays paused.
 - A successful Save XML calls `clearSnapshot()`. Every store function resolves rather than
   rejects on a storage failure; the one quiet notice goes to `#autosave-status`.
 
@@ -364,4 +368,3 @@ Tier 1 for the behavior each one should have instead:
   over the original app's rules; nobody has checked it against the published manifest schema.
 - `dev/phase6-check.html` and `dev/phase9-check.html` throw partway, and one `phase7-check.html`
   row fails ("all 4 tab buttons"). All three predate Phase 3 of `dev/IMPLEMENTATION_ORDER.md`.
-- `#switch-root-btn` in `index.html` is wired to nothing.

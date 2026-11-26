@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { FormEngine, FormInstanceKey, createEmptyFormState } from '../js/core/formEngine.js';
 import {
   UndoService,
+  DEFAULT_UNDO_LIMIT,
   FieldValueChangeAction,
   RadioBranchSwapAction,
   RepeatingInstanceAddAction,
@@ -69,10 +70,22 @@ test('undo/redo on an empty stack is a no-op, not a throw', () => {
   assert.equal(service.canUndo, false);
 });
 
-test('the stack is bounded at 50 entries, dropping the OLDEST (A.4: the cap itself is backlog work)', () => {
+test("the default cap is well past the spec's 50 (backlog A.4)", () => {
   const service = new UndoService();
+  assert.equal(service.maxSize, DEFAULT_UNDO_LIMIT);
+  assert.ok(DEFAULT_UNDO_LIMIT >= 500);
+});
+
+test('the stack is bounded, dropping the OLDEST, and reports that it has', () => {
+  const service = new UndoService({ maxSize: 50 });
   const key = new FormInstanceKey('F');
-  for (let i = 0; i < 55; i++) {
+  for (let i = 0; i < 50; i++) {
+    service.recordAction(
+      new FieldValueChangeAction({ instanceKey: key, path: 'F.A', oldValue: String(i), newValue: String(i + 1), oldDirty: true, newDirty: true })
+    );
+  }
+  assert.equal(service.historyTruncated, false, 'exactly at the cap nothing has been dropped yet');
+  for (let i = 50; i < 55; i++) {
     service.recordAction(
       new FieldValueChangeAction({ instanceKey: key, path: 'F.A', oldValue: String(i), newValue: String(i + 1), oldDirty: true, newDirty: true })
     );
@@ -86,6 +99,12 @@ test('the stack is bounded at 50 entries, dropping the OLDEST (A.4: the cap itse
   assert.equal(undone, 50);
   // The oldest 5 are gone, so the earliest reachable oldValue is '5', not '0'.
   assert.equal(ctx.formEngine.getValue('F.A'), '5');
+  assert.equal(service.historyTruncated, true);
+  assert.equal(service.redoCount, 50);
+
+  service.clearHistory();
+  assert.equal(service.historyTruncated, false, 'a schema/XML load starts a fresh history');
+  assert.equal(service.undoCount + service.redoCount, 0);
 });
 
 test('recordAction is ignored while replaying (§22 invariant 13)', () => {

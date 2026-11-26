@@ -3,7 +3,7 @@
 // See web-implementation-spec.md §15 (Search — Search UI). Implemented in
 // IMPLEMENTATION_PLAN.md Phase 6.1.
 
-import { search as runSearch } from '../core/searchService.js';
+import { search as runSearch, staticPathOf, highlightCandidatePaths } from '../core/searchService.js';
 
 let _appState = null;
 let _switchToForm = null;
@@ -106,31 +106,71 @@ function navigateToResult(result) {
   const current = _appState.currentInstanceKey;
   const sameForm = (k) => k.formName.toLowerCase() === result.formName.toLowerCase();
   const target = (current && sameForm(current) ? current : null) ?? _appState.instanceKeys.find(sameForm);
-  if (!target) return;
+  if (!target) {
+    setSearchStatus(`${result.formName} has no form in this packet yet — add one to see “${result.label}”.`);
+    return;
+  }
   if (!current || !current.equals(target)) _switchToForm(target);
-  highlightPath(document.getElementById('form-content-host'), result.elementPath);
+  highlightResult(document.getElementById('form-content-host'), result);
 }
 
 function clearHighlight() {
   _lastHighlighted?.classList.remove('search-highlight');
   _lastHighlighted = null;
+  setSearchStatus('');
 }
 
-/** §15 "Highlight": adds `search-highlight` to the matching `.field-wrapper`
- *  and scrolls it into view. `result.elementPath` is the STATIC schema path
- *  (no `[i]` — see searchService.js's file comment), so an exact match is
- *  tried first and a prefix match (landing on the first instance) falls back
- *  for a field inside a repeating section. */
-function highlightPath(rootEl, path) {
+function setSearchStatus(text) {
+  const el = document.getElementById('search-status');
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = !text;
+}
+
+/** Has a layout box — false for anything under a `display: none` ancestor
+ *  (an unselected radio branch). `offsetParent` would also say null for the
+ *  position:fixed case, which is why this asks for client rects instead. */
+function isRendered(el) {
+  return el.getClientRects().length > 0;
+}
+
+/**
+ * §15 "Highlight", plus parity 1.7's fallback: adds `search-highlight` to the
+ * node for `result.elementPath` and scrolls it into view. That path is STATIC
+ * (no `[i]` — see searchService.js's file comment), so rendered paths are
+ * compared with their indices stripped, which lands on the first instance of
+ * a field inside a repeating section.
+ *
+ * When the field isn't on screen — inside an unselected radio branch
+ * (`display: none`) or a repeating section with no rows (not in the DOM at
+ * all) — the nearest rendered ancestor is highlighted instead and the status
+ * line says why, rather than the click doing nothing visible.
+ */
+function highlightResult(rootEl, result) {
   clearHighlight();
-  if (!rootEl || !path) return;
-  const target =
-    rootEl.querySelector(`[data-path="${path}"]`) ||
-    rootEl.querySelector(`[data-choice-path="${path}"]`) ||
-    rootEl.querySelector(`[data-path^="${path}"]`) ||
-    rootEl.querySelector(`[data-choice-path^="${path}"]`);
-  if (!target) return;
-  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  target.classList.add('search-highlight');
-  _lastHighlighted = target;
+  if (!rootEl || !result?.elementPath) return;
+
+  const byStaticPath = new Map();
+  rootEl.querySelectorAll('[data-path], [data-choice-path]').forEach((el) => {
+    for (const p of [el.dataset.path, el.dataset.choicePath]) {
+      if (!p) continue;
+      const key = staticPathOf(p).toLowerCase();
+      if (!byStaticPath.has(key)) byStaticPath.set(key, []);
+      byStaticPath.get(key).push(el);
+    }
+  });
+
+  const candidates = highlightCandidatePaths(result.elementPath);
+  for (const [depth, candidate] of candidates.entries()) {
+    const target = (byStaticPath.get(candidate.toLowerCase()) ?? []).find(isRendered);
+    if (!target) continue;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('search-highlight');
+    _lastHighlighted = target;
+    if (depth > 0) {
+      setSearchStatus(`“${result.label}” isn't shown right now (an unselected option or an empty list) — highlighted the section that contains it.`);
+    }
+    return;
+  }
+  setSearchStatus(`“${result.label}” couldn't be located on this form.`);
 }

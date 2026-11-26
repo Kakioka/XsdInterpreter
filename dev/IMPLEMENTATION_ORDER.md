@@ -195,12 +195,45 @@ and `phase9-check` throw partway, and `phase7-check` fails "Panel renders all 4 
 
 ---
 
-## Phase 4 — Small independent fixes (no ordering constraint between them)
+## Phase 4 — Small independent fixes (no ordering constraint between them) — **DONE**
 
-- **P 1.6** — wire `#switch-root-btn` or remove it.
+- **P 1.6** — wire `#switch-root-btn`
 - **P 1.7** — search falls back to nearest rendered ancestor when the target has no layout box.
 - **P 1.11** — BOM interior-mark scan off-by-one.
 - **B A.4** — raise or remove the 50-entry undo cap.
+
+**Where it landed:** `app.js` `switchRoot` + `activateRootElement` (the root-element half of
+`loadSchema`, now shared); `chooseOne` takes an `initial` to preselect the current root;
+`autosave.js` exports `flushAutosave`. Search: `searchService.js`'s `staticPathOf` /
+`highlightCandidatePaths` and `search.js`'s `highlightResult`, with `#search-status` in the panel.
+`flattener.js` `scanForBom`. `undoService.js` `DEFAULT_UNDO_LIMIT`.
+
+**Decisions taken:**
+
+- **Switch Root offers root elements only**, like the original — not a different root *file*;
+  that is what Load Schema Folder is for. With one candidate it says there is nothing to switch to.
+- **Switching doesn't lose work.** If the outgoing packet holds any data (dirty, or any non-empty
+  value — a loaded-but-unedited XML counts), the user confirms; its autosave snapshot is flushed
+  under the outgoing root's key first, and switching back offers it through the normal recovery
+  prompt.
+- **Search matches rendered paths with indices stripped**, replacing the old `data-path^=` prefix
+  fallback (which could not see past an `[i]` in the middle of a path). Fallback text goes in the
+  panel rather than the toolbar status, next to the result that was clicked.
+- **Undo cap 500, not unbounded** — see B A.4.
+
+**Found while doing this, and fixed:** loading a schema fired undoService's `changed` from
+`clearHistory()`, scheduling a debounced autosave that landed 1.5 s later under the *new* key
+with the blank state — while the recovery prompt could still be open, so a tab dying then lost
+the stored work. `setSchemaIdentity` now puts autosave on hold (dropping any pending write, and
+holding page-hide flushes too) until `offerRecovery` settles; the status reads "Autosave paused"
+meanwhile, and stays that way if the load throws in between rather than writing half-built
+state. `loadSchema` now flushes the outgoing schema first, as `switchRoot` does. No harness
+covers `ui/autosave.js`; checked by hand only.
+
+**Also fixed:** `dev/phase6-check.html` section B threw (`reading 'toLowerCase'` in
+`fillRadioGroup`). Its hand-built fixtures had no `elementPath`, which real SchemaElements always
+carry and radio selections are compared against; the fixtures now stamp it. A code bug in
+`testDataFiller.js` was ruled out by running the same fixtures through it headlessly.
 
 ---
 

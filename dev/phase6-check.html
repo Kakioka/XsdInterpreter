@@ -235,7 +235,16 @@
       // ==================================================================
       {
         const el = (fields) => ({ children: [], validationRules: [], enumerationValues: [], isRequired: false, ...fields });
-        const form = el({
+        // Real SchemaElements always carry the static elementPath parser.js
+        // stamps at parse time, and radio selections are stored AS that path
+        // (CLAUDE.md "Radio selections store static paths"). A fixture without
+        // it isn't a SchemaElement — fillRadioGroup compares against it.
+        const withPaths = (node, parentPath = '') => {
+          node.elementPath = parentPath ? `${parentPath}.${node.elementName}` : node.elementName;
+          for (const child of node.children) withPaths(child, node.elementPath);
+          return node;
+        };
+        const form = withPaths(el({
           elementName: 'TestForm', kind: 'GroupContainer', children: [
             el({ elementName: 'ReqName', kind: 'TextInput', isRequired: true }),
             el({ elementName: 'OptNotes', kind: 'TextInput', isRequired: false }),
@@ -245,7 +254,7 @@
             el({ elementName: 'ReqFlag', kind: 'Checkbox', isRequired: true }),
             el({ elementName: 'ReqPick', kind: 'Dropdown', isRequired: true, enumerationValues: [{ value: 'Active', label: 'Active' }, { value: 'Inactive', label: 'Inactive' }] }),
           ],
-        });
+        }));
 
         const allResult = generateValues(form, {});
         check('TextInput generates a name-based sample', allResult.values['testform.reqname'] === 'TESTNAME');
@@ -261,7 +270,7 @@
         check('...but still fills every required one', requiredOnlyResult.values['testform.reqname'] === 'TESTNAME' && Object.keys(requiredOnlyResult.values).length === 6);
 
         // Radio group: pick when unselected, reuse an existing selection instead of overriding it.
-        const choiceForm = el({
+        const choiceForm = withPaths(el({
           elementName: 'ChoiceForm', kind: 'GroupContainer', children: [
             el({
               elementName: 'MyChoice', kind: 'RadioGroup', isRequired: true, children: [
@@ -270,7 +279,7 @@
               ],
             }),
           ],
-        });
+        }));
         const pickResult = generateValues(choiceForm, {});
         check('An unselected required RadioGroup gets a NEW selection (first option)', pickResult.radioSelections['choiceform.mychoice'] === 'ChoiceForm.MyChoice.MyChoiceOption1');
         check('...and that option\'s own required field is filled, keyed under the OPTION (§22 invariant 29)', pickResult.values['choiceform.mychoice.mychoiceoption1.aname'] === 'TESTNAME');
@@ -280,7 +289,7 @@
         check('...and the REUSED (Option2) branch\'s field is filled, not Option1\'s', reuseResult.values['choiceform.mychoice.mychoiceoption2.bname'] === 'TESTNAME' && reuseResult.values['choiceform.mychoice.mychoiceoption1.aname'] === undefined);
 
         // Repeating content container: only existing instances get filled.
-        const repeatForm = el({
+        const repeatForm = withPaths(el({
           elementName: 'RepForm', kind: 'GroupContainer', children: [
             el({
               elementName: 'Items', kind: 'GroupContainer', isRequired: false, children: [
@@ -288,7 +297,7 @@
               ],
             }),
           ],
-        });
+        }));
         const zeroInstances = generateValues(repeatForm, { instanceCounts: {} });
         check('Zero existing instances → nothing filled (the filler never CREATES an instance)', Object.keys(zeroInstances.values).length === 0);
         const twoInstances = generateValues(repeatForm, { instanceCounts: { itemsentry: 2 } });

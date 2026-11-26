@@ -237,7 +237,11 @@ per-schema settings. Also handle "no identity attribute exists" as a first-class
 than an accident: generated ids are fine, they just need to be stored outside the XML so a
 round-trip is stable.
 
-### 1.6 `#switch-root-btn` is dead markup
+### 1.6 `#switch-root-btn` is dead markup — **DONE**
+
+*Wired in `dev/IMPLEMENTATION_ORDER.md` Phase 4: `app.js`'s `switchRoot` re-runs root-element
+selection against the cached `flatDoc` through `activateRootElement`, the half of `loadSchema`
+it now shares. The text below describes the state before.*
 
 `index.html` ships a "Switch Root" File-menu item. No module references `switch-root` anywhere
 in `js/` — the button is enabled by `setSchemaDependentButtonsEnabled` and then does nothing.
@@ -249,7 +253,10 @@ the already-loaded flat document and clears undo history.
 `undoService.clearHistory()` sequence from `loadSchema`. (Or remove the button —
 clickable-but-inert is the worst of the three options.)
 
-### 1.7 Search silently fails on anything not currently rendered
+### 1.7 Search silently fails on anything not currently rendered — **DONE**
+
+*Done in Phase 4: `search.js`'s `highlightResult` walks `highlightCandidatePaths` up to the
+nearest rendered node and says so in `#search-status`. The text below describes the state before.*
 
 `highlightPath` resolves `[data-path]`, adds `search-highlight`, and calls `scrollIntoView`.
 Unselected radio branches are `display: none` (still in the DOM), and repeating instances with
@@ -307,7 +314,9 @@ WPF `ValidationRule` carries an optional `UserFriendlyMessage` that controls pre
 generic fallback. The web `validationRules` objects are `{kind, value}` only, so every message
 is machine-generated ("Min length: 6"). Related to Tier 4's pattern describer.
 
-### 1.11 BOM scan misses an interior ZWNBSP when a leading BOM is also present
+### 1.11 BOM scan misses an interior ZWNBSP when a leading BOM is also present — **DONE**
+
+*Fixed in Phase 4 with the action below; covered in `test/flattener-parser.test.mjs`.*
 
 `scanForBom` uses `text.indexOf('\uFEFF') >= (hasLeadingBom ? 1 : 0)`. With a leading BOM,
 `indexOf` returns 0 and `0 >= 1` is false — so `hasInterior` reports false even when interior
@@ -552,7 +561,7 @@ backlog's own ordering. Kept here for the rationale.
 2. ~~**1.9 → 1.8.**~~ **Done** — facet extraction, then native input limits.
 3. ~~**1.4 + 1.5.**~~ **Done** — the two domain-specific items. Both are really "move hardcoded assumptions
    into configuration"; doing them together keeps one notion of per-schema settings.
-4. **1.6 + 1.7 + 1.11.** Small, independent, each a visible bug.
+4. ~~**1.6 + 1.7 + 1.11.**~~ **Done** — small, independent, each a visible bug.
 5. **3.2 + 3.3.** Nav tree labeling/renumbering plus the manifest fields it displays.
 6. **3.1 + 3.5 + 3.6.** Theme tokens, the two real dialogs, the two missing settings keys.
 7. **Spec amendments (Tier 4)**, then 2.1 (field sizing) and 2.3 (pattern describer) — both
