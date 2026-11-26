@@ -451,7 +451,7 @@ overlay — arguably belongs in the debug panel for the web port).
 
 Depth colors (5 interpolated levels) **are** implemented correctly in `theme.js`.
 
-### 3.2 Sidebar nav tree is flat where WPF is hierarchical
+### 3.2 Sidebar nav tree is flat where WPF is hierarchical — **DONE**
 
 | WPF (`MainWindow.Navigation.cs`) | Web (`js/ui/sidebar.js`) |
 |---|---|
@@ -471,7 +471,12 @@ positional insertion touch `FormAddAction`/`FormRemoveAction` and should be done
 `TreeViewItem`-equivalent object graph or a `NavItemTag` analogue, since `instanceKeys` plus
 `findSection` already carry everything the WPF tag held.
 
-### 3.3 `PacketManifest` is missing two fields
+**Done** (`dev/IMPLEMENTATION_ORDER.md` Phase 5): every row of the table except
+`_programRequiredElements`, which is a deliberate non-goal, and the right-click menu, where the
+`×` stays. The tree is `js/core/navModel.js` + `<details>` groups; positional insertion is
+manifest order rather than a recorded tree position.
+
+### 3.3 `PacketManifest` is missing two fields — **DONE**
 
 `analyzePacket` returns `{packetName, sections, allForms}`. WPF `PacketManifest` also carries
 **`SchemaVersion`** (`PacketAnalyzer.ExtractSchemaVersion` reads the `stateSchemaVersion`
@@ -480,6 +485,10 @@ carries **`SourceSchemaFile`**.
 
 `stateSchemaVersion` appears nowhere in `js/` — neither extracted nor emitted on the packet
 root.
+
+**Done** (Phase 5), generically: no attribute name is hardcoded (a `fixed` root attribute with
+"version" in its name, else `xs:schema/@version`), every `fixed` root attribute is emitted on
+save, and `sourceSchemaFile` comes from a `sourceFiles` map the flattener now returns.
 
 ### 3.4 Test data fill: three gaps
 
@@ -562,7 +571,7 @@ backlog's own ordering. Kept here for the rationale.
 3. ~~**1.4 + 1.5.**~~ **Done** — the two domain-specific items. Both are really "move hardcoded assumptions
    into configuration"; doing them together keeps one notion of per-schema settings.
 4. ~~**1.6 + 1.7 + 1.11.**~~ **Done** — small, independent, each a visible bug.
-5. **3.2 + 3.3.** Nav tree labeling/renumbering plus the manifest fields it displays.
+5. ~~**3.2 + 3.3.**~~ **Done** — nav tree hierarchy, labeling/renumbering and positional insertion, plus the manifest fields it displays. See `dev/IMPLEMENTATION_ORDER.md` Phase 5 for what was generalized beyond the original.
 6. **3.1 + 3.5 + 3.6.** Theme tokens, the two real dialogs, the two missing settings keys.
 7. **Spec amendments (Tier 4)**, then 2.1 (field sizing) and 2.3 (pattern describer) — both
    materially improve how a large, densely-constrained form reads.

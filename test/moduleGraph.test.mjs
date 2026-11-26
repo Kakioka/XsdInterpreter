@@ -157,6 +157,7 @@ test('index.html loads app.js as a module and declares the containers the UI bui
     'loading-overlay',
     'form-content-host',
     'nav-tree',
+    'nav-filter',
     'debug-panel',
     'context-menu',
     'package-dialog-overlay',

@@ -24,6 +24,12 @@
 //                                                   // is called as mutateFormEngine(appState.formEngine)
 //     rebuildNavTree(),                            // re-renders the sidebar from appState.instanceKeys
 //   }
+//
+// FormAddAction/FormRemoveAction re-insert through parser.js's
+// insertInstanceKey, reading appState.manifest, so appState.instanceKeys stays
+// in manifest order across undo/redo (parity 3.2).
+
+import { insertInstanceKey } from './parser.js';
 
 function lastPathSegment(path) {
   const idx = path.lastIndexOf('.');
@@ -365,6 +371,14 @@ export class ContainerClearAction {
 // FormRemoveAction has no UI trigger yet (there is no "remove form instance"
 // button in the sidebar) — implemented per spec for when one is added. -------
 
+/**
+ * `insertPosition` (and FormRemoveAction's `originalPosition`) is the
+ * instance's index among the instances of its OWN form — not an index into
+ * appState.instanceKeys. The rest of its position is the manifest's (see
+ * parser.js insertInstanceKey), so this survives other forms being added or
+ * removed in between; WPF records a parent tree node plus child index instead,
+ * because its tree order is the user's add history.
+ */
 export class FormAddAction {
   constructor({ instanceKey, priorInstanceKey, insertPosition, oldDirty, newDirty }) {
     this.type = 'FormAdd';
@@ -385,8 +399,7 @@ export class FormAddAction {
     ctx.appState.formEngine.purgeFormState(this.instanceKey);
   }
   redo(ctx) {
-    const idx = Math.min(this.insertPosition, ctx.appState.instanceKeys.length);
-    ctx.appState.instanceKeys.splice(idx, 0, this.instanceKey);
+    insertInstanceKey(ctx.appState.manifest?.sections, ctx.appState.instanceKeys, this.instanceKey, this.insertPosition);
     ctx.rebuildNavTree();
     ctx.switchToForm(this.instanceKey);
   }
@@ -398,8 +411,7 @@ export class FormRemoveAction {
     Object.assign(this, { instanceKey, stateSnapshot, originalPosition, wasActive, postRemovalActiveKey, oldDirty, newDirty });
   }
   undo(ctx) {
-    const idx = Math.min(this.originalPosition, ctx.appState.instanceKeys.length);
-    ctx.appState.instanceKeys.splice(idx, 0, this.instanceKey);
+    insertInstanceKey(ctx.appState.manifest?.sections, ctx.appState.instanceKeys, this.instanceKey, this.originalPosition);
     ctx.appState.formEngine.restoreFormState(this.instanceKey, this.stateSnapshot);
     ctx.rebuildNavTree();
     if (this.wasActive) ctx.switchToForm(this.instanceKey);

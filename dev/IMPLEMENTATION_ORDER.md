@@ -237,11 +237,51 @@ carry and radio selections are compared against; the fixtures now stamp it. A co
 
 ---
 
-## Phase 5 — Nav tree and manifest
+## Phase 5 — Nav tree and manifest — **DONE**
 
-- **P 3.2** — hierarchical nav tree, instance labeling/renumbering, positional insertion.
-- **P 3.3** — `PacketManifest.schemaVersion` + `PacketSection.sourceSchemaFile`.
-- **B D.3** — nav tree filter (needs 3.2's hierarchy to be worth doing).
+- ~~**P 3.2**~~ — hierarchical nav tree, instance labeling/renumbering, positional insertion.
+- ~~**P 3.3**~~ — `PacketManifest.schemaVersion` + `PacketSection.sourceSchemaFile`.
+- ~~**B D.3**~~ — nav tree filter (needs 3.2's hierarchy to be worth doing).
+
+**Where it landed:** `js/core/navModel.js` (the tree as data — hierarchy, labels, numbering,
+removability, filter; `test/navModel.test.mjs`), `js/ui/sidebar.js` (rendering only; wrapper
+sections are `<details>` groups), `#nav-filter` in `index.html`. `parser.js` gained
+`sortInstanceKeys` / `insertInstanceKey` / `siblingIndexOf` and the two manifest fields;
+`flattener.js` returns a `sourceFiles` map beside the document. Spec §2, §3, §5, §10, §13
+(new *Nav Tree* subsection), §14 and §23 updated.
+
+**Decisions taken:**
+
+- **`instanceKeys` is kept in manifest order, and the tree is derived from it.** WPF appends new
+  instances under a hardcoded `ReturnData…` node and records a tree position for undo. Here a
+  form's instances always sit at its manifest position, so the hierarchy is a pure function of
+  (manifest, keys), renumbering is by construction, and the only position undo records is the
+  index among the form's own instances — `FormAddAction.insertPosition` /
+  `FormRemoveAction.originalPosition` changed meaning accordingly. Old autosave snapshots are
+  sorted on restore.
+- **Schema version is generic.** A `fixed` packet-root attribute with "version" in its name
+  (WPF hardcodes `stateSchemaVersion`), else the root file's `xs:schema/@version`. All of the
+  root's `fixed` attributes are written on save — WPF writes only the version — since a required
+  one must be present for the document to be valid.
+- **`sourceSchemaFile` for inline sections** names the file holding the declaration; WPF leaves it
+  empty. It is the folder-relative path, shown in the row tooltip.
+- **Missing required forms get a placeholder row** that adds an instance when clicked. A required
+  *repeatable* form starts with no instance and used to be invisible in the tree; WPF
+  pre-creates one instead. Not shown under an optional wrapper (activation rule).
+- **Kept the `×` remove button** rather than WPF's right-click menu, and rows are keyboard
+  focusable (Enter/Space). Labels follow WPF (description, else element name); the element name,
+  instance id and source file are in the tooltip, and the filter matches all of them.
+
+**Found while doing this, and fixed:** "+ Add" appended the new key to the end of
+`instanceKeys`, and `buildPacketXml` wrote forms in that order — so adding a form declared
+earlier in the packet's `xs:sequence` than one already present (e.g. a `SampleEventLog` after
+`SampleSummary`, or a `BinaryAttachment` before `FinancialTransaction`) saved XML that violates
+the sequence. Insertion is now positional, and the writer sorts into manifest order regardless of
+what it is handed.
+
+**Not done:** the two nav theme tokens (`navRequiredText`, `navOptionalText`) are read as
+`--nav-required-text` / `--nav-optional-text` with fallbacks but not yet in `theme.js` — that is
+Phase 6's P 3.1. No browser harness renders the sidebar; checked by hand only.
 
 ---
 

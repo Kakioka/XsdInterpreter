@@ -321,7 +321,7 @@ document order is free information.
 **Do:** a toolbar button plus a keybind, cycling red leaves in order. Probably the single
 highest-impact UX addition for real data entry.
 
-### D.3 Nav tree filter
+### D.3 Nav tree filter — **DONE**
 
 A real packet has dozens of forms. A filter box over the nav tree, once it's hierarchical
 (parity 3.2), is a few lines.

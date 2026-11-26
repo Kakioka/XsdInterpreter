@@ -79,11 +79,11 @@ export async function loadSamplePipeline() {
 
   const fileTextMap = await loadSampleSchemaFiles();
   const rootFileCandidates = findRootFileCandidates(fileTextMap);
-  const { doc: flatDoc, targetNamespace } = flattenFromRoot(fileTextMap, rootFileCandidates[0]);
+  const { doc: flatDoc, targetNamespace, sourceFiles } = flattenFromRoot(fileTextMap, rootFileCandidates[0]);
   const rootElementCandidates = findRootElementCandidates(flatDoc);
   const rootElementName = rootElementCandidates[0];
   const parser = new SchemaParser(flatDoc, rootElementName);
-  const manifest = analyzePacket(flatDoc, rootElementName);
+  const manifest = analyzePacket(flatDoc, rootElementName, { sourceFiles });
 
   return {
     domSource,
@@ -92,6 +92,7 @@ export async function loadSamplePipeline() {
     rootFileName: rootFileCandidates[0],
     flatDoc,
     targetNamespace,
+    sourceFiles,
     rootElementCandidates,
     rootElementName,
     parser,

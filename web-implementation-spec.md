@@ -27,6 +27,7 @@ js/
     searchService.js    — Cross-form field text search
     testDataFiller.js   — Auto-fill with valid sample values
     undoService.js      — Command stack (undo/redo)
+    navModel.js         — Nav tree as data: hierarchy, labels, numbering, filter (§13)
     packager.js         — MeF submission ZIP builder (uses JSZip)
   ui/
     app.js              — Bootstrap, wiring, global event bus
@@ -133,6 +134,11 @@ All models are plain JavaScript objects. Use JSDoc comments for type documentati
 /**
  * @typedef {Object} PacketManifest
  * @property {string} packetName
+ * @property {string} schemaVersion           — '' when the schema declares none (§5)
+ * @property {string|null} schemaVersionAttribute — the root attribute it came from, or null
+ *                                               when it came from xs:schema/@version
+ * @property {{name: string, value: string}[]} fixedAttributes — the packet root's `fixed`
+ *                                               attributes; written on the root (§10)
  * @property {PacketSection[]} sections
  * @property {string[]} allForms   — flat list of all form element names
  */
@@ -144,6 +150,8 @@ All models are plain JavaScript objects. Use JSDoc comments for type documentati
  * @property {boolean} isRequired
  * @property {boolean} isRepeatable
  * @property {number}  maxOccurs       — -1 = unbounded
+ * @property {string}  sourceSchemaFile — path (as the folder picker reported it) of the
+ *                                        file declaring this section; '' if unknown (§5)
  * @property {PacketSection[]} childForms
  */
 ```
@@ -217,7 +225,11 @@ flattenFromRoot(files, rootFileName):
      — Offer to strip them automatically
   5. Read targetNamespace = rootFile's <xs:schema targetNamespace="..."> attribute (absent → null,
      meaning a no-namespace / chameleon schema — some MeF-style schemas do omit it)
-  6. Return { doc: the merged XSD as a single DOM Document, targetNamespace }
+  6. Return { doc: the merged XSD as a single DOM Document, targetNamespace, sourceFiles }
+     — sourceFiles: Map of "kind:name" (e.g. "element:FormN11") → the file that declared that
+       top-level component, first declaration wins. Recorded for a file's own components before
+       its includes are resolved, which matches the order they appear in the merged document.
+       Kept beside the document rather than as an attribute on it.
 ```
 
 **Real MeF schemas are namespace-qualified** (a `targetNamespace` plus, typically, `elementFormDefault="qualified"`), so `targetNamespace` is threaded through to the parser (§4, for `TypeLookupTable`/element resolution, which continues to key by local name only) and to the XML writer (§10, which needs it to produce a document real MeF ingestion will actually accept). See the MeF Compatibility Checklist near the end of this document for what's still unverified without a real sample schema — e.g. whether `attributeFormDefault` is ever `"qualified"` in practice, and whether an `xsi:schemaLocation` hint is expected on the output.
@@ -339,15 +351,39 @@ Synthetic segments ARE included in paths. Repeating instances use bracket notati
 After flattening, find the root element and walk its content model to discover all form sections.
 
 ```
-analyzePacket(flatDoc, rootElementName):
+analyzePacket(flatDoc, rootElementName, { sourceFiles }):
   1. Find xs:element[@name=rootElementName]
   2. Recursively walk its complexType children
   3. For each xs:element ref or name declaration:
      — Read ref first, then name (supports both reference-style and inline-declaration-style schemas)
      — Create PacketSection with isRequired (minOccurs >= 1), isRepeatable (maxOccurs > 1 or unbounded)
+     — sourceSchemaFile: for a ref, sourceFiles.get("element:" + name); for an inline
+       declaration, the file of the element whose content model holds it
      — Recurse into child sections
-  4. Return PacketManifest { packetName, sections, allForms }
+  4. fixedAttributes = every xs:attribute[@name][@fixed] on the root's complexType (or its
+     complexContent/simpleContent derivation)
+  5. schemaVersion — first match wins:
+     a. a fixedAttributes entry with "version" in its name (case-insensitive) — the way a
+        schema set stamps its version into every instance, e.g. stateSchemaVersion;
+        schemaVersionAttribute = that name
+     b. the root file's xs:schema/@version, XSD's own place for one; schemaVersionAttribute = null
+     c. ''
+  6. Return PacketManifest { packetName, schemaVersion, schemaVersionAttribute, fixedAttributes,
+     sections, allForms }
 ```
+
+The reference app reads one hardcoded attribute name (`stateSchemaVersion`) for the version and
+records the source file only for referenced sections; both are generalized here. The version is
+shown next to the root name in the sidebar (§13); `sourceSchemaFile` in the nav tree's tooltip.
+
+**Manifest order.** `appState.instanceKeys` is always kept in manifest order: every leaf form's
+instances are contiguous, at the position the content model declares that form, and only the
+order among one form's own instances is the user's. `parser.js` provides
+`sortInstanceKeys(sections, keys)` (stable), `insertInstanceKey(sections, keys, key,
+siblingIndex?)` (as the `siblingIndex`-th instance of its form — appended after its last sibling
+by default, at the form's manifest position when it has none) and `siblingIndexOf(keys, key)`.
+Never `push` a new key. This is what makes the nav tree a pure function of manifest and keys
+(§13), and what keeps written XML valid (§10).
 
 **Root detection:** No naming convention is assumed — root candidates are found purely by reference analysis:
 
@@ -863,7 +899,12 @@ function buildPacketXml(manifest, allFormStates, orderedInstanceKeys, targetName
   _doc = document.implementation.createDocument(_targetNamespace, '', null)  // qualifiedName '' → no document element yet; documentElement stays null
   const root = createElement(manifest.packetName)
   _doc.appendChild(root)
-  for each instanceKey in orderedInstanceKeys:
+  for each {name, value} in manifest.fixedAttributes:   // §5 — e.g. a schema-version stamp
+    root.setAttribute(name, value)
+  // Manifest order (§5), whatever order the keys arrive in: an xs:sequence of
+  // forms is only valid in declaration order. Stable, so one form's instances
+  // keep the order given.
+  for each instanceKey in sortInstanceKeys(manifest.sections, orderedInstanceKeys):
     state = allFormStates.get(instanceKey.toString())
     schemaElement = parser.parseGlobalElement(instanceKey.formName)
     syncInstanceIdAttribute(schemaElement, state, instanceKey)
@@ -1246,6 +1287,7 @@ Use `localStorage` to persist:
           <button id="add-form-btn">+ Add</button>
         </div>
         <div id="current-root-label"></div>
+        <input id="nav-filter" type="search" placeholder="Filter forms…" disabled>
         <ul id="nav-tree"></ul>
       </div>
       <div id="splitter"></div>
@@ -1279,6 +1321,38 @@ Use `localStorage` to persist:
   </div>
 </body>
 ```
+
+### Nav Tree
+
+**Files:** `js/core/navModel.js` (what the tree contains — pure, `node --test`-covered),
+`js/ui/sidebar.js` (rendering only). The tree is rebuilt from scratch from
+`buildNavModel(manifest, instanceKeys)` on every structural change; there is no stored tree
+to keep in sync, so renumbering happens by construction.
+
+- **Hierarchy.** A wrapper section (`childForms.length > 0`, e.g. `ReturnDataState`) is a
+  group — a `<details open>` whose `<summary>` is its label — holding its children in manifest
+  order. A group is not a form and is not clickable. A group with nothing to show is omitted.
+  Groups the user collapses stay collapsed across rebuilds; navigating to a form inside one
+  (search, validation, undo) opens it.
+- **Rows.** One row per instance key, in `instanceKeys` order (manifest order, §5).
+  Label = `section.description`, falling back to `section.elementName`. When a form has more
+  than one instance, each is suffixed ` (1)`, ` (2)`, … by position — contiguous, so removing
+  one renumbers the rest. The instance id is never part of the label; it is in the tooltip,
+  with the element name, full description, required/optional and `sourceSchemaFile`.
+- **Required vs. optional.** `.nav-required` (semibold, `--nav-required-text`, default
+  `primaryText`) or `.nav-optional` (regular, `--nav-optional-text`, default `secondaryText`),
+  from `section.isRequired`.
+- **Missing required forms.** A required leaf with no instance (a required *repeatable* form
+  starts with none) gets a placeholder row, `.nav-missing`, that adds an instance when clicked
+  — unless some ancestor wrapper is optional (an optional wrapper's required children are only
+  needed once it is in use; same rule as §9's activation context).
+- **Remove.** An `×` on rows whose section is repeatable or optional.
+- **Filter** (`#nav-filter`). Case-insensitive substring over label, element name, description
+  and instance id. Keeps matching rows plus the groups leading to them; a group matching by its
+  own name keeps all its rows. Matching groups are shown open. Enter opens the first match;
+  Escape clears. Numbering is the unfiltered numbering. Cleared on schema load / root switch.
+- **Root label.** `Root: <packetName>  •  <schemaVersion>` (the version part only when the
+  manifest has one).
 
 ### Toolbar HTML
 
@@ -1467,11 +1541,17 @@ class UndoService {
 
 **FormAddAction**
 - Records: `{ instanceKey, priorInstanceKey, insertPosition, oldDirty, newDirty }`
-- `insertPosition`: `{ parentFormName, childIndex }` — where in the sidebar nav tree the item was added
+- `insertPosition`: the instance's index among the instances of its own form (`siblingIndexOf`,
+  §5). Where it sits otherwise is fixed by the manifest, so redo re-inserts with
+  `insertInstanceKey(manifest.sections, instanceKeys, instanceKey, insertPosition)` (clamped if
+  fewer siblings exist). The reference app records a parent tree node plus a child index instead,
+  because its tree order is the user's add history; here tree order is derived (§13 Nav Tree).
 
 **FormRemoveAction**
 - Records: `{ instanceKey, stateSnapshot, originalPosition, wasActive, postRemovalActiveKey, oldDirty, newDirty }`
 - `stateSnapshot` is a deep clone of the FormState at time of removal
+- `originalPosition` has the same meaning as FormAddAction's `insertPosition`; undo re-inserts
+  through `insertInstanceKey`
 
 ### Critical Invariant
 
@@ -1995,6 +2075,7 @@ js/
     flattener.js
     parser.js
     formEngine.js
+    navModel.js
     coloringService.js
     xmlWriter.js
     xmlReader.js

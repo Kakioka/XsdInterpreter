@@ -33,7 +33,7 @@
 
   <script type="module">
     import { findRootFileCandidates, flattenFromRoot } from '../js/core/flattener.js';
-    import { SchemaParser, findRootElementCandidates, analyzePacket } from '../js/core/parser.js';
+    import { SchemaParser, findRootElementCandidates, analyzePacket, insertInstanceKey } from '../js/core/parser.js';
     import { FormEngine, FormInstanceKey } from '../js/core/formEngine.js';
     import { UndoService, FormAddAction } from '../js/core/undoService.js';
     import { computeAllColors } from '../js/core/coloringService.js';
@@ -96,7 +96,7 @@
       // ------------------------------------------------------------------
       const formEngine = new FormEngine();
       const undoService = new UndoService();
-      const fakeAppState = { formEngine, instanceKeys: [], currentInstanceKey: null };
+      const fakeAppState = { manifest, formEngine, instanceKeys: [], currentInstanceKey: null };
 
       function switchToForm(instanceKey, mutateState) {
         formEngine.setActiveForm(instanceKey);
@@ -436,13 +436,17 @@
       // I. Undo/redo — FormAddAction (the "+ Add" flow)
       // ==================================================================
       {
-        fakeAppState.instanceKeys = [new FormInstanceKey('SampleHeader')];
+        fakeAppState.instanceKeys = [new FormInstanceKey('SampleHeader'), new FormInstanceKey('SampleSummary')];
         const priorInstanceKey = new FormInstanceKey('SampleHeader');
         switchToForm(priorInstanceKey);
 
+        // Same call app.js's addFormInstance makes: inserted at its manifest
+        // position (between Header and Summary), recording its index among
+        // its own form's instances.
         const newKey = new FormInstanceKey('SampleEventLog', 'EVT-TEST');
-        fakeAppState.instanceKeys.push(newKey);
-        const insertPosition = fakeAppState.instanceKeys.length - 1;
+        insertInstanceKey(manifest.sections, fakeAppState.instanceKeys, newKey);
+        const flatIndex = 1;
+        const insertPosition = 0;
         switchToForm(newKey);
         undoService.recordAction(new FormAddAction({ instanceKey: newKey, priorInstanceKey, insertPosition, oldDirty: false, newDirty: true }));
         check('New instance key tracked after Add', fakeAppState.instanceKeys.some((k) => k.equals(newKey)));
@@ -458,7 +462,7 @@
         undoService.redo(ctx);
         check(
           'Redoing FormAdd re-inserts the instance key at its original position and switches to it',
-          fakeAppState.instanceKeys[insertPosition]?.equals(newKey) &&
+          fakeAppState.instanceKeys[flatIndex]?.equals(newKey) &&
             stageEl.querySelector('.field-wrapper[data-path^="SampleEventLog"]') !== null
         );
       }

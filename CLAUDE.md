@@ -63,7 +63,7 @@ returning null, so add support there rather than working around it in the module
 
 What is covered: flattener, parser, xmlReader/xmlWriter (including the full fixture round-trip),
 facets (pattern→maxLength derivation, the native input constraints `controlFactory` applies),
-formEngine, coloringService, undoService, searchService, testDataFiller, exportProfile, instanceIdentity, packager (ZIP bytes
+formEngine, coloringService, undoService, searchService, testDataFiller, exportProfile, instanceIdentity, navModel (the nav tree as data, manifest order, the `schemaVersion`/`sourceSchemaFile` manifest fields), packager (ZIP bytes
 parsed back out of the central directory), autosaveStore, plus `test/moduleGraph.test.mjs` — a
 static check that every import resolves, every named import exists, `js/core/` imports no
 `js/ui/`, and `index.html` still declares every container the UI builds into. That last one is
@@ -255,6 +255,16 @@ Dot-separated, with `[i]` for repeat indices:
 non-repeatable forms; the identity attribute's value or a generated id (`FormName-n`)
 for repeatable instances. It is the universal identity across `FormEngine` state routing, every undo action,
 the nav tree, and `buildPacketXml`'s ordered key list. Never key form state by bare form name.
+
+### `instanceKeys` is in manifest order
+
+`appState.instanceKeys` keeps every leaf form's instances together, at the position the packet's
+content model declares that form; only the order among one form's own instances is the user's.
+Insert with `parser.js`'s `insertInstanceKey`, never `push` — a pushed key lands out of
+`xs:sequence` order. The nav tree (`js/core/navModel.js` → `js/ui/sidebar.js`) is rebuilt from
+`(manifest, instanceKeys)` on every structural change, so there is no tree state to keep in sync,
+and `FormAddAction`/`FormRemoveAction` record only the index among the form's own instances.
+`buildPacketXml` sorts into manifest order itself as well.
 
 ### Radio selections store *static* paths
 

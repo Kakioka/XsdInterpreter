@@ -312,16 +312,22 @@ test('ContainerFillAction / ContainerClearAction only touch state under their co
   assert.equal(ctx.formEngine.getValue('f.addr.street'), 'filled');
 });
 
+/** A manifest of leaf forms A, Log (repeatable), C — in that declaration order. */
+const leaf = (elementName, extra = {}) => ({ elementName, description: '', isRequired: true, isRepeatable: false, maxOccurs: 1, childForms: [], ...extra });
+const ABC_MANIFEST = { packetName: 'P', sections: [leaf('A'), leaf('Log', { isRepeatable: true, maxOccurs: -1, isRequired: false }), leaf('C')] };
+
 test('FormAddAction: undo removes the key and its state, and lands on the prior form', () => {
   const service = new UndoService();
   const ctx = makeCtx();
-  const prior = new FormInstanceKey('Header');
-  const added = new FormInstanceKey('SampleEventLog', 'EVT-TEST');
+  ctx.appState.manifest = ABC_MANIFEST;
+  const prior = new FormInstanceKey('A');
+  const added = new FormInstanceKey('Log', 'Log-1');
 
-  ctx.appState.instanceKeys = [prior];
+  ctx.appState.instanceKeys = [prior, new FormInstanceKey('C')];
   ctx.switchToForm(prior);
-  ctx.appState.instanceKeys.push(added);
-  const insertPosition = ctx.appState.instanceKeys.length - 1;
+  // insertPosition is the index among the form's OWN instances (here, the first).
+  const insertPosition = 0;
+  ctx.appState.instanceKeys.splice(1, 0, added);
   ctx.switchToForm(added);
 
   service.recordAction(new FormAddAction({ instanceKey: added, priorInstanceKey: prior, insertPosition, oldDirty: false, newDirty: true }));
@@ -332,28 +338,30 @@ test('FormAddAction: undo removes the key and its state, and lands on the prior 
   assert.ok(ctx.appState.currentInstanceKey.equals(prior));
 
   service.redo(ctx);
-  assert.ok(ctx.appState.instanceKeys[insertPosition].equals(added));
+  assert.deepEqual(ctx.appState.instanceKeys.map(String), ['A', 'Log#Log-1', 'C'], 'redo puts it back at its manifest position, not at the end');
   assert.ok(ctx.appState.currentInstanceKey.equals(added));
 });
 
 test('FormRemoveAction: undo re-inserts at the original position with the snapshotted state', () => {
   const service = new UndoService();
   const ctx = makeCtx();
-  const first = new FormInstanceKey('A');
-  const removed = new FormInstanceKey('B');
-  const third = new FormInstanceKey('C');
+  ctx.appState.manifest = ABC_MANIFEST;
+  const first = new FormInstanceKey('Log', 'Log-1');
+  const removed = new FormInstanceKey('Log', 'Log-2');
+  const third = new FormInstanceKey('Log', 'Log-3');
+  const other = new FormInstanceKey('C');
 
-  ctx.appState.instanceKeys = [first, third];
+  ctx.appState.instanceKeys = [new FormInstanceKey('A'), first, third, other];
   ctx.switchToForm(third);
 
   const snapshot = createEmptyFormState();
-  snapshot.fieldValues['b.title'] = 'had data';
+  snapshot.fieldValues['log.title'] = 'had data';
 
   service.recordAction(
     new FormRemoveAction({
       instanceKey: removed,
       stateSnapshot: snapshot,
-      originalPosition: 1,
+      originalPosition: 1, // second of the Log instances
       wasActive: true,
       postRemovalActiveKey: third,
       oldDirty: true,
@@ -362,8 +370,8 @@ test('FormRemoveAction: undo re-inserts at the original position with the snapsh
   );
 
   service.undo(ctx);
-  assert.ok(ctx.appState.instanceKeys[1].equals(removed));
-  assert.equal(ctx.formEngine.getFormState(removed).fieldValues['b.title'], 'had data');
+  assert.deepEqual(ctx.appState.instanceKeys.map(String), ['A', 'Log#Log-1', 'Log#Log-2', 'Log#Log-3', 'C']);
+  assert.equal(ctx.formEngine.getFormState(removed).fieldValues['log.title'], 'had data');
   assert.ok(ctx.appState.currentInstanceKey.equals(removed));
 
   service.redo(ctx);

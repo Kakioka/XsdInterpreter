@@ -82,10 +82,20 @@ function findFileKey(fileTextMap, schemaLocation) {
   return null;
 }
 
+/** The `sourceFiles` key for a top-level schema component: its kind plus its
+ *  name, e.g. "element:FormN11" or "complexType:AddressType". */
+export function sourceFileKey(localName, name) {
+  return `${localName}:${name}`;
+}
+
 /**
  * @param {Map<string,string>} fileTextMap filename → raw file text (already read)
  * @param {string} rootFileName key into fileTextMap to start from
- * @returns {{doc: Document, targetNamespace: string|null}}
+ * @returns {{doc: Document, targetNamespace: string|null, sourceFiles: Map<string,string>}}
+ *   `sourceFiles` maps sourceFileKey(kind, name) of every named top-level
+ *   component to the fileTextMap key of the file that declared it (parity 3.3's
+ *   PacketSection.sourceSchemaFile). Kept beside the document rather than as an
+ *   attribute on it, so nothing that walks the flat DOM can trip over it.
  */
 export function flattenFromRoot(fileTextMap, rootFileName) {
   const rootText = fileTextMap.get(rootFileName);
@@ -100,6 +110,20 @@ export function flattenFromRoot(fileTextMap, rootFileName) {
   // exercised by the sample schema set, but cheap insurance against duplicate
   // globals if a real schema set ever has one.
   const alreadyInlined = new Set([rootFileName.toLowerCase()]);
+
+  // Recorded for a file's OWN components before its includes are resolved, and
+  // first-wins: that is the order components end up in the flat document
+  // (own children first, inlined ones appended after), so on a duplicate name
+  // the file recorded here is the one findGlobalElementInDoc would find.
+  const sourceFiles = new Map();
+  function recordOwnComponents(doc, fileKey) {
+    for (const child of doc.documentElement.children) {
+      const name = child.getAttribute('name');
+      if (!name) continue;
+      const key = sourceFileKey(child.localName, name);
+      if (!sourceFiles.has(key)) sourceFiles.set(key, fileKey);
+    }
+  }
 
   function parseFile(fileKey) {
     const doc = new DOMParser().parseFromString(stripBom(fileTextMap.get(fileKey)), 'application/xml');
@@ -118,6 +142,7 @@ export function flattenFromRoot(fileTextMap, rootFileName) {
   // (and inlined into ITS document) before that file's top-level children are
   // in turn inlined into the caller's document — see spec §3 step 3a.
   function resolveIncludesAndImports(doc, currentFileLabel) {
+    recordOwnComponents(doc, currentFileLabel);
     for (const includeEl of Array.from(doc.getElementsByTagNameNS(XS_NS, 'include'))) {
       const loc = includeEl.getAttribute('schemaLocation');
       const fileKey = loc && findFileKey(fileTextMap, loc);
@@ -162,5 +187,5 @@ export function flattenFromRoot(fileTextMap, rootFileName) {
 
   resolveIncludesAndImports(rootDoc, rootFileName);
 
-  return { doc: rootDoc, targetNamespace };
+  return { doc: rootDoc, targetNamespace, sourceFiles };
 }

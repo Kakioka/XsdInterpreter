@@ -11,6 +11,7 @@
 // js/core/xmlReader.js — see spec §10 "Shared Helper Predicates".
 
 import { VALIDATION_FACETS, deriveMaxLengthFromPattern } from './facets.js';
+import { sourceFileKey } from './flattener.js';
 
 const XS_NS = 'http://www.w3.org/2001/XMLSchema';
 
@@ -959,7 +960,14 @@ export function findRootElementCandidates(flatDoc) {
   });
 }
 
-function buildSection(particleEl, flatDoc) {
+/**
+ * `ctx` is `{flatDoc, sourceFiles, containerFile}` — containerFile being the
+ * file that declared the content model `particleEl` sits in, which is where an
+ * INLINE section (no global element of its own, e.g. SampleSummary) was
+ * declared. WPF leaves sourceSchemaFile empty for those; naming the file that
+ * actually holds the declaration is the more useful answer and costs nothing.
+ */
+function buildSection(particleEl, ctx) {
   const ref = particleEl.getAttribute('ref');
   const elementName = ref ? stripPrefix(ref) : particleEl.getAttribute('name');
   const { minOccurs, maxOccurs: maxOccursRaw } = parseOccurs(particleEl);
@@ -967,10 +975,12 @@ function buildSection(particleEl, flatDoc) {
 
   let description = '';
   let childForms = [];
+  let sourceSchemaFile = ctx.containerFile;
   if (ref) {
-    const globalEl = findGlobalElementInDoc(flatDoc, elementName);
+    const globalEl = findGlobalElementInDoc(ctx.flatDoc, elementName);
+    sourceSchemaFile = ctx.sourceFiles?.get(sourceFileKey('element', elementName)) ?? '';
     description = globalEl ? getDocumentation(globalEl) : '';
-    childForms = globalEl ? buildChildFormSections(globalEl, flatDoc) : [];
+    childForms = globalEl ? buildChildFormSections(globalEl, { ...ctx, containerFile: sourceSchemaFile }) : [];
   } else {
     description = getDocumentation(particleEl);
   }
@@ -981,6 +991,7 @@ function buildSection(particleEl, flatDoc) {
     isRequired: minOccurs >= 1,
     isRepeatable: maxOccurs === -1 || maxOccurs > 1,
     maxOccurs,
+    sourceSchemaFile,
     childForms,
   };
 }
@@ -994,11 +1005,11 @@ function buildSection(particleEl, flatDoc) {
  * model group is ref-style stops exactly at real forms without exploding into
  * their field-level structure, and naturally supports arbitrary wrapper depth.
  */
-function buildChildFormSections(globalEl, flatDoc) {
+function buildChildFormSections(globalEl, ctx) {
   const complexType = firstChild(globalEl, 'complexType');
   const topGroup = complexType ? findTopLevelModelGroup(getStructuralContainer(complexType)) : null;
   if (!topGroup || !isRefStyleModelGroup(topGroup)) return [];
-  return walkSectionParticles(topGroup, flatDoc);
+  return walkSectionParticles(topGroup, ctx);
 }
 
 function isRefStyleModelGroup(groupEl) {
@@ -1014,19 +1025,19 @@ function isRefStyleModelGroup(groupEl) {
   return hasAny;
 }
 
-function walkSectionParticles(groupEl, flatDoc) {
+function walkSectionParticles(groupEl, ctx) {
   const sections = [];
   for (const child of groupEl.children) {
     if (child.localName === 'element') {
-      sections.push(buildSection(child, flatDoc));
+      sections.push(buildSection(child, ctx));
     } else if (child.localName === 'sequence' || child.localName === 'all') {
-      sections.push(...walkSectionParticles(child, flatDoc));
+      sections.push(...walkSectionParticles(child, ctx));
     } else if (child.localName === 'choice') {
       // A choice of whole packet sections isn't exercised by the sample schema;
       // fold every branch's sections in as siblings (best-effort).
       for (const branch of child.children) {
-        if (branch.localName === 'sequence' || branch.localName === 'all') sections.push(...walkSectionParticles(branch, flatDoc));
-        else if (branch.localName === 'element') sections.push(buildSection(branch, flatDoc));
+        if (branch.localName === 'sequence' || branch.localName === 'all') sections.push(...walkSectionParticles(branch, ctx));
+        else if (branch.localName === 'element') sections.push(buildSection(branch, ctx));
       }
     }
     // xs:group ref at the packet root: not exercised by the sample schema, left unhandled for now.
@@ -1064,16 +1075,134 @@ export function findSectionAncestry(sections, formName, trail = []) {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Manifest order — the one ordering of form instances (parity 3.2)
+// ---------------------------------------------------------------------------
+//
+// appState.instanceKeys is kept in MANIFEST order: every leaf form's instances
+// sit together, in the position the packet's content model declares that form,
+// and only the order among one form's own instances is the user's. That is
+// what makes the nav tree's hierarchy a pure function of (manifest, keys), and
+// it is also what XML needs: buildPacketXml writes instances in this order, and
+// an xs:sequence of forms is only valid in declaration order. The WPF app
+// instead appends new instances under one hardcoded "ReturnData…" node and
+// records a tree position for undo; here there is nothing to record beyond an
+// instance's index among its own siblings.
+
+/** Lower-cased leaf form name → its index in manifest (declaration) order. */
+function leafFormOrder(sections) {
+  const order = new Map();
+  const walk = (list) => {
+    for (const s of list || []) {
+      if (s.childForms?.length) walk(s.childForms);
+      else if (!order.has(s.elementName.toLowerCase())) order.set(s.elementName.toLowerCase(), order.size);
+    }
+  };
+  walk(sections);
+  return order;
+}
+
+const sameForm = (a, b) => a.formName.toLowerCase() === b.formName.toLowerCase();
+
+/**
+ * A copy of `keys` in manifest order. Stable, so instances of one form keep
+ * their relative order; a key naming no manifest form sorts last.
+ * @template {{formName: string}} K
+ * @param {object[]} sections manifest.sections
+ * @param {K[]} keys
+ * @returns {K[]}
+ */
+export function sortInstanceKeys(sections, keys) {
+  const order = leafFormOrder(sections);
+  const rank = (k) => order.get(k.formName.toLowerCase()) ?? Infinity;
+  return keys
+    .map((key, i) => ({ key, i, r: rank(key) }))
+    .sort((a, b) => (a.r === b.r ? a.i - b.i : a.r < b.r ? -1 : 1))
+    .map((e) => e.key);
+}
+
+/** `key`'s index among the keys of its own form, or -1. */
+export function siblingIndexOf(keys, key) {
+  return keys.filter((k) => sameForm(k, key)).findIndex((k) => k.equals(key));
+}
+
+/**
+ * Inserts `key` into `keys` (in place; assumed already in manifest order) as
+ * the `siblingIndex`-th instance of its form — appended after the last one
+ * when omitted or past the end, at the form's manifest position when it has
+ * none yet.
+ * @returns {number} the sibling index it actually landed at
+ */
+export function insertInstanceKey(sections, keys, key, siblingIndex = Infinity) {
+  const siblingPositions = [];
+  keys.forEach((k, i) => sameForm(k, key) && siblingPositions.push(i));
+  let at;
+  let landed;
+  if (siblingPositions.length > 0) {
+    landed = Math.max(0, Math.min(siblingIndex, siblingPositions.length));
+    at = landed < siblingPositions.length ? siblingPositions[landed] : siblingPositions[siblingPositions.length - 1] + 1;
+  } else {
+    const order = leafFormOrder(sections);
+    const rank = (k) => order.get(k.formName.toLowerCase()) ?? Infinity;
+    const r = rank(key);
+    at = keys.findIndex((k) => rank(k) > r);
+    if (at === -1) at = keys.length;
+    landed = 0;
+  }
+  keys.splice(at, 0, key);
+  return landed;
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The packet root's `fixed` attributes. An instance may only carry such an
+ * attribute with exactly that value (and must carry it when it is required),
+ * so xmlWriter emits all of them on the packet root (§10). Read from the
+ * root's own complexType or its complexContent/simpleContent derivation —
+ * the same reach the section walk has.
+ */
+function readFixedAttributes(complexType) {
+  if (!complexType) return [];
+  return children(getStructuralContainer(complexType), 'attribute')
+    .filter((a) => a.hasAttribute('name') && a.hasAttribute('fixed'))
+    .map((a) => ({ name: a.getAttribute('name'), value: a.getAttribute('fixed') }));
+}
+
+/**
+ * Parity 3.3. The WPF app reads one hardcoded attribute, `stateSchemaVersion`.
+ * Generically: a fixed attribute on the packet root with "version" in its name
+ * — how a schema set stamps its own version into every instance document —
+ * and failing that the root schema file's `xs:schema/@version`, which is where
+ * XSD itself puts one.
+ */
+function extractSchemaVersion(flatDoc, fixedAttributes) {
+  const attr = fixedAttributes.find((a) => /version/i.test(a.name));
+  if (attr) return { schemaVersion: attr.value, schemaVersionAttribute: attr.name };
+  return { schemaVersion: flatDoc.documentElement.getAttribute('version') || '', schemaVersionAttribute: null };
+}
+
 /**
  * @param {Document} flatDoc
  * @param {string} rootElementName
- * @returns {{packetName: string, sections: object[], allForms: string[]}}
+ * @param {{sourceFiles?: Map<string,string>}} [flattenResult] what
+ *   flattener.flattenFromRoot returned; without it every sourceSchemaFile is ''.
+ * @returns {{packetName: string, schemaVersion: string, schemaVersionAttribute: string|null,
+ *   fixedAttributes: {name: string, value: string}[], sections: object[], allForms: string[]}}
  */
-export function analyzePacket(flatDoc, rootElementName) {
+export function analyzePacket(flatDoc, rootElementName, { sourceFiles } = {}) {
   const rootEl = findGlobalElementInDoc(flatDoc, rootElementName);
   if (!rootEl) throw new Error(`Root element not found: ${rootElementName}`);
   const complexType = firstChild(rootEl, 'complexType');
   const topGroup = complexType ? findTopLevelModelGroup(getStructuralContainer(complexType)) : null;
-  const sections = topGroup ? walkSectionParticles(topGroup, flatDoc) : [];
-  return { packetName: rootElementName, sections, allForms: collectAllFormNames(sections) };
+  const ctx = { flatDoc, sourceFiles, containerFile: sourceFiles?.get(sourceFileKey('element', rootElementName)) ?? '' };
+  const sections = topGroup ? walkSectionParticles(topGroup, ctx) : [];
+  const fixedAttributes = readFixedAttributes(complexType);
+  return {
+    packetName: rootElementName,
+    ...extractSchemaVersion(flatDoc, fixedAttributes),
+    fixedAttributes,
+    sections,
+    allForms: collectAllFormNames(sections),
+  };
 }

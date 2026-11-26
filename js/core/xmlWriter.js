@@ -6,7 +6,16 @@
 // Pure logic beyond building/serializing an XML Document (createElementNS,
 // XMLSerializer — browser globals, not app-specific DOM rendering).
 
-import { isTransparent, isAttribute, isLeaf, isRepeatingContentContainer, isChoiceOnlyContainer, joinPath, findSectionAncestry } from './parser.js';
+import {
+  isTransparent,
+  isAttribute,
+  isLeaf,
+  isRepeatingContentContainer,
+  isChoiceOnlyContainer,
+  joinPath,
+  findSectionAncestry,
+  sortInstanceKeys,
+} from './parser.js';
 import { keyOf } from './formEngine.js';
 import { findInstanceIdAttribute, canHoldInstanceId } from './instanceIdentity.js';
 
@@ -62,7 +71,10 @@ export function syncInstanceIdAttribute(schemaElement, state, instanceKey) {
  *   FormEngine's own lowercased keyOf(instanceKey) keys or xmlReader's natural-case
  *   instanceKey.toString() keys (see xmlReader.js readPacket doc comment); both are
  *   tried so this function works with either source without the caller normalizing.
- * @param {import('./formEngine.js').FormInstanceKey[]} orderedInstanceKeys
+ * @param {import('./formEngine.js').FormInstanceKey[]} orderedInstanceKeys which
+ *   instances to write. Written in MANIFEST order whatever order they come in
+ *   (an xs:sequence of forms is only valid in declaration order); only the
+ *   order among one form's own instances is taken from here.
  * @param {{parseGlobalElement: (name:string)=>object|null}} schemaParser
  * @param {string|null} [targetNamespace]
  * @returns {string}
@@ -72,6 +84,10 @@ export function buildPacketXml(manifest, allFormStates, orderedInstanceKeys, sch
   _doc = document.implementation.createDocument(_targetNamespace, '', null); // qualifiedName '' → no document element yet
   const root = createElement(manifest.packetName);
   _doc.appendChild(root);
+  // The packet root's `fixed` attributes (§5) — e.g. a schema-version stamp
+  // like stateSchemaVersion. A required one must be present for the document
+  // to be valid, and an optional one can only ever hold this value.
+  for (const { name, value } of manifest.fixedAttributes || []) root.setAttribute(name, value);
 
   // Leaf forms nested under a wrapper section (e.g. FormN11/SchCR under
   // ReturnDataState) must be written inside that wrapper's own element, not as
@@ -95,7 +111,7 @@ export function buildPacketXml(manifest, allFormStates, orderedInstanceKeys, sch
     return parent;
   }
 
-  for (const instanceKey of orderedInstanceKeys) {
+  for (const instanceKey of sortInstanceKeys(manifest.sections, orderedInstanceKeys)) {
     const state = allFormStates.get(keyOf(instanceKey)) ?? allFormStates.get(instanceKey.toString());
     if (!state) continue;
     const schemaElement = schemaParser.parseGlobalElement(instanceKey.formName);

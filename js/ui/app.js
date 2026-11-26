@@ -9,7 +9,15 @@
 // context menu), Phase 7 (theming, layout polish, debug panel).
 
 import { scanForBom, stripBom, findRootFileCandidates, flattenFromRoot } from '../core/flattener.js';
-import { SchemaParser, findRootElementCandidates, analyzePacket, joinPath } from '../core/parser.js';
+import {
+  SchemaParser,
+  findRootElementCandidates,
+  analyzePacket,
+  joinPath,
+  sortInstanceKeys,
+  insertInstanceKey,
+  siblingIndexOf,
+} from '../core/parser.js';
 import { FormEngine, FormInstanceKey, createEmptyFormState, keyOf } from '../core/formEngine.js';
 import { readPacket } from '../core/xmlReader.js';
 import { buildPacketXml } from '../core/xmlWriter.js';
@@ -40,11 +48,15 @@ const appState = {
   flatDoc: null,
   schemaSource: null, // {fileTextMap, rootFileName, rootElementName} — what Switch Root re-runs against
   targetNamespace: null, // from flattener.flattenFromRoot (§3); threaded into buildPacketXml (§10) on Save XML
+  sourceFiles: null, // from flattener.flattenFromRoot — which file declared each component (§5 sourceSchemaFile)
   schemaParser: null,
   schemaSettingsKey: null, // settingsStore.js — which schema the per-schema settings belong to
   formEngine: new FormEngine(),
   undoService: new UndoService(),
-  instanceKeys: [], // ordered FormInstanceKey[] — the nav tree's source of truth
+  // FormInstanceKey[] in MANIFEST order (parser.js sortInstanceKeys) — the nav
+  // tree's source of truth and the order buildPacketXml writes. Insert with
+  // insertInstanceKey, never push, or a form lands out of schema order.
+  instanceKeys: [],
 };
 
 // Set by toolbar.wireSaveStatus in init() — called explicitly at the points
@@ -105,9 +117,10 @@ async function loadSchema(fileTextMap) {
     );
     if (!rootFileName) return false;
 
-    const { doc: flatDoc, targetNamespace } = flattenFromRoot(fileTextMap, rootFileName);
+    const { doc: flatDoc, targetNamespace, sourceFiles } = flattenFromRoot(fileTextMap, rootFileName);
     appState.flatDoc = flatDoc;
     appState.targetNamespace = targetNamespace;
+    appState.sourceFiles = sourceFiles;
 
     const rootElementCandidates = findRootElementCandidates(flatDoc);
     const rootElementName = await chooseOne(
@@ -147,7 +160,7 @@ function activateRootElement(rootElementName) {
   appState.schemaSettingsKey = schemaSettingsKey(appState.targetNamespace, rootFileName, rootElementName);
   const { instanceIdSource } = loadSchemaSettings(appState.schemaSettingsKey);
   appState.schemaParser = new SchemaParser(flatDoc, rootElementName, instanceIdSource);
-  appState.manifest = analyzePacket(flatDoc, rootElementName);
+  appState.manifest = analyzePacket(flatDoc, rootElementName, { sourceFiles: appState.sourceFiles });
 
   appState.formEngine.reset();
   appState.undoService.clearHistory(); // §22 invariant 23
@@ -159,7 +172,9 @@ function activateRootElement(rootElementName) {
   // root's form must not be left on screen bound to state that no longer exists.
   document.getElementById('form-content-host').innerHTML = '';
   validationUi.closeValidationPanel();
-  sidebar.setCurrentRootLabel(document.getElementById('current-root-label'), appState.manifest.packetName);
+  const { packetName, schemaVersion, schemaVersionAttribute } = appState.manifest;
+  sidebar.setCurrentRootLabel(document.getElementById('current-root-label'), packetName, schemaVersion, schemaVersionAttribute);
+  sidebar.resetNavFilter(document.getElementById('nav-filter'), true);
   rebuildNavTree();
   toolbar.setSchemaDependentButtonsEnabled(true);
   packagingUi.refreshCreatePackageButton(appState); // formEngine.reset() above doesn't fire dirtyChanged/controlValueChanged
@@ -311,7 +326,15 @@ function switchToForm(instanceKey, mutateState) {
 }
 
 function rebuildNavTree() {
-  sidebar.buildNavTree(document.getElementById('nav-tree'), appState.instanceKeys, appState.currentInstanceKey, switchToForm, appState.manifest, removeFormInstance);
+  sidebar.buildNavTree(
+    document.getElementById('nav-tree'),
+    appState.instanceKeys,
+    appState.currentInstanceKey,
+    switchToForm,
+    appState.manifest,
+    removeFormInstance,
+    addFormInstance // a required form's "missing" placeholder row
+  );
 }
 
 /** An id no instance of this form uses, either as its key or as a value typed
@@ -337,8 +360,11 @@ function addFormInstance(sectionName) {
   const instanceId = section?.isRepeatable ? newInstanceId(sectionName) : sectionName;
   const key = new FormInstanceKey(sectionName, instanceId);
   const priorInstanceKey = appState.currentInstanceKey;
-  appState.instanceKeys.push(key);
-  const insertPosition = appState.instanceKeys.length - 1;
+  // Positional insertion (parity 3.2): after the form's last instance, or at
+  // its manifest position if it has none. The recorded position is the index
+  // among its own instances — everything else about where it sits follows from
+  // the manifest, so that is all undo/redo needs to put it back.
+  const insertPosition = insertInstanceKey(appState.manifest.sections, appState.instanceKeys, key);
   rebuildNavTree();
   switchToForm(key);
   appState.undoService.recordAction(new FormAddAction({ instanceKey: key, priorInstanceKey, insertPosition, oldDirty: false, newDirty: true }));
@@ -350,8 +376,9 @@ function addFormInstance(sectionName) {
  *  sections), so no removability check is needed here. */
 function removeFormInstance(instanceKey) {
   if (appState.undoService.isReplaying) return; // §22 invariant 13
-  const originalPosition = appState.instanceKeys.findIndex((k) => k.equals(instanceKey));
-  if (originalPosition === -1) return;
+  const flatIndex = appState.instanceKeys.findIndex((k) => k.equals(instanceKey));
+  if (flatIndex === -1) return;
+  const originalPosition = siblingIndexOf(appState.instanceKeys, instanceKey); // same meaning as FormAddAction.insertPosition
 
   const wasActive = !!appState.currentInstanceKey && appState.currentInstanceKey.equals(instanceKey);
   const existingState = appState.formEngine.getFormState(instanceKey);
@@ -360,7 +387,7 @@ function removeFormInstance(instanceKey) {
 
   appState.instanceKeys = appState.instanceKeys.filter((k) => !k.equals(instanceKey));
   const postRemovalActiveKey = wasActive
-    ? appState.instanceKeys[originalPosition] || appState.instanceKeys[originalPosition - 1] || appState.instanceKeys[0] || null
+    ? appState.instanceKeys[flatIndex] || appState.instanceKeys[flatIndex - 1] || appState.instanceKeys[0] || null
     : null;
 
   rebuildNavTree();
@@ -465,14 +492,16 @@ function restoreFromSnapshot(snapshot) {
   // never switched to).
   for (const [storedKey, state] of remaining) appState.formEngine.restoreFormState(FormInstanceKey.parse(storedKey), state);
 
-  appState.instanceKeys = keys;
+  // A snapshot from before instanceKeys were kept in manifest order may hold
+  // them in add order; sorting is stable, so instances keep their own order.
+  appState.instanceKeys = sortInstanceKeys(appState.manifest.sections, keys);
   appState.currentInstanceKey = null;
 
   rebuildNavTree();
   packagingUi.refreshCreatePackageButton(appState); // formEngine.reset() above doesn't fire dirtyChanged/controlValueChanged
   toolbar.setStatus(`Restored autosaved work (${keys.length} form instance${keys.length === 1 ? '' : 's'})`);
 
-  if (keys.length > 0) switchToForm(keys[0]);
+  if (appState.instanceKeys.length > 0) switchToForm(appState.instanceKeys[0]);
   else refreshSaveStatus();
 }
 
@@ -760,6 +789,7 @@ function init() {
     });
   });
   sidebar.wireAddFormButton(document.getElementById('add-form-btn'), () => appState.manifest, () => appState.instanceKeys, addFormInstance);
+  sidebar.wireNavFilter(document.getElementById('nav-filter'));
 
   // §9 coloring: debounced on typing (invariant 19), immediate elsewhere (radio
   // swap / add / remove already call coloringUi directly from formRenderer.js).

@@ -203,14 +203,53 @@ body.resizing-splitter * {
   font-size: 12px;
 }
 
-#nav-tree {
+/* Backlog D.3 — disabled until a schema is loaded (sidebar.resetNavFilter). */
+#nav-filter {
+  margin: 4px 10px 2px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--primary-text);
+  background: var(--control-background);
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+}
+
+#nav-filter:disabled {
+  display: none;
+}
+
+/* Parity 3.2 — the tree is nested: wrapper sections are <details> groups
+ * (li.nav-group), forms are li.nav-item rows. See js/core/navModel.js. */
+#nav-tree,
+#nav-tree .nav-group-children {
   list-style: none;
   margin: 0;
+  padding: 0;
+}
+
+#nav-tree {
   padding: 4px 0;
   flex: 1;
 }
 
-#nav-tree li {
+#nav-tree .nav-group-children {
+  /* indent nested rows; the li padding below supplies the base inset */
+  margin-left: 12px;
+  border-left: 1px solid var(--control-border);
+}
+
+#nav-tree .nav-group-label {
+  padding: 6px 8px 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--secondary-text);
+}
+
+#nav-tree li.nav-item {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -218,8 +257,50 @@ body.resizing-splitter * {
   cursor: pointer;
 }
 
-#nav-tree li:hover {
+#nav-tree li.nav-item:hover {
   background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+}
+
+#nav-tree li.nav-item:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
+/* Parity 3.2 — WPF's navRequiredText/navOptionalText: required forms are
+ * semibold in the primary color, optional ones regular weight, secondary. */
+#nav-tree .nav-required {
+  font-weight: 600;
+  color: var(--nav-required-text, var(--primary-text));
+}
+
+#nav-tree .nav-optional {
+  font-weight: normal;
+  color: var(--nav-optional-text, var(--secondary-text));
+}
+
+/* A required form with no instance yet — the row adds one. */
+#nav-tree li.nav-missing {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+#nav-tree li.nav-missing:hover {
+  opacity: 1;
+}
+
+#nav-tree .nav-missing-hint {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: normal;
+  color: var(--accent-color);
+}
+
+#nav-tree li.nav-empty {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--secondary-text);
 }
 
 #nav-tree li.active {
