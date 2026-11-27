@@ -431,7 +431,11 @@ each construct.
 
 ## Tier 3 — Feature-level gaps within subsystems that do exist
 
-### 3.1 Theming: 17 of 35 color tokens
+### 3.1 Theming: 17 of 35 color tokens — **DONE** (tokens only)
+
+*All 35 tokens are implemented (Phase 6 of `dev/IMPLEMENTATION_ORDER.md`). 8-digit hex is CSS's
+`#RRGGBBAA`, not WPF's `#AARRGGBB` — a WPF theme file needs those values reordered. The background images, Christmas theme, ⓘ icon and token inspector below
+are still open.*
 
 `themes/default.theme.json` defines 17 colors. `Docs/theme-template.theme.json` defines 35
 (11 required + 24 optional). The 18 missing:
@@ -505,7 +509,11 @@ save, and `sourceSchemaFile` comes from a `sourceFiles` map the flattener now re
 - **Deterministic seed** — WPF uses a fixed RNG seed for reproducible fills. Worth matching if
   fills are ever compared across runs, and it makes the harnesses' expected values stable.
 
-### 3.5 Dialogs still using `window.confirm` / `window.alert`
+### 3.5 Dialogs still using `window.confirm` / `window.alert` — **DONE**
+
+*`js/ui/dialogs.js` replaces every one in the app, not just these two, and every modal is now a
+native `<dialog>` (`js/ui/modal.js`); see Phase 6 of `dev/IMPLEMENTATION_ORDER.md`. The BOM cleanup is in memory only — the files on disk are not
+rewritten as WPF's are.*
 
 | WPF dialog | Web today |
 |---|---|
@@ -518,7 +526,12 @@ The web app already has a good pattern for this (`#choose-root-dialog-overlay`,
 ports. Note that unmatched fields *do* also surface in the validation panel as
 `kind: 'unmatched'`, so the alert is partly redundant.
 
-### 3.6 Settings persistence: two spec'd keys unimplemented
+### 3.6 Settings persistence: two spec'd keys unimplemented — **half done**
+
+*`xmlEditor.lastSchema` is implemented (shown on the load prompt). All stored user data, autosave
+included, can be switched off from beside the Load buttons. `fieldSizeOverrides` waits on
+2.1. A recent-schemas list that can actually reopen a folder needs File System Access handles
+(backlog C.5).*
 
 Spec §12 lists four `localStorage` keys. Implemented: `xmlEditor.activeTheme`,
 `xmlEditor.lastPackagingSettings` — plus four unspec'd extras (`layoutMode`, `zoomLevel`,

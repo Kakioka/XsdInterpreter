@@ -21,6 +21,8 @@
           <button class="menu-btn" type="button">File &#9662;</button>
           <div class="dropdown-content">
             <button id="load-schema-menu-btn" type="button">Load Schema Folder</button>
+            <!-- Data-storage opt-out, beside both Load buttons; kept in sync by app.js wireStoreDataToggles. -->
+            <label class="menu-toggle" title="Keeps the last-used schema, per-schema settings, packaging values, loaded profiles and autosaved work in this browser. Turning it off deletes all of it and stores nothing more; theme, zoom and layout are still kept."><input type="checkbox" id="store-data-menu-toggle" class="store-data-toggle"> Store my data in this browser</label>
             <button id="switch-root-btn" type="button" disabled>Switch Root</button>
             <button id="schema-settings-btn" type="button" disabled>Schema Settings</button>
             <hr>
@@ -84,8 +86,11 @@
         <div id="form-content-host">
           <div id="load-schema-prompt">
             <button id="load-schema-btn" type="button">Load Schema Folder</button>
+            <label class="store-data-label" title="Keeps the last-used schema, per-schema settings, packaging values, loaded profiles and autosaved work in this browser. Turning it off deletes all of it and stores nothing more; theme, zoom and layout are still kept."><input type="checkbox" id="store-data-toggle" class="store-data-toggle"> Store my data in this browser</label>
             <p>Select a folder containing XSD files to begin.</p>
             <p class="hint">(Try <code>sample-schemas/</code> in this repo.)</p>
+            <!-- §12 xmlEditor.lastSchema — filled by app.js showLastSchemaHint. -->
+            <p id="last-schema-hint" class="hint" hidden></p>
           </div>
         </div>
       </div>
@@ -105,12 +110,15 @@
       <!-- C.1 autosave indicator — written by js/ui/autosave.js; also how an
            unavailable-storage notice is surfaced, once, instead of per-write. -->
       <span id="autosave-status"></span>
+      <!-- B.4 — the one notice that settings (theme, zoom, layout, …) won't
+           outlive this page; written once by app.js wireStorageNotice. -->
+      <span id="settings-status"></span>
     </div>
 
-    <div id="loading-overlay" class="hidden">
+    <dialog id="loading-overlay" aria-busy="true" aria-labelledby="loading-text">
       <div id="loading-spinner"></div>
       <span id="loading-text">Loading&hellip;</span>
-    </div>
+    </dialog>
 
     <div id="search-panel" class="hidden">
       <div id="search-header">
@@ -127,19 +135,21 @@
     </div>
     <div id="debug-panel" class="hidden"></div>
     <div id="context-menu" class="hidden"></div>
-    <!-- §19 Packaging dialog — built dynamically by js/ui/packaging.js, same
-         empty-container pattern as #debug-panel/#context-menu. -->
-    <div id="package-dialog-overlay" class="hidden"></div>
-    <!-- §20 Choose-root dropdown — built dynamically by js/ui/chooseRootDialog.js,
-         same empty-container pattern as #package-dialog-overlay. -->
-    <div id="choose-root-dialog-overlay" class="hidden"></div>
-    <!-- Per-schema settings — built dynamically by js/ui/schemaSettings.js. -->
-    <div id="schema-settings-overlay" class="hidden"></div>
-    <!-- B.3 error boundary / C.1 crash recovery prompt — built dynamically by
-         js/ui/errorBoundary.js and js/ui/autosave.js, same empty-container
-         pattern as the dialogs above. -->
-    <div id="error-boundary-overlay" class="hidden"></div>
-    <div id="recovery-dialog-overlay" class="hidden"></div>
+    <!-- Modal dialogs. Each is filled by its module and opened with
+         js/ui/modal.js (showModal), which stacks them in the top layer —
+         no z-index ordering between them to maintain. -->
+    <!-- §19 Packaging — js/ui/packaging.js -->
+    <dialog id="package-dialog-overlay"></dialog>
+    <!-- §20 Choose root — js/ui/chooseRootDialog.js -->
+    <dialog id="choose-root-dialog-overlay"></dialog>
+    <!-- Per-schema settings — js/ui/schemaSettings.js -->
+    <dialog id="schema-settings-overlay"></dialog>
+    <!-- B.3 error boundary — js/ui/errorBoundary.js -->
+    <dialog id="error-boundary-overlay"></dialog>
+    <!-- C.1 crash recovery prompt — js/ui/autosave.js -->
+    <dialog id="recovery-dialog-overlay"></dialog>
+    <!-- P 3.5 messages, confirms, BOM cleanup, unmatched fields — js/ui/dialogs.js -->
+    <dialog id="app-dialog"></dialog>
   </div>
 
   <!-- Folder picker fallback for browsers without showDirectoryPicker (§24). -->

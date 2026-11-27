@@ -12,7 +12,10 @@
 // (re)renders on a toggle, a tab click, or a 200ms-debounced value-change
 // event (§21 "Refresh"), so there's no hot path here to optimize against.
 
+import { isBusyOverlayVisible } from './modal.js';
 import { getErrorLog } from './errorBoundary.js';
+import { showMessage } from './dialogs.js';
+import { loadPreference, savePreference } from '../core/settingsStore.js';
 
 let _appState = null;
 let _activeTab = 'fields';
@@ -36,7 +39,7 @@ export function wireDebug({ appState }) {
   document.getElementById('debug-toggle-btn')?.addEventListener('click', togglePanel);
 
   document.addEventListener('keydown', (e) => {
-    if (isOverlayVisible()) return; // §13: overlay is the real guard against shortcuts firing mid-operation
+    if (isBusyOverlayVisible()) return; // §13: overlay is the real guard against shortcuts firing mid-operation
     const mod = e.ctrlKey || e.metaKey;
     if (!mod || !e.shiftKey || e.key.toLowerCase() !== 'd') return;
     e.preventDefault();
@@ -50,11 +53,6 @@ export function wireDebug({ appState }) {
     clearTimeout(_debounceTimer);
     _debounceTimer = setTimeout(render, 200);
   });
-}
-
-function isOverlayVisible() {
-  const overlay = document.getElementById('loading-overlay');
-  return !!overlay && !overlay.classList.contains('hidden');
 }
 
 function isPanelVisible() {
@@ -114,12 +112,7 @@ function buildShell(panel) {
 
 function wireResizeHandle(handle, panel) {
   const STORAGE_KEY = 'xmlEditor.debugPanelWidth';
-  let saved;
-  try {
-    saved = Number(localStorage.getItem(STORAGE_KEY));
-  } catch {
-    saved = 0;
-  }
+  const saved = Number(loadPreference(STORAGE_KEY));
   if (saved > 0) panel.style.width = `${saved}px`;
 
   handle.addEventListener('mousedown', (e) => {
@@ -133,11 +126,7 @@ function wireResizeHandle(handle, panel) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      try {
-        localStorage.setItem(STORAGE_KEY, String(panel.getBoundingClientRect().width));
-      } catch {
-        // ignore — resizing still works for this session
-      }
+      savePreference(STORAGE_KEY, panel.getBoundingClientRect().width);
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -402,7 +391,7 @@ function renderExportTab() {
       copyBtn.textContent = 'Copied!';
       setTimeout(() => (copyBtn.textContent = 'Copy TSV'), 1200);
     } catch (err) {
-      window.alert(`Could not copy to clipboard: ${err.message}`);
+      showMessage('Could not copy', `The clipboard refused the write: ${err.message}`);
     }
   });
 

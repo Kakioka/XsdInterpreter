@@ -277,7 +277,10 @@
 
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
         check('Ctrl+Shift+D opens the debug panel', !panel.classList.contains('hidden'));
-        check('Panel renders all 4 tab buttons', panel.querySelectorAll('.debug-tab-btn').length === 4);
+        // Five since Phase 0 of dev/IMPLEMENTATION_ORDER.md added Errors (the error boundary's crash log).
+        const tabLabels = [...panel.querySelectorAll('.debug-tab-btn')].map((b) => b.textContent);
+        check('Panel renders all 5 tab buttons', tabLabels.length === 5, JSON.stringify(tabLabels));
+        check('...including Errors, the session crash log', tabLabels.includes('Errors'));
         check('"Fields" tab is active by default', panel.querySelector('.debug-tab-btn.active')?.textContent === 'Fields');
 
         const table = panel.querySelector('table');

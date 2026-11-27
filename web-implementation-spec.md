@@ -41,6 +41,7 @@ js/
     undo.js             — Undo/redo UI wiring
     contextMenu.js      — Container right-click fill/clear
     theme.js            — Theme loading and CSS variable application
+    dialogs.js          — Message / confirm dialogs, BOM cleanup, unmatched fields
     debug.js            — Debug panel (developer mode)
 ```
 
@@ -236,7 +237,7 @@ flattenFromRoot(files, rootFileName):
 
 ### BOM Detection
 
-Before step 1, scan all `.xsd` file text contents for U+FEFF (both as leading BOM and interior zero-width no-break space). If found, show a modal listing the affected files with an option to clean and continue or cancel.
+Before step 1, scan all `.xsd` file text contents for U+FEFF (both as leading BOM and interior zero-width no-break space). If found, show a modal listing the affected files, and for each whether the mark is leading, interior, or both, with an option to clean and continue or cancel. Cleaning strips the characters from the in-memory text only — a page cannot write back to the chosen folder — so the dialog says the files on disk are unchanged and will be flagged again next load, and offers a download of cleaned copies to put in their place: the single file, or for several a ZIP laid out relative to the chosen folder, to extract over it. Cleaned files are UTF-8 with every U+FEFF removed. The dialog stays open after a download. The question is asked before the loading overlay goes up.
 
 ```js
 function scanForBom(fileTextMap) {
@@ -1160,7 +1161,7 @@ function walkElement(xmlEl, schemaElement, path, state):
 
 ### Unmatched Fields
 
-`walkContainerBody` compares each XML element's actual DOM children against `possibleDirectChildTagNames` (not a flat name list — see above, needed because choice-only containers contribute their branches' leaf names instead of their own) and pushes anything it can't match onto `state.unmatchedFields` (see the `UnmatchedXmlField` typedef in §2) — for example `<UnknownLegacyField>` inside `<SampleHeader>` with no corresponding schema child. Loading continues; nothing aborts on an unmatched element. After load completes, collect `unmatchedFields` across all loaded forms and report them to the user via a modal or panel.
+`walkContainerBody` compares each XML element's actual DOM children against `possibleDirectChildTagNames` (not a flat name list — see above, needed because choice-only containers contribute their branches' leaf names instead of their own) and pushes anything it can't match onto `state.unmatchedFields` (see the `UnmatchedXmlField` typedef in §2) — for example `<UnknownLegacyField>` inside `<SampleHeader>` with no corresponding schema child. Loading continues; nothing aborts on an unmatched element. After load completes, collect `unmatchedFields` across all loaded forms and report them to the user in a modal, shown once the loading overlay is down: a table of form (with instance id for a repeatable form), dot-path and value, in document order and sortable by any column, with a copy-as-TSV button. It says the elements were skipped and will not be in a saved file. They also appear in the validation panel as `kind: 'unmatched'` (§16).
 
 ---
 
@@ -1193,11 +1194,32 @@ Themes are JSON files (`.theme.json`) loaded via `<input type="file">` or a buil
     "lineNumberText":      "#888888",
     "addButtonBackground": "#4A8C6F",
     "removeButtonBackground": "#A34A5A"
+    // …plus the 18 optional tokens tabled below
   }
 }
 ```
 
 The 11 required tokens are the first 11. The rest are optional; if absent, defaults are used.
+There are 35 tokens in all — the same set as the desktop app's theme template, so a theme file
+works in either. The 18 beyond those shown above:
+
+| Token | Used for |
+|---|---|
+| `addButtonForeground`, `addButtonBorder`, `addButtonHover` | "+ Add" buttons on repeating sections |
+| `removeButtonForeground`, `removeButtonBorder` | "Remove" buttons; also the nav tree's `×` on hover |
+| `validationPanelBackground`, `validationPanelBorder` | the validation panel (§16) |
+| `validationErrorText` | messages in the validation panel, a field's inline format error, packaging dialog errors |
+| `validationHighlightBorder`, `validationHighlightBackground` | a field with a format error; the flash where a validation-panel click lands |
+| `searchHighlightBorder`, `searchHighlightBackground` | the search result marker (§15) |
+| `overlayBackground` | the dim behind every modal dialog |
+| `disabledBackground`, `disabledText`, `disabledBorder` | disabled buttons, inputs and selects |
+| `navRequiredText`, `navOptionalText` | required / optional form rows in the nav tree |
+
+**Color values** are any CSS color, passed through as written; 8-digit hex is CSS's
+`#RRGGBBAA` (alpha last — the default `overlayBackground` is `"#00000059"`, 35% black). This is
+deliberately not the desktop app's `#AARRGGBB`: a theme file written for that app needs its
+8-digit values reordered. Keys beginning with `_` (comment entries) are ignored.
+`elementStyles` and the background-image fields are not read.
 
 ### Applying a Theme
 
@@ -1209,6 +1231,7 @@ function applyTheme(theme) {
   const defaults = getDefaultColors();
   const colors = Object.assign({}, defaults, theme.colors);
   for (const [key, value] of Object.entries(colors)) {
+    if (key.startsWith('_')) continue;
     root.style.setProperty('--' + camelToKebab(key), value);
   }
   // Derive 5 depth-level background colors (interpolate between panelBackground and windowBackground)
@@ -1244,9 +1267,31 @@ fieldset legend  { color: var(--primary-text); font-weight: bold; }
 
 Use `localStorage` to persist:
 - `xmlEditor.activeTheme` — theme name
-- `xmlEditor.lastSchema` — last-used schema folder name (informational only; can't re-open automatically due to browser security)
+- `xmlEditor.lastSchema` — the last-loaded schema, as JSON `{folderName, rootFileName, rootElementName, packetName, loadedAt}`. Informational only: a page can't reopen a folder by name, so it is shown as a "Last used: …" line on the initial Load Schema prompt. Written once the root element is settled, so Switch Root updates it too.
 - `xmlEditor.lastPackagingSettings` — last-used packaging dialog values (JSON)
-- `xmlEditor.fieldSizeOverrides` — field sizing overrides (JSON)
+- `xmlEditor.fieldSizeOverrides` — field sizing overrides (JSON) — *not yet implemented; needs field sizing*
+
+**Not storing data.** The user can choose not to have their data kept in the browser at all: a
+"Store my data in this browser" checkbox sits beside both Load Schema buttons (the initial
+prompt and the File menu), saved as `xmlEditor.storeData` (`"false"` when off; on by default).
+*Data* is everything that comes from the user's schemas, files or entries: `lastSchema`, the
+per-schema settings (instance-id source, export profile choice, remembered instance ids),
+`lastPackagingSettings`, loaded export profiles, and autosave snapshots (IndexedDB). Display
+preferences — theme, zoom, layout, panel widths — and the choice itself are not data and are
+always kept. While it is off:
+- nothing in that list is written; the data keys are held in memory, so the session works as
+  usual until the page closes, and autosave neither writes nor offers recovery;
+- the status bar reads "Autosave off", with the reason in its tooltip.
+
+Turning it off asks first, saying how many autosaved snapshots it will delete (for any schema —
+for work never saved as XML, that copy is the only one), then deletes every data key and every
+snapshot. Turning it back on writes out what the session accumulated and resumes autosave.
+
+Every `localStorage` access goes through `js/core/settingsStore.js`, which never throws: a
+blocked or full store means a setting lasts only for the page. At startup a write-then-remove
+probe checks the store, and the first failure from it or any later read/write is reported once,
+as a quiet "Settings not saved" notice in the status bar (with the reason in its tooltip),
+rather than once per setting or not at all.
 
 ---
 
@@ -1312,10 +1357,11 @@ Use `localStorage` to persist:
       <span id="zoom-indicator">100%</span>
       <span id="save-status">Not saved</span>
     </div>
-    <div id="loading-overlay" class="hidden">
+    <dialog id="loading-overlay">
       <div id="loading-spinner"></div>
       <span id="loading-text">Loading...</span>
-    </div>
+    </dialog>
+    <!-- every other modal is an empty <dialog> filled by its module (see below) -->
     <div id="search-panel" class="hidden">...</div>
     <div id="debug-panel" class="hidden">...</div>
   </div>
@@ -1418,9 +1464,10 @@ Implement via `transform: scale(N)` on `#form-content-host`. Ctrl+Plus, Ctrl+Min
 
 ### Loading / Busy Overlay
 
-`#loading-overlay` (already in the HTML structure above) is a hard, input-blocking modal — not just a spinner for visual feedback. While it is visible:
-- It is `position: fixed`, covers the entire `#app` viewport, has `pointer-events: all`, and sits above every other element (`z-index` higher than the toolbar/sidebar/panels) so clicks and keystrokes cannot reach anything underneath.
-- All toolbar buttons are also explicitly `disabled` as a second line of defense (belt-and-suspenders — some keyboard shortcuts, e.g. Ctrl+Z, are wired at the `document` level and bypass individual button `disabled` state, so the overlay's own click/keydown capture is the real guard).
+`#loading-overlay` (already in the HTML structure above) is a hard, input-blocking modal — not just a spinner for visual feedback. It is a `<dialog>` opened with `showModal()` and covering the viewport, so:
+- The browser makes everything behind it inert (no clicks, no focus, no Tab), and it renders in the top layer above every other element. Escape does not close it.
+- Keyboard shortcuts are wired at the `document` level, so they are not covered by inertness on their own: keydown is stopped at the dialog (every modal does this, `js/ui/modal.js`), and each shortcut handler also checks that the overlay is not open.
+- A dialog opened *during* the work — Choose Root, a confirmation — stacks above it and is interactive; no z-index arrangement is involved. The same holds for every modal in the app: each is a `<dialog>` shown with `showModal()`, and the most recently opened is the one on top.
 - `#loading-text` is updated per operation, e.g. `"Parsing schema…"`, `"Reading XML…"`, `"Building XML…"`, `"Validating…"`, `"Creating package…"`.
 
 **Operations that must show it:** schema load (flatten → parse → packet analysis), XML load, XML save/write, "Validate" (§16 — full schema validation can be non-trivial work), "Create Submission Package" (§19), and "Fill All Fields" on large forms.
@@ -1896,6 +1943,7 @@ Steps 3–9 (reading files through packet analysis) run inside `withBusyOverlay(
 2. Browser shows folder picker (showDirectoryPicker or <input webkitdirectory>)
 3. Read all .xsd files as text → Map<filename, text>
 4. Scan for BOM/ZWNBSP → show BomCleanupModal if found → optionally strip
+   (asked before the overlay goes up, so in practice steps 3–4 run outside it)
 5. Detect root XSD file(s) by pure file-reference analysis — no naming convention:
      referencedFiles = set of every schemaLocation basename that appears in any
        xs:include or xs:import across all files in the set
@@ -2095,6 +2143,7 @@ js/
     undo.js
     contextMenu.js
     theme.js
+    dialogs.js
     debug.js
 themes/
   default.theme.json

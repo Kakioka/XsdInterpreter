@@ -21,6 +21,7 @@ import {
   getSnapshot,
   listSnapshots,
   deleteSnapshot,
+  deleteAllSnapshots,
   pruneSnapshots,
 } from '../js/core/autosaveStore.js';
 import { FormEngine, FormInstanceKey, keyOf } from '../js/core/formEngine.js';
@@ -134,4 +135,5 @@ test('with no IndexedDB, every persistence call resolves harmlessly instead of t
   assert.deepEqual(await listSnapshots(), []);
   assert.equal(await pruneSnapshots(), 0);
   await assert.doesNotReject(deleteSnapshot('k'));
+  await assert.doesNotReject(deleteAllSnapshots());
 });

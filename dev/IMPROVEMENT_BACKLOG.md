@@ -203,7 +203,10 @@ already reassigned — the UI is dead with no message, and the user's unsaved st
 **Do:** global handlers that show a recoverable error panel, and offer "download current state
 as XML" so work in progress isn't lost to a bug. Pairs with C.1.
 
-### B.4 `localStorage` failures are silently swallowed everywhere
+### B.4 `localStorage` failures are silently swallowed everywhere — **DONE**
+
+*Every access now goes through `js/core/settingsStore.js`; a startup probe plus the first
+runtime failure produce one "Settings not saved" notice in the status bar.*
 
 Eleven `try { … } catch {}` blocks with empty bodies and a comment that the feature "still works
 for this session." Correct behavior, but the user is never told their theme/zoom/layout won't

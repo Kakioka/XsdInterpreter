@@ -27,9 +27,9 @@
   <h2>Live dialog stage (mirrors index.html's ids)</h2>
   <span id="top-status" class="toolbar-status"></span>
   <button id="create-package-btn" type="button" disabled>Create Submission Package</button>
-  <div id="package-dialog-overlay" class="hidden"></div>
+  <dialog id="package-dialog-overlay"></dialog>
   <button id="schema-settings-btn" type="button">Schema Settings</button>
-  <div id="schema-settings-overlay" class="hidden"></div>
+  <dialog id="schema-settings-overlay"></dialog>
   <div id="loading-overlay" class="hidden"><span id="loading-text"></span></div>
 
   <script type="module">
@@ -249,7 +249,7 @@
         createPackageBtn.click();
         await settle();
         const overlay = document.getElementById('package-dialog-overlay');
-        check('Clicking Create Package opens the dialog', !overlay.classList.contains('hidden'));
+        check('Clicking Create Package opens the dialog', overlay.open);
         check('Dialog renders the core text fields', !!document.getElementById('package-field-submissionId') && !!document.getElementById('package-field-efin'));
         const row = (id) => document.querySelector(`[data-profile-field="${id}"]`);
         const visible = (id) => getComputedStyle(row(id)).display !== 'none';
@@ -272,7 +272,7 @@
         document.getElementById('package-create-btn').click();
         await new Promise((r) => setTimeout(r, 10));
         check('Submitting blank settings shows validation errors', document.getElementById('package-dialog-errors').children.length > 0);
-        check('...and the dialog stays open', !overlay.classList.contains('hidden'));
+        check('...and the dialog stays open', overlay.open);
 
         // Fill valid settings and submit for real, stubbing out the
         // actual file download (a real click on a Blob-URL <a download> would
@@ -293,7 +293,7 @@
           HTMLAnchorElement.prototype.click = originalClick;
         }
         check('A valid submission triggers a download', anchorClicked);
-        check('The dialog closes after a successful package build', document.getElementById('package-dialog-overlay').classList.contains('hidden'));
+        check('The dialog closes after a successful package build', !document.getElementById('package-dialog-overlay').open);
         check('The top status bar reflects the created filename', document.getElementById('top-status').textContent.includes('1234567890123abcdefg.zip'));
         check('Settings are persisted for next time', settingsStore.loadLastPackagingSettings('mef-state')?.submissionId === '1234567890123abcdefg');
 
@@ -335,13 +335,15 @@
 
         // Cancel closes without side effects.
         document.querySelector('#package-dialog-footer button').click();
-        check('Cancel closes the dialog', document.getElementById('package-dialog-overlay').classList.contains('hidden'));
+        check('Cancel closes the dialog', !document.getElementById('package-dialog-overlay').open);
 
         // Clicking the dimmed backdrop also closes it.
         createPackageBtn.click();
         await settle();
+        // modal.js counts a click as a backdrop click only if the press started there too.
+        document.getElementById('package-dialog-overlay').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
         document.getElementById('package-dialog-overlay').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-        check('Clicking the overlay backdrop closes the dialog', document.getElementById('package-dialog-overlay').classList.contains('hidden'));
+        check('Clicking the overlay backdrop closes the dialog', !document.getElementById('package-dialog-overlay').open);
       }
 
       // ==================================================================
@@ -358,7 +360,7 @@
         const overlay = document.getElementById('schema-settings-overlay');
         const select = document.getElementById('schema-settings-id-source');
         const forms = () => document.getElementById('schema-settings-forms').textContent;
-        check('Schema Settings opens on automatic detection', !overlay.classList.contains('hidden') && select.value === 'auto');
+        check('Schema Settings opens on automatic detection', overlay.open && select.value === 'auto');
         check('...and shows what that resolves to', forms().includes('SampleEventLog: documentId'), forms());
         select.value = 'none';
         select.dispatchEvent(new Event('change'));
@@ -366,7 +368,7 @@
         check('...without applying it yet', schemaParser.instanceIdSource === null);
         document.getElementById('schema-settings-save-btn').click();
         check('Save applies and persists it', schemaParser.instanceIdSource.mode === 'none' && settingsStore.loadSchemaSettings('phase8').instanceIdSource.mode === 'none');
-        check('Save closes the dialog', overlay.classList.contains('hidden'));
+        check('Save closes the dialog', !overlay.open);
         clearLocalStorage();
       }
 

@@ -3,15 +3,18 @@
 // Backs the §20 step 6/9 "Multiple possible root files/elements found" case
 // in app.js's Schema Load Flow. Originally a window.prompt() the user had to
 // retype a filename into by hand; this renders a real dropdown of the
-// detected candidates instead. Built into #choose-root-dialog-overlay on
-// first use, same empty-container pattern as #debug-panel/#context-menu/
-// #package-dialog-overlay (see packaging.js's file-level comment).
+// detected candidates instead. Built into the <dialog
+// id="choose-root-dialog-overlay"> in index.html each time it is shown, and
+// opened with modal.js — it is asked from inside withBusyOverlay, and the top
+// layer puts it above the busy overlay without further arrangement.
+
+import { showMessage } from './dialogs.js';
+import { openModal, closeModal } from './modal.js';
 
 let _resolve = null;
 
 function settle(value) {
-  const overlay = document.getElementById('choose-root-dialog-overlay');
-  overlay?.classList.add('hidden');
+  closeModal(document.getElementById('choose-root-dialog-overlay'));
   const resolve = _resolve;
   _resolve = null;
   if (resolve) resolve(value || null);
@@ -53,21 +56,17 @@ function buildDialog(overlay) {
 
   dialog.append(header, body, footer);
   overlay.appendChild(dialog);
-
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) settle(null);
-  });
 }
 
 /** Same contract as the old window.prompt-based chooseOne it replaces:
- *  candidates.length === 1 → auto-pick, no dialog shown. 0 → alert + null.
+ *  candidates.length === 1 → auto-pick, no dialog shown. 0 → message + null.
  *  >1 → a dropdown of the detected candidates with OK/Cancel; resolves to the
  *  chosen candidate, or null if cancelled/closed. `initial`, when it is one of
  *  the candidates, is preselected (Switch Root passes the current root). */
 export async function chooseOne(candidates, emptyMessage, multipleMessage, initial = null) {
   if (candidates.length === 1) return candidates[0];
   if (candidates.length === 0) {
-    window.alert(emptyMessage);
+    await showMessage('Could not load schema', emptyMessage);
     return null;
   }
 
@@ -88,8 +87,8 @@ export async function chooseOne(candidates, emptyMessage, multipleMessage, initi
     select.appendChild(opt);
   }
   if (candidates.includes(initial)) select.value = initial;
-  overlay.classList.remove('hidden');
-  select.focus();
+  select.autofocus = true;
+  openModal(overlay, { onDismiss: () => settle(null) });
 
   return new Promise((resolve) => {
     _resolve = resolve;

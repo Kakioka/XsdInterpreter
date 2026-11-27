@@ -3,6 +3,7 @@
 // See web-implementation-spec.md §15 (Search — Search UI). Implemented in
 // IMPLEMENTATION_PLAN.md Phase 6.1.
 
+import { isBusyOverlayVisible } from './modal.js';
 import { search as runSearch, staticPathOf, highlightCandidatePaths } from '../core/searchService.js';
 
 let _appState = null;
@@ -56,17 +57,12 @@ export function wireSearch({ appState, switchToForm }) {
     }
     const mod = e.ctrlKey || e.metaKey;
     if (!mod || e.key.toLowerCase() !== 'f') return;
-    if (isOverlayVisible()) return; // §13: the overlay is the real guard against keyboard shortcuts firing mid-operation
+    if (isBusyOverlayVisible()) return; // §13: the overlay is the real guard against keyboard shortcuts firing mid-operation
     e.preventDefault(); // block the browser's own native find
     openSearchPanel();
     input.focus();
     input.select();
   });
-}
-
-function isOverlayVisible() {
-  const overlay = document.getElementById('loading-overlay');
-  return !!overlay && !overlay.classList.contains('hidden');
 }
 
 export function openSearchPanel() {

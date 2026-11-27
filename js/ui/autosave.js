@@ -9,6 +9,11 @@
 // entry: every write is fire-and-forget, a storage failure is reported once in
 // the status bar and then never again, and no code path awaits a write before
 // letting the user keep typing.
+//
+// The user can switch off storing their data in this browser (settingsStore's
+// isDataStored). Snapshots are form data, so while it is off nothing is
+// written or offered back, and turning it off deletes every stored snapshot
+// (setDataStorage below). The unload warning still applies — more so.
 
 import {
   isAutosaveAvailable,
@@ -17,8 +22,12 @@ import {
   putSnapshot,
   getSnapshot,
   deleteSnapshot,
+  deleteAllSnapshots,
+  listSnapshots,
   pruneSnapshots,
 } from '../core/autosaveStore.js';
+import { isDataStored } from '../core/settingsStore.js';
+import { openModal, closeModal } from './modal.js';
 
 /** Long enough that continuous typing doesn't write on every keystroke, short
  *  enough that a crash costs at most a sentence of work. */
@@ -37,6 +46,12 @@ function setAutosaveStatus(text, title) {
   if (!el) return;
   el.textContent = text;
   el.title = title || '';
+}
+
+const OFF_BY_CHOICE_TITLE = 'You chose not to store data in this browser, so work in progress cannot be recovered after a crash. Save XML regularly.';
+
+function showOffByChoice() {
+  setAutosaveStatus('Autosave off', OFF_BY_CHOICE_TITLE);
 }
 
 function reportUnavailableOnce() {
@@ -64,7 +79,7 @@ function currentSnapshot() {
 }
 
 async function writeNow() {
-  if (!state?.schemaKey || state.recoveryPending) return;
+  if (!state?.schemaKey || state.recoveryPending || !isDataStored()) return;
   // Capture an in-progress edit that hasn't fired `change` yet — the same
   // reason saveXml and buildCurrentPacketXml flush first (§6, §22 invariant 3).
   // Without this, autosave lags one field behind whatever is focused, which is
@@ -86,6 +101,7 @@ async function writeNow() {
  *  rather than reaching for a timer of its own. */
 function scheduleAutosave() {
   if (!state?.schemaKey || state.recoveryPending) return;
+  if (!isDataStored()) return;
   if (!isAutosaveAvailable()) {
     reportUnavailableOnce();
     return;
@@ -123,7 +139,8 @@ export async function clearSnapshot() {
     debounceTimer = null;
   }
   await deleteSnapshot(state.schemaKey);
-  setAutosaveStatus('Autosave ready', 'Work in progress is stored in this browser and offered back if the tab closes unexpectedly.');
+  if (!isDataStored()) showOffByChoice();
+  else setAutosaveStatus('Autosave ready', 'Work in progress is stored in this browser and offered back if the tab closes unexpectedly.');
 }
 
 // ---------------------------------------------------------------------------
@@ -153,6 +170,10 @@ export function setSchemaIdentity(schemaKey, packetName) {
   state.recoveryPending = true;
   state.schemaKey = schemaKey;
   state.packetName = packetName;
+  if (!isDataStored()) {
+    showOffByChoice();
+    return;
+  }
   if (!isAutosaveAvailable()) {
     reportUnavailableOnce();
     return;
@@ -182,8 +203,10 @@ function describeAge(savedAt) {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-/** Built into #recovery-dialog-overlay on first use, same empty-container
- *  pattern as #choose-root-dialog-overlay. Resolves true to restore. */
+/** Built into the <dialog id="recovery-dialog-overlay"> each time. Not
+ *  dismissible: Escape or a backdrop click must not count as an answer, since
+ *  "not now" would let autosave resume and overwrite the very snapshot being
+ *  offered. Resolves true to restore. */
 function askToRestore(snapshot) {
   const overlay = document.getElementById('recovery-dialog-overlay');
   if (!overlay) {
@@ -225,12 +248,12 @@ function askToRestore(snapshot) {
 
   dialog.append(header, body, footer);
   overlay.appendChild(dialog);
-  overlay.classList.remove('hidden');
-  restoreBtn.focus();
+  restoreBtn.autofocus = true;
+  openModal(overlay, { dismissible: false });
 
   return new Promise((resolve) => {
     const settle = (value) => {
-      overlay.classList.add('hidden');
+      closeModal(overlay);
       resolve(value);
     };
     discardBtn.addEventListener('click', () => settle(false));
@@ -240,17 +263,15 @@ function askToRestore(snapshot) {
 
 /**
  * Looks for a snapshot matching the just-loaded schema and, if it holds any
- * actual work, offers it back. Call AFTER the loading overlay has come down —
- * app.js's loadSchema runs inside withBusyOverlay, and a modal shown from
- * inside that has to out-rank it (the trap documented on
- * #choose-root-dialog-overlay in css/main.css).
+ * actual work, offers it back. Call AFTER the loading overlay has come down,
+ * so the question is asked over the loaded form rather than a spinner.
  *
  * @returns {Promise<boolean>} true if the caller's restore callback ran
  */
 export async function offerRecovery() {
   if (!state?.schemaKey) return false;
   try {
-    if (!isAutosaveAvailable()) return false;
+    if (!isDataStored() || !isAutosaveAvailable()) return false;
     const snapshot = await getSnapshot(state.schemaKey);
     if (!snapshot || !snapshotHasWork(snapshot)) return false;
 
@@ -324,5 +345,37 @@ export function wireAutosave({ appState, restoreSnapshot }) {
     if (hasUnsavedWork()) flushAutosave();
   });
 
-  if (!isAutosaveAvailable()) reportUnavailableOnce();
+  if (!isDataStored()) showOffByChoice();
+  else if (!isAutosaveAvailable()) reportUnavailableOnce();
+}
+
+/** How many snapshots are stored, across every schema — what turning data
+ *  storage off would delete. 0 when IndexedDB is unavailable. */
+export async function storedSnapshotCount() {
+  return (await listSnapshots()).length;
+}
+
+/**
+ * Called after settingsStore.setDataStored. Off: drops any pending write and
+ * deletes every snapshot, for every schema. On: resumes, writing the current
+ * session straight away so it is covered from now on.
+ */
+export async function setDataStorage(enabled) {
+  if (!state) return;
+  if (!enabled) {
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    showOffByChoice();
+    await deleteAllSnapshots();
+    return;
+  }
+  if (!isAutosaveAvailable()) {
+    reportedUnavailable = false;
+    reportUnavailableOnce();
+    return;
+  }
+  setAutosaveStatus('Autosave ready', 'Work in progress is stored in this browser and offered back if the tab closes unexpectedly.');
+  if (state.schemaKey && !state.recoveryPending) await flushAutosave();
 }

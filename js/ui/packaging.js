@@ -12,13 +12,15 @@
 // data against the XSD is a skippable warning (step 4, "option to continue or
 // cancel"). This module keeps that split literally: exportProfile's
 // validatePackage() blocks the Create click outright;
-// validation.validateSchema() only prompts a confirm().
+// validation.validateSchema() only asks for confirmation (dialogs.js).
 
 import { validateSchema } from './validation.js';
 import { buildPackage } from '../core/packager.js';
 import { validateProfile, validatePackage, activeValues, isBlank } from '../core/exportProfile.js';
 import * as settingsStore from '../core/settingsStore.js';
 import * as toolbar from './toolbar.js';
+import { confirmAction } from './dialogs.js';
+import { openModal, closeModal } from './modal.js';
 
 // Resolved against this module, not the page — see theme.js.
 const BUNDLED_PROFILE_URLS = [new URL('../../export-profiles/mef-state.profile.json', import.meta.url)];
@@ -145,6 +147,7 @@ async function handleProfileFile(event) {
   selectProfile(profile);
   rememberChoice();
   if (!stored) renderErrors([{ message: 'Browser storage is unavailable, so this profile will have to be loaded again next time.' }]);
+  else if (!settingsStore.isDataStored()) renderErrors([{ message: 'Not storing data in this browser, so this profile will have to be loaded again next time.' }]);
 }
 
 function removeActiveProfile() {
@@ -224,17 +227,13 @@ function buildDialog(overlay) {
 
   dialog.append(header, body, footer);
   overlay.appendChild(dialog);
-
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) closeDialog();
-  });
 }
 
 async function openDialog() {
   const overlay = document.getElementById('package-dialog-overlay');
   if (!overlay) return;
   renderErrors([]);
-  overlay.classList.remove('hidden');
+  openModal(overlay);
   let failure = null;
   try {
     await loadProfiles();
@@ -246,7 +245,7 @@ async function openDialog() {
 }
 
 function closeDialog() {
-  document.getElementById('package-dialog-overlay')?.classList.add('hidden');
+  closeModal(document.getElementById('package-dialog-overlay'));
 }
 
 // ---------------------------------------------------------------------------
@@ -392,8 +391,10 @@ async function handleCreateClicked() {
     _appState.formEngine.flushRegisteredControls();
     const schemaErrors = validateSchema(_appState.instanceKeys, _appState.formEngine.getAllFormStates(), _appState.schemaParser);
     if (schemaErrors.length > 0) {
-      const proceed = window.confirm(
-        `This packet has ${schemaErrors.length} validation issue(s) (missing/invalid fields, unresolved choices, etc.). Create the package anyway?`
+      const proceed = await confirmAction(
+        'Package with validation issues?',
+        `This packet has ${schemaErrors.length} validation issue${schemaErrors.length === 1 ? '' : 's'} (missing or invalid fields, unresolved choices, and so on). Validate lists them.`,
+        { confirmLabel: 'Create anyway' }
       );
       if (!proceed) return;
     }

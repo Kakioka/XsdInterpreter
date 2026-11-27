@@ -13,6 +13,10 @@
 // manifest/parser to already exist, so enabling them earlier would just be an
 // invitation to click something that can't do anything yet.
 
+import { loadPreference, savePreference } from '../core/settingsStore.js';
+import { showMessage } from './dialogs.js';
+import { isBusyOverlayVisible } from './modal.js';
+
 /**
  * Recursively walks a directory handle, collecting every .xsd file underneath
  * it (including nested subfolders) keyed by its path relative to the chosen
@@ -36,13 +40,17 @@ async function walkDirectoryForXsd(dirHandle, relativePath, map) {
   }
 }
 
-/** @returns {Promise<Map<string,string>>} path (relative to the chosen folder) → text, .xsd files only */
+/**
+ * @returns {Promise<{fileTextMap: Map<string,string>, folderName: string|null}>}
+ *   path (relative to the chosen folder) → text, .xsd files only; and the
+ *   chosen folder's own name, for the §12 lastSchema hint
+ */
 export async function pickSchemaFileTextMap(folderInputEl) {
   if (window.showDirectoryPicker) {
     const dirHandle = await window.showDirectoryPicker();
     const map = new Map();
     await walkDirectoryForXsd(dirHandle, '', map);
-    return map;
+    return { fileTextMap: map, folderName: dirHandle.name || null };
   }
   return new Promise((resolve, reject) => {
     folderInputEl.value = '';
@@ -54,7 +62,9 @@ export async function pickSchemaFileTextMap(folderInputEl) {
         const files = Array.from(folderInputEl.files).filter((f) => f.name.toLowerCase().endsWith('.xsd'));
         const map = new Map();
         for (const f of files) map.set(f.webkitRelativePath || f.name, await f.text());
-        resolve(map);
+        // webkitRelativePath starts with the chosen folder's own name.
+        const folderName = folderInputEl.files[0]?.webkitRelativePath?.split('/')[0] || null;
+        resolve({ fileTextMap: map, folderName });
       } catch (err) {
         reject(err);
       }
@@ -93,14 +103,18 @@ export function downloadBlob(blob, filename) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
-  document.body.appendChild(a);
+  // Inside the open modal the click came from, if any: everything else is
+  // inert then, and the BOM dialog and the error boundary both download from
+  // inside one. The focused element is in the topmost modal, by definition.
+  const host = document.activeElement?.closest?.('dialog[open]') ?? document.body;
+  host.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
 }
 
 /**
- * @param {{onSchemaFilesSelected: (fileTextMap: Map<string,string>) => Promise<void>,
+ * @param {{onSchemaFilesSelected: (fileTextMap: Map<string,string>, source: {folderName: string|null}) => Promise<void>,
  *          onXmlTextSelected: (xmlText: string) => Promise<void>,
  *          onSaveXmlRequested: () => void}} handlers
  */
@@ -110,13 +124,18 @@ export function wireToolbar({ onSchemaFilesSelected, onXmlTextSelected, onSaveXm
 
   async function loadSchemaClicked() {
     try {
-      const fileTextMap = await pickSchemaFileTextMap(folderInput);
-      if (fileTextMap.size === 0) return; // user cancelled, or picked a folder with no .xsd files
-      await onSchemaFilesSelected(fileTextMap);
+      const { fileTextMap, folderName } = await pickSchemaFileTextMap(folderInput);
+      if (fileTextMap.size === 0) {
+        // Cancelling either picker never gets here (an AbortError, or no
+        // `change` event), so a folder was picked and it holds no schemas.
+        await showMessage('No schemas found', `${folderName ? `"${folderName}"` : 'That folder'} contains no .xsd files, in it or in any subfolder.`);
+        return;
+      }
+      await onSchemaFilesSelected(fileTextMap, { folderName });
     } catch (err) {
       if (err?.name === 'AbortError') return; // user cancelled the directory picker
       console.error(err);
-      window.alert(`Failed to load schema: ${err.message}`);
+      await showMessage('Could not load schema', err.message);
     }
   }
   document.getElementById('load-schema-btn')?.addEventListener('click', loadSchemaClicked);
@@ -128,7 +147,7 @@ export function wireToolbar({ onSchemaFilesSelected, onXmlTextSelected, onSaveXm
       await onXmlTextSelected(xmlText);
     } catch (err) {
       console.error(err);
-      window.alert(`Failed to load XML: ${err.message}`);
+      await showMessage('Could not load XML', err.message);
     }
   });
 
@@ -161,12 +180,7 @@ export function wireSplitter() {
   const sidebar = document.getElementById('sidebar');
   if (!splitter || !sidebar) return;
 
-  let saved;
-  try {
-    saved = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
-  } catch {
-    saved = 0;
-  }
+  const saved = Number(loadPreference(SIDEBAR_WIDTH_KEY));
   if (saved > 0) sidebar.style.width = `${clamp(saved, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)}px`;
 
   splitter.addEventListener('mousedown', (e) => {
@@ -183,11 +197,7 @@ export function wireSplitter() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.body.classList.remove('resizing-splitter');
-      try {
-        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebar.getBoundingClientRect().width));
-      } catch {
-        // ignore — resizing still works for this session
-      }
+      savePreference(SIDEBAR_WIDTH_KEY, sidebar.getBoundingClientRect().width);
     }
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -213,30 +223,16 @@ function applyZoom(percent) {
   const clamped = clamp(percent, MIN_ZOOM, MAX_ZOOM);
   if (host) host.style.transform = `scale(${clamped / 100})`;
   if (indicator) indicator.textContent = `${clamped}%`;
-  try {
-    localStorage.setItem(ZOOM_KEY, String(clamped));
-  } catch {
-    // ignore — zoom still works for this session
-  }
+  savePreference(ZOOM_KEY, clamped);
   return clamped;
 }
 
 export function wireZoom() {
-  let saved;
-  try {
-    saved = Number(localStorage.getItem(ZOOM_KEY));
-  } catch {
-    saved = 0;
-  }
+  const saved = Number(loadPreference(ZOOM_KEY));
   let current = applyZoom(saved > 0 ? saved : 100);
 
-  function isOverlayVisible() {
-    const overlay = document.getElementById('loading-overlay');
-    return !!overlay && !overlay.classList.contains('hidden');
-  }
-
   document.addEventListener('keydown', (e) => {
-    if (isOverlayVisible()) return; // §13: overlay is the real guard against shortcuts firing mid-operation
+    if (isBusyOverlayVisible()) return; // §13: overlay is the real guard against shortcuts firing mid-operation
     if (!(e.ctrlKey || e.metaKey)) return;
     if (e.key === '+' || e.key === '=') {
       e.preventDefault();
@@ -253,7 +249,7 @@ export function wireZoom() {
   document.getElementById('form-area')?.addEventListener(
     'wheel',
     (e) => {
-      if (!e.ctrlKey || isOverlayVisible()) return;
+      if (!e.ctrlKey || isBusyOverlayVisible()) return;
       e.preventDefault();
       current = applyZoom(current + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
     },
@@ -281,23 +277,14 @@ function applyLayoutMode(mode) {
   document.body.classList.toggle('layout-wrap', mode === 'wrap');
   const btn = document.getElementById('layout-toggle-btn');
   if (btn) btn.textContent = mode === 'wrap' ? 'Layout: Wrap' : 'Layout: Stack';
-  try {
-    localStorage.setItem(LAYOUT_MODE_KEY, mode);
-  } catch {
-    // ignore — toggle still works for this session
-  }
+  savePreference(LAYOUT_MODE_KEY, mode);
   return mode;
 }
 
 export function wireLayoutToggle() {
   const btn = document.getElementById('layout-toggle-btn');
   if (!btn) return;
-  let saved;
-  try {
-    saved = localStorage.getItem(LAYOUT_MODE_KEY);
-  } catch {
-    saved = null;
-  }
+  const saved = loadPreference(LAYOUT_MODE_KEY);
   let current = applyLayoutMode(saved === 'stack' ? 'stack' : 'wrap'); // defaults to Wrap, matching the button's static HTML label
   btn.disabled = false;
   btn.addEventListener('click', () => {

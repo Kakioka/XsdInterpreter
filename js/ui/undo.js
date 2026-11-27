@@ -5,6 +5,8 @@
 // state, so the busy overlay's own guard is what actually blocks it while a
 // long operation is running). IMPLEMENTATION_PLAN.md Phase 4.2.
 
+import { isBusyOverlayVisible } from './modal.js';
+
 /**
  * @param {import('../core/undoService.js').UndoService} undoService
  * @param {object} ctx — see undoService.js's file-level comment for the shape
@@ -35,7 +37,7 @@ export function wireUndo(undoService, ctx) {
   redoBtn?.addEventListener('click', () => undoService.redo(ctx));
 
   document.addEventListener('keydown', (e) => {
-    if (isOverlayVisible()) return; // §13: the overlay is the real guard against keyboard shortcuts firing mid-operation
+    if (isBusyOverlayVisible()) return; // §13: the overlay is the real guard against keyboard shortcuts firing mid-operation
     const mod = e.ctrlKey || e.metaKey;
     if (!mod) return;
     const key = e.key.toLowerCase();
@@ -49,9 +51,4 @@ export function wireUndo(undoService, ctx) {
   });
 
   refreshButtons();
-}
-
-function isOverlayVisible() {
-  const overlay = document.getElementById('loading-overlay');
-  return !!overlay && !overlay.classList.contains('hidden');
 }

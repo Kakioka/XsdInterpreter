@@ -146,6 +146,35 @@ test('js/core/ touches no DOM-rendering API', async () => {
   assert.deepEqual(unexpected, []);
 });
 
+/** Code lines (not comments) across js/ matching `pattern`, as `file:line text`. */
+function codeLinesMatching(pattern) {
+  const hits = [];
+  for (const [key, source] of sources) {
+    source.split(/\r?\n/).forEach((line, i) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return;
+      if (pattern.test(line.replace(/\/\/.*$/, ''))) hits.push(`${key}:${i + 1} ${trimmed}`);
+    });
+  }
+  return hits;
+}
+
+test('localStorage is touched only by settingsStore.js (backlog B.4: one place to detect failure)', () => {
+  const outside = codeLinesMatching(/\blocalStorage\b/).filter((hit) => !hit.startsWith('js/core/settingsStore.js:'));
+  assert.deepEqual(outside, [], 'use settingsStore.loadPreference/savePreference');
+});
+
+test('no native alert/confirm/prompt outside the harness fallbacks (parity 3.5)', () => {
+  // Each fallback runs only on a page without the dialog's container (dev/*.html).
+  const allowed = ['js/ui/dialogs.js:', 'js/ui/autosave.js:', 'js/ui/chooseRootDialog.js:'];
+  const native = codeLinesMatching(/\bwindow\.(?:alert|confirm|prompt)\s*\(|(?<![.\w])(?:alert|confirm|prompt)\s*\(/);
+  assert.deepEqual(
+    native.filter((hit) => !allowed.some((prefix) => hit.startsWith(prefix))),
+    [],
+    'use js/ui/dialogs.js'
+  );
+});
+
 test('index.html loads app.js as a module and declares the containers the UI builds into', async () => {
   const html = await readFile(repoPath('index.html'), 'utf8');
   assert.match(html, /<script type="module" src="js\/ui\/app\.js"><\/script>/);
@@ -165,8 +194,28 @@ test('index.html loads app.js as a module and declares the containers the UI bui
     'schema-settings-overlay',
     'error-boundary-overlay',
     'recovery-dialog-overlay',
+    'app-dialog',
     'autosave-status',
+    'settings-status',
+    'last-schema-hint',
+    'store-data-toggle',
+    'store-data-menu-toggle',
   ]) {
     assert.ok(html.includes(`id="${id}"`), `index.html is missing #${id}`);
+  }
+
+  // Every modal is a <dialog> (js/ui/modal.js calls showModal on it); a <div>
+  // left over would throw there and fall back to a non-modal, unstacked box.
+  for (const id of [
+    'loading-overlay',
+    'package-dialog-overlay',
+    'choose-root-dialog-overlay',
+    'schema-settings-overlay',
+    'error-boundary-overlay',
+    'recovery-dialog-overlay',
+    'app-dialog',
+  ]) {
+    assert.match(html, new RegExp(`<dialog id="${id}"`), `#${id} must be a <dialog>`);
+    assert.doesNotMatch(html, new RegExp(`<dialog id="${id}"[^>]*class="[^"]*hidden`), `#${id}: .hidden would hide it even when open`);
   }
 });

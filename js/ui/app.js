@@ -21,6 +21,7 @@ import {
 import { FormEngine, FormInstanceKey, createEmptyFormState, keyOf } from '../core/formEngine.js';
 import { readPacket } from '../core/xmlReader.js';
 import { buildPacketXml } from '../core/xmlWriter.js';
+import { buildZip } from '../core/packager.js';
 import { UndoService, FormAddAction, FormRemoveAction, FillTestDataAction, ContainerFillAction, ContainerClearAction, ClearAllAction } from '../core/undoService.js';
 import { generateValues } from '../core/testDataFiller.js';
 import * as formRenderer from './formRenderer.js';
@@ -39,14 +40,27 @@ import * as autosaveUi from './autosave.js';
 import { installErrorBoundary } from './errorBoundary.js';
 import { computeSchemaKey } from '../core/autosaveStore.js';
 import { findInstanceIdAttribute, generateInstanceId } from '../core/instanceIdentity.js';
-import { schemaSettingsKey, loadSchemaSettings, rememberInstanceIds, recallInstanceIds } from '../core/settingsStore.js';
+import {
+  schemaSettingsKey,
+  loadSchemaSettings,
+  rememberInstanceIds,
+  recallInstanceIds,
+  saveLastSchema,
+  loadLastSchema,
+  isDataStored,
+  setDataStored,
+  onStorageFailure,
+  probeSettingsStorage,
+} from '../core/settingsStore.js';
 import { chooseOne } from './chooseRootDialog.js';
+import { showMessage, confirmAction, confirmBomCleanup, showUnmatchedFields } from './dialogs.js';
+import { openModal, closeModal } from './modal.js';
 
 const appState = {
   manifest: null,
   currentInstanceKey: null,
   flatDoc: null,
-  schemaSource: null, // {fileTextMap, rootFileName, rootElementName} — what Switch Root re-runs against
+  schemaSource: null, // {fileTextMap, rootFileName, rootElementName, folderName} — what Switch Root re-runs against
   targetNamespace: null, // from flattener.flattenFromRoot (§3); threaded into buildPacketXml (§10) on Save XML
   sourceFiles: null, // from flattener.flattenFromRoot — which file declared each component (§5 sourceSchemaFile)
   schemaParser: null,
@@ -69,13 +83,17 @@ let refreshSaveStatus = () => {};
 // Loading / busy overlay (§13) — must actually paint before heavy sync work runs
 // ---------------------------------------------------------------------------
 
+// A modal <dialog>: the page behind it is inert while it is up, which is the
+// §13 "hard, input-blocking" requirement met by the browser. Not dismissible —
+// Escape must not uncover a half-built form. A dialog opened during the work
+// (choose root, a confirm) stacks above it.
 function showOverlay(message) {
   document.getElementById('loading-text').textContent = message;
-  document.getElementById('loading-overlay').classList.remove('hidden');
+  openModal(document.getElementById('loading-overlay'), { dismissible: false });
 }
 
 function hideOverlay() {
-  document.getElementById('loading-overlay').classList.add('hidden');
+  closeModal(document.getElementById('loading-overlay'));
 }
 
 async function withBusyOverlay(message, work) {
@@ -93,22 +111,25 @@ async function withBusyOverlay(message, work) {
 // Schema Load Flow (§20)
 // ---------------------------------------------------------------------------
 
-async function loadSchema(fileTextMap) {
+/**
+ * @param {Map<string,string>} fileTextMap
+ * @param {{folderName?: string|null}} [source] what was picked, for the §12 lastSchema hint
+ */
+async function loadSchema(fileTextMap, { folderName = null } = {}) {
+  // Asked before the loading overlay goes up: the scan is a string search, so
+  // there is nothing to show a spinner for, and nothing should look busy
+  // while the user reads the file list.
+  const bomHits = scanForBom(fileTextMap);
+  if (bomHits.length > 0) {
+    const onDownloadCleaned = () => downloadCleanedSchemas(bomHits, fileTextMap, folderName);
+    if (!(await confirmBomCleanup(bomHits, { onDownloadCleaned }))) return;
+    for (const hit of bomHits) fileTextMap.set(hit.name, stripBom(fileTextMap.get(hit.name)));
+  }
+
   // Write the outgoing schema's latest edits under ITS key now: setSchemaIdentity
   // (via activateRootElement) drops any write still pending in the debounce.
   if (appState.manifest) await autosaveUi.flushAutosave();
   const loaded = await withBusyOverlay('Parsing schema…', async () => {
-    const bomHits = scanForBom(fileTextMap);
-    if (bomHits.length > 0) {
-      const proceed = window.confirm(
-        `These files contain a byte-order mark, which can break XSD parsing:\n\n${bomHits
-          .map((h) => h.name)
-          .join('\n')}\n\nStrip it and continue?`
-      );
-      if (!proceed) return false;
-      for (const hit of bomHits) fileTextMap.set(hit.name, stripBom(fileTextMap.get(hit.name)));
-    }
-
     const rootFileCandidates = findRootFileCandidates(fileTextMap);
     const rootFileName = await chooseOne(
       rootFileCandidates,
@@ -132,17 +153,41 @@ async function loadSchema(fileTextMap) {
 
     // Kept for Switch Root, which re-runs only the root-element step below
     // against the already-flattened document (parity 1.6).
-    appState.schemaSource = { fileTextMap, rootFileName, rootElementName };
+    appState.schemaSource = { fileTextMap, rootFileName, rootElementName, folderName };
     activateRootElement(rootElementName);
     toolbar.setStatus(`Loaded ${appState.manifest.packetName}`);
     return true;
   });
 
-  // Recovery prompt goes here, not inside the callback: withBusyOverlay's
-  // loading overlay is still up in there, and anything modal shown underneath
-  // it silently swallows its own clicks (the trap documented on
-  // #choose-root-dialog-overlay in css/main.css).
+  // Recovery prompt goes here, not inside the callback, so it is asked over the
+  // loaded form rather than over a spinner. (Inside would work — a dialog
+  // opened later stacks above the busy overlay — but would read as "still
+  // loading".)
   if (loaded) await autosaveUi.offerRecovery();
+}
+
+/**
+ * The BOM dialog's download: the affected files with every U+FEFF removed,
+ * written as UTF-8 without a byte-order mark. One file downloads as itself;
+ * several come as a ZIP laid out relative to the chosen folder, to extract
+ * over it. (The <input webkitdirectory> fallback prefixes every path with the
+ * folder's own name; that segment is dropped so both pickers give the same
+ * layout.)
+ * @returns {Promise<string>} what was downloaded, for the dialog to show
+ */
+async function downloadCleanedSchemas(hits, fileTextMap, folderName) {
+  const relative = (name) => (folderName && name.startsWith(`${folderName}/`) ? name.slice(folderName.length + 1) : name);
+  const cleaned = hits.map((h) => ({ name: relative(h.name), text: stripBom(fileTextMap.get(h.name)) }));
+  if (cleaned.length === 1) {
+    const { name, text } = cleaned[0];
+    toolbar.downloadBlob(new Blob([text], { type: 'application/xml' }), name.split('/').pop());
+    return `Downloaded ${name.split('/').pop()}. Put it in place of the original (${name}).`;
+  }
+  const encoder = new TextEncoder();
+  const zip = await buildZip(cleaned.map(({ name, text }) => ({ name, data: encoder.encode(text) })));
+  const zipName = `${folderName || 'schemas'}-cleaned.zip`;
+  toolbar.downloadBlob(zip, zipName);
+  return `Downloaded ${zipName} (${cleaned.length} files). Extract it into ${folderName ? `the "${folderName}" folder` : 'the folder you chose'}, replacing the originals.`;
 }
 
 /**
@@ -161,6 +206,7 @@ function activateRootElement(rootElementName) {
   const { instanceIdSource } = loadSchemaSettings(appState.schemaSettingsKey);
   appState.schemaParser = new SchemaParser(flatDoc, rootElementName, instanceIdSource);
   appState.manifest = analyzePacket(flatDoc, rootElementName, { sourceFiles: appState.sourceFiles });
+  rememberCurrentSchema();
 
   appState.formEngine.reset();
   appState.undoService.clearHistory(); // §22 invariant 23
@@ -206,9 +252,10 @@ async function switchRoot() {
   const current = appState.schemaSource.rootElementName;
   const candidates = findRootElementCandidates(appState.flatDoc);
   if (candidates.length < 2) {
-    window.alert(
+    await showMessage(
+      'Nothing to switch to',
       candidates.length === 1
-        ? `${candidates[0]} is the only root element this schema set declares, so there is nothing to switch to.`
+        ? `${candidates[0]} is the only root element this schema set declares.`
         : 'Could not determine a root packet element — every global element is referenced by another via xs:element ref=.'
     );
     return;
@@ -229,10 +276,12 @@ async function switchRoot() {
   );
   if (
     hasWork &&
-    !window.confirm(
-      `Switching to ${chosen} starts a blank packet and clears undo history.\n\n` +
-        `Unsaved work on ${appState.manifest.packetName} is kept in this browser's autosave and offered back if you switch to it again. Continue?`
-    )
+    !(await confirmAction(
+      `Switch root to ${chosen}?`,
+      `Switching starts a blank packet and clears undo history.\n\n` +
+        `Unsaved work on ${appState.manifest.packetName} is kept in this browser's autosave and offered back if you switch to it again.`,
+      { confirmLabel: 'Switch root' }
+    ))
   ) {
     return;
   }
@@ -291,7 +340,7 @@ function switchToForm(instanceKey, mutateState) {
 
   const schemaElement = appState.schemaParser.parseGlobalElement(instanceKey.formName);
   if (!schemaElement) {
-    window.alert(`Could not resolve schema for form "${instanceKey.formName}".`);
+    showMessage('Could not open form', `The schema has no declaration for the form "${instanceKey.formName}".`);
     return;
   }
 
@@ -416,7 +465,7 @@ function removeFormInstance(instanceKey) {
 
 async function loadXmlText(xmlText) {
   if (!appState.manifest) return;
-  await withBusyOverlay('Reading XML…', async () => {
+  const unmatched = await withBusyOverlay('Reading XML…', async () => {
     const rememberedIds = recallInstanceIds(appState.schemaSettingsKey, xmlText);
     const stateMap = readPacket(xmlText, appState.manifest, appState.schemaParser, rememberedIds); // key.toString() (natural case) → FormState — see xmlReader.js
     appState.formEngine.reset();
@@ -446,18 +495,20 @@ async function loadXmlText(xmlText) {
     packagingUi.refreshCreatePackageButton(appState); // formEngine.reset() above doesn't fire dirtyChanged/controlValueChanged
     toolbar.setStatus(`Loaded XML (${stateMap.size} form instance${stateMap.size === 1 ? '' : 's'})`);
 
-    const allUnmatched = [...stateMap.values()].flatMap((s) => s.unmatchedFields);
-    if (allUnmatched.length > 0) {
-      // Phase 6+ TODO: a real panel instead of alert() (§11 "Unmatched Fields").
-      window.alert(
-        `Loaded with ${allUnmatched.length} field(s) not recognized by the schema:\n\n${allUnmatched
-          .map((u) => `${u.xmlPath} = ${u.value}`)
-          .join('\n')}`
-      );
-    }
-
     if (appState.instanceKeys.length > 0) switchToForm(appState.instanceKeys[0]);
+
+    // In document order. The form column names the instance, not just the
+    // form, so two copies of a repeatable form can be told apart.
+    return [...stateMap].flatMap(([keyStr, state]) => {
+      const key = FormInstanceKey.parse(keyStr);
+      const form = key.instanceId === key.formName ? key.formName : `${key.formName} (${key.instanceId})`;
+      return state.unmatchedFields.map((u) => ({ form, xmlPath: u.xmlPath, value: u.value }));
+    });
   });
+
+  // §11 "Unmatched Fields" — shown after the overlay is down, so the form it
+  // describes is already on screen behind it.
+  if (unmatched.length > 0) await showUnmatchedFields(unmatched);
 }
 
 /**
@@ -533,8 +584,10 @@ async function saveXml() {
   appState.formEngine.flushRegisteredControls();
   const schemaErrors = validationUi.validateSchema(appState.instanceKeys, appState.formEngine.getAllFormStates(), appState.schemaParser);
   if (schemaErrors.length > 0) {
-    const proceed = window.confirm(
-      `This packet has ${schemaErrors.length} validation issue(s) (missing/invalid fields, unresolved choices, etc.). Save anyway?`
+    const proceed = await confirmAction(
+      'Save with validation issues?',
+      `This packet has ${schemaErrors.length} validation issue${schemaErrors.length === 1 ? '' : 's'} (missing or invalid fields, unresolved choices, and so on). Validate lists them.`,
+      { confirmLabel: 'Save anyway' }
     );
     if (!proceed) return;
   }
@@ -763,6 +816,108 @@ function clearActiveForm() {
 // Bootstrap
 // ---------------------------------------------------------------------------
 
+/**
+ * Backlog B.4: one quiet notice that settings won't outlive the page, instead
+ * of a dozen silently-swallowed failures. Wired before anything restores a
+ * setting; settingsStore replays a failure that happened first anyway.
+ */
+function wireStorageNotice() {
+  onStorageFailure(() => {
+    const el = document.getElementById('settings-status');
+    if (!el) return;
+    el.textContent = 'Settings not saved';
+    el.title =
+      'This browser is not letting the page store settings (private browsing, or site data blocked). ' +
+      'Theme, zoom, layout, panel sizes, packaging values and schema settings work for now, but reset when the page is reloaded.';
+  });
+  probeSettingsStorage();
+}
+
+/** §12 xmlEditor.lastSchema. Held in memory only while the user has data
+ *  storage off (settingsStore enforces that, not this caller). */
+function rememberCurrentSchema() {
+  if (!appState.manifest || !appState.schemaSource) return;
+  const { folderName, rootFileName, rootElementName } = appState.schemaSource;
+  saveLastSchema({ folderName, rootFileName, rootElementName, packetName: appState.manifest.packetName });
+}
+
+/** A reminder on the load prompt of what was open last. Informational only: a
+ *  page cannot reopen a folder by name. */
+function showLastSchemaHint() {
+  const el = document.getElementById('last-schema-hint');
+  if (!el) return;
+  const last = loadLastSchema();
+  el.hidden = !last;
+  if (!last) return;
+  const loadedAt = Date.parse(last.loadedAt);
+  const when = Number.isFinite(loadedAt) ? `, ${new Date(loadedAt).toLocaleDateString()}` : '';
+  const where = last.folderName ? `the "${last.folderName}" folder` : last.rootFileName;
+  el.textContent = `Last used: ${where} (${last.packetName}${when}).`;
+  el.title = `Root file ${last.rootFileName}, root element ${last.rootElementName}`;
+  el.hidden = false;
+}
+
+/**
+ * "Store my data in this browser" — the user's choice whether anything from
+ * their schemas, files or entries is kept: last-used schema, per-schema
+ * settings, packaging values, loaded profiles, and autosave snapshots.
+ * Offered next to both Load Schema buttons (the initial prompt and the File
+ * menu), since loading a schema is when the first of it gets written. The two
+ * checkboxes are one setting.
+ *
+ * Turning it off deletes all of it, after a confirmation that says so —
+ * autosave snapshots for other schemas can be the only copy of unsaved work.
+ * The current session keeps working from memory. Turning it back on writes
+ * the session out and resumes autosave.
+ */
+function wireStoreDataToggles() {
+  const toggles = [...document.querySelectorAll('.store-data-toggle')];
+  const sync = () => {
+    const on = isDataStored();
+    for (const t of toggles) t.checked = on;
+  };
+
+  async function turnOff() {
+    const snapshots = await autosaveUi.storedSnapshotCount();
+    const snapshotText =
+      snapshots > 0
+        ? `\n\nThat includes ${snapshots} autosaved ${snapshots === 1 ? 'copy' : 'copies'} of work in progress, for this and any other schema. For work never saved as XML, that copy is the only one.`
+        : '';
+    const proceed = await confirmAction(
+      'Stop storing data in this browser?',
+      'This deletes the last-used schema, per-schema settings, packaging values and loaded profiles stored in this browser, and stores nothing more.' +
+        snapshotText +
+        '\n\nWhat is open now keeps working until the page closes. Autosave and crash recovery stay off until this is turned back on. Theme, zoom and layout are still remembered.',
+      { confirmLabel: 'Delete and stop storing' }
+    );
+    if (!proceed) return;
+    setDataStored(false);
+    await autosaveUi.setDataStorage(false);
+    toolbar.setStatus('Not storing data in this browser');
+  }
+
+  async function turnOn() {
+    setDataStored(true);
+    rememberCurrentSchema();
+    await autosaveUi.setDataStorage(true);
+    toolbar.setStatus('Storing data in this browser');
+  }
+
+  for (const toggle of toggles) {
+    toggle.addEventListener('change', async () => {
+      const wanted = toggle.checked;
+      sync(); // show the stored state until the change has actually happened
+      try {
+        await (wanted ? turnOn() : turnOff());
+      } finally {
+        sync();
+        showLastSchemaHint();
+      }
+    });
+  }
+  sync();
+}
+
 function init() {
   // FIRST, before any other wiring: a throw in one of the init steps below is
   // exactly the dead-UI-with-no-message failure the boundary exists to surface
@@ -776,6 +931,9 @@ function init() {
     getPacketName: () => appState.manifest?.packetName ?? null,
   });
   autosaveUi.wireAutosave({ appState, restoreSnapshot: restoreFromSnapshot });
+  wireStorageNotice();
+  wireStoreDataToggles();
+  showLastSchemaHint();
 
   toolbar.wireToolbar({
     onSchemaFilesSelected: loadSchema,
@@ -785,7 +943,7 @@ function init() {
   document.getElementById('switch-root-btn')?.addEventListener('click', () => {
     switchRoot().catch((err) => {
       console.error(err);
-      window.alert(`Failed to switch root: ${err.message}`);
+      showMessage('Could not switch root', err.message);
     });
   });
   sidebar.wireAddFormButton(document.getElementById('add-form-btn'), () => appState.manifest, () => appState.instanceKeys, addFormInstance);

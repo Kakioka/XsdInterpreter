@@ -220,6 +220,11 @@ export async function deleteSnapshot(schemaKey) {
   await withStore('readwrite', (store) => store.delete(schemaKey), null);
 }
 
+/** Every snapshot, for every schema — the user turned off storing data. */
+export async function deleteAllSnapshots() {
+  await withStore('readwrite', (store) => store.clear(), null);
+}
+
 /** @returns {Promise<object[]>} newest first */
 export async function listSnapshots() {
   const all = (await withStore('readonly', (store) => store.getAll(), null)) ?? [];

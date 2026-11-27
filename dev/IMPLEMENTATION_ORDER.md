@@ -285,15 +285,87 @@ Phase 6's P 3.1. No browser harness renders the sidebar; checked by hand only.
 
 ---
 
-## Phase 6 — Theming, dialogs, settings
+## Phase 6 — Theming, dialogs, settings — **DONE**
 
-- **P 3.1** — remaining 18 theme tokens.
-- **P 3.5** — replace `window.confirm`/`window.alert` with real dialogs (BOM cleanup, unmatched
-  fields) using the existing dynamic-overlay pattern.
-- **P 3.6** — the two unimplemented `localStorage` keys (`xmlEditor.lastSchema`,
-  `xmlEditor.fieldSizeOverrides` — latter blocked on Phase 8).
-- **B B.4** — surface `localStorage` failures with one quiet notice instead of swallowing them
+- ~~**P 3.1**~~ — remaining 18 theme tokens.
+- ~~**P 3.5**~~ — replace `window.confirm`/`window.alert` with real dialogs (BOM cleanup, unmatched
+  fields). Done with native `<dialog>`, and every existing overlay moved onto it too.
+- **P 3.6** — ~~`xmlEditor.lastSchema`~~ done; `xmlEditor.fieldSizeOverrides` still blocked on
+  Phase 8.
+- ~~**B B.4**~~ — surface `localStorage` failures with one quiet notice instead of swallowing them
   in eleven places.
+
+**Where it landed:** `js/ui/modal.js` (`openModal`/`closeModal`, the one way any modal opens)
+and `js/ui/dialogs.js` (`showDialog`, `showMessage`, `confirmAction`, `confirmBomCleanup`,
+`showUnmatchedFields`, built into `<dialog id="app-dialog">`). Every modal container in
+`index.html` — including `#loading-overlay` — is now a `<dialog>`. All 35 tokens in `theme.js`
+`DEFAULT_COLORS`, the four `themes/*.theme.json`, and `css/main.css`'s `:root`.
+`settingsStore.js` gained `loadPreference`/`savePreference`,
+`probeSettingsStorage`/`onStorageFailure`, `saveLastSchema`/`loadLastSchema` and
+`isDataStored`/`setDataStored`; `autosaveStore.js` `deleteAllSnapshots`; `autosave.js`
+`setDataStorage`/`storedSnapshotCount`; `app.js` `wireStorageNotice`, `wireStoreDataToggles`,
+`showLastSchemaHint` and `downloadCleanedSchemas`, with `#settings-status`, `#last-schema-hint`
+and the two `.store-data-toggle` checkboxes in `index.html`. New suites
+`test/settingsStore.test.mjs` and `test/themes.test.mjs` — the latter checks that the three
+copies of the default palette agree and that every `var(--…)` the stylesheet reads is a token a
+theme can set. `moduleGraph.test.mjs` now also checks that every modal container is a
+`<dialog>`, that only `settingsStore.js` touches `localStorage`, and that no native
+alert/confirm/prompt is left outside the harness fallbacks. `dev/phase8-check.html` updated for
+`<dialog>` containers. Spec §1, §3, §11, §12, §13, §20, §23 updated.
+
+**Decisions taken:**
+
+- **Every** `window.alert`/`window.confirm` in the app went, not just the two named — Save XML
+  and Create Package's "anyway?" confirms, Switch Root's, load and theme errors, the debug
+  panel's clipboard error. Each is ~3 lines once the module exists, and a native confirm can be
+  suppressed by the browser after a few, at which point it silently answers "no". The only
+  remaining calls are fallbacks for harness pages with no dialog container.
+- **Every modal is a native `<dialog>` opened with `showModal()`** — the new ones, the four
+  existing overlay `<div>`s (choose root, recovery, packaging, schema settings), the error
+  boundary, and the busy overlay. The z-index ladder (900 / 1000 / 1010 / 1015 / 1020 / 1030) and
+  the "a modal under the loading overlay swallows its own clicks" trap are gone: the top layer
+  stacks modals in opening order and only the topmost is interactive, so a dialog raised inside
+  `withBusyOverlay` works and the error boundary, opened last, is always on top. The browser also
+  supplies the inert background and focus return. *First pass used overlay divs, on the grounds
+  that a modal `<dialog>` would make a div-based error boundary inert; making the boundary a
+  `<dialog>` too removes that objection (user decision, 2026-11-26).* The busy overlay had to
+  convert with the rest: as a div it would sit *under* an open packaging dialog during Create.
+  `modal.js` keeps keydown inside the open dialog, so the document-level shortcuts (Ctrl+Z
+  behind "Save anyway?") can't act on the page behind it; the recovery prompt and busy overlay
+  are `dismissible: false`, and are reopened if the browser force-closes them.
+- **The BOM question is asked before the loading overlay goes up**, and the unmatched-fields
+  table after it comes down. The BOM dialog says what it can't do: a page can't rewrite the
+  chosen folder, so cleanup is in memory and the files will be flagged again next load — and it
+  offers a download of the cleaned files (one file as-is, several as a ZIP relative to the chosen
+  folder, built with `packager.js`'s `buildZip`) to put in place of the originals. WPF rewrites
+  them on disk; File System Access (backlog C.5) could do that too, where the browser has it.
+- **8-digit theme colors are CSS's `#RRGGBBAA`**, passed through as written. *First pass read
+  them as WPF's `#AARRGGBB` so theme files would work in both apps; the user ruled that out —
+  compatibility with the WPF app's file conventions is not a goal (2026-11-26).*
+  `test/themes.test.mjs` checks every bundled `overlayBackground` has its alpha last, since a
+  value copied from the WPF template reads as fully transparent. The bundled themes keep their
+  own (web) palettes; the new tokens' values follow WPF's where the palettes match, and the dim
+  stays at the old 35%.
+- **`lastSchema` stores more than the folder name** — root file, root element, packet name, date
+  — since the folder name alone can't tell two roots of the same schema set apart.
+- **The user can turn off storing their data at all** (user decision, 2026-11-26: the freedom not
+  to have their data stored matters more than the conveniences it buys). One checkbox, "Store my
+  data in this browser", beside both Load Schema buttons, since loading a schema is when the
+  first of it is written. It covers everything derived from the user's schemas, files or
+  entries — last schema, per-schema settings, packaging values, loaded profiles, and autosave
+  snapshots — but not display preferences. While off, `settingsStore.js` holds its `DATA_KEYS`
+  in memory (so the session behaves normally) and `autosave.js` neither writes nor offers
+  recovery. Turning it off confirms first, counting the snapshots it will delete — they can be
+  the only copy of unsaved work for other schemas — then deletes everything. On by default, as
+  §12 lists these among the persisted settings. *First pass covered only `lastSchema`.*
+- **All `localStorage` access now goes through `settingsStore.js`**, including the UI's own
+  preferences (theme, zoom, layout, panel widths), so the eleven silent catches are now one
+  reporting path in one module. The startup probe writes and removes a key, so a store that
+  reads but refuses writes counts as unavailable too.
+
+**Not done:** `xmlEditor.fieldSizeOverrides` (Phase 8). Theme background images, the Christmas
+theme and the ⓘ custom-theme help are left as P 3.1 lists them. No harness renders the app's own
+dialogs, the busy overlay or the status notice; checked by hand only.
 
 ---
 

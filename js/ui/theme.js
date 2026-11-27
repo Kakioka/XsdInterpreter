@@ -8,6 +8,9 @@
 // root, or a dev/*-check.html harness one directory down), unlike a bare
 // fetch('themes/x.json') which resolves against the document's location.
 
+import { loadPreference, savePreference } from '../core/settingsStore.js';
+import { showMessage } from './dialogs.js';
+
 const REQUIRED_TOKENS = [
   'windowBackground', 'panelBackground', 'controlBackground', 'controlBorder',
   'primaryText', 'secondaryText', 'accentColor', 'buttonBackground', 'buttonText',
@@ -16,7 +19,9 @@ const REQUIRED_TOKENS = [
 
 // Mirrors themes/default.theme.json exactly — the fallback for any token a
 // loaded theme (built-in or user-supplied) omits (§12: "The rest are optional;
-// if absent, defaults are used").
+// if absent, defaults are used"). All 35 of the WPF app's color tokens
+// (dev/PARITY_GAP_ANALYSIS.md 3.1); css/main.css's :root block repeats these
+// for first paint.
 const DEFAULT_COLORS = {
   windowBackground: '#F5F5F5',
   panelBackground: '#FFFFFF',
@@ -34,7 +39,25 @@ const DEFAULT_COLORS = {
   coloringOptional: '#F9A825',
   lineNumberText: '#888888',
   addButtonBackground: '#4A8C6F',
+  addButtonForeground: '#FFFFFF',
+  addButtonBorder: '#3A7A5E',
+  addButtonHover: '#2B6A4E',
   removeButtonBackground: '#A34A5A',
+  removeButtonForeground: '#FFFFFF',
+  removeButtonBorder: '#8B3A4A',
+  validationPanelBackground: '#FFF8F8',
+  validationPanelBorder: '#FFDDDD',
+  validationErrorText: '#D32F2F',
+  overlayBackground: '#00000059', // CSS #RRGGBBAA: 35% black
+  searchHighlightBorder: '#FFD700',
+  searchHighlightBackground: '#FFFDE7',
+  validationHighlightBorder: '#D32F2F',
+  validationHighlightBackground: '#FFEBEE',
+  disabledBackground: '#E8E8E8',
+  disabledText: '#AAAAAA',
+  disabledBorder: '#D0D0D0',
+  navRequiredText: '#222222',
+  navOptionalText: '#666666',
 };
 
 const BUILTIN_THEME_URLS = [
@@ -82,20 +105,11 @@ export function interpolateColor(from, to, t) {
 }
 
 export function saveThemePreference(name) {
-  try {
-    localStorage.setItem(ACTIVE_THEME_KEY, name);
-  } catch {
-    // localStorage unavailable (private browsing, etc.) — theming still works
-    // for the current session, it just won't survive a reload.
-  }
+  savePreference(ACTIVE_THEME_KEY, name); // a failure is reported once, by settingsStore
 }
 
 export function getSavedThemePreference() {
-  try {
-    return localStorage.getItem(ACTIVE_THEME_KEY);
-  } catch {
-    return null;
-  }
+  return loadPreference(ACTIVE_THEME_KEY);
 }
 
 /**
@@ -108,6 +122,8 @@ export function applyTheme(theme) {
   const root = document.documentElement;
   const colors = { ...getDefaultColors(), ...(theme?.colors || {}) };
   for (const [key, value] of Object.entries(colors)) {
+    if (key.startsWith('_')) continue; // "_comment…" notes, as in the theme template
+    // Any CSS color is accepted as written; 8-digit hex is CSS's #RRGGBBAA.
     root.style.setProperty(`--${camelToKebab(key)}`, value);
   }
   for (let i = 0; i < 5; i++) {
@@ -187,7 +203,7 @@ export async function wireTheme() {
         select.disabled = false;
         applyTheme(theme);
       } catch (err) {
-        window.alert(`Failed to load theme file: ${err.message}`);
+        showMessage('Could not load theme', `${file.name}: ${err.message}`);
       }
     });
   }

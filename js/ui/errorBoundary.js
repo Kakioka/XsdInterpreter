@@ -19,10 +19,12 @@
 // dump has no schema dependency at all, which makes it the last-resort path
 // that still works when the whole write pipeline is broken.
 //
-// Built into #error-boundary-overlay on first use, same empty-container
-// pattern as #debug-panel / #context-menu / #choose-root-dialog-overlay.
+// Built into the <dialog id="error-boundary-overlay"> on first use and shown
+// with modal.js. Opened last, it stacks above any dialog already open, so a
+// crash while one is up still gets a clickable panel.
 
 import { downloadBlob } from './toolbar.js';
+import { openModal, closeModal } from './modal.js';
 
 const MAX_LOG_ENTRIES = 25;
 
@@ -72,7 +74,11 @@ export function reportError(error, source = 'reportError') {
     // on a path that never reaches its finally (or inside an un-awaited
     // promise started from there), which would leave the modal loading overlay
     // covering the page — including this panel. Clear it first.
-    document.getElementById('loading-overlay')?.classList.add('hidden');
+    const loading = document.getElementById('loading-overlay');
+    closeModal(loading);
+    // Harness pages declare it as a <div class="hidden">. Never on the real
+    // <dialog>: .hidden is !important and would keep it hidden when reopened.
+    if (loading && !('open' in loading)) loading.classList.add('hidden');
 
     showPanel(entry);
   } catch (boundaryError) {
@@ -255,11 +261,11 @@ function showPanel(entry) {
   const xmlBtn = document.getElementById('error-boundary-download-xml-btn');
   if (xmlBtn) xmlBtn.disabled = !hooks?.getRecoveryXml;
 
-  overlay.classList.remove('hidden');
+  openModal(overlay);
 }
 
 function hidePanel() {
-  document.getElementById('error-boundary-overlay')?.classList.add('hidden');
+  closeModal(document.getElementById('error-boundary-overlay'));
 }
 
 // ---------------------------------------------------------------------------

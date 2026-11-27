@@ -2,14 +2,14 @@
 // for which attribute identifies an instance of a repeatable form.
 //
 // dev/PARITY_GAP_ANALYSIS.md 1.5. The heuristic is parser.js's
-// selectInstanceIdSource; persistence is settingsStore.js. Built into
-// #schema-settings-overlay on open, same empty-container pattern as
-// #choose-root-dialog-overlay.
+// selectInstanceIdSource; persistence is settingsStore.js. Built into the
+// <dialog id="schema-settings-overlay"> on open and shown with modal.js.
 
 import { isAttribute } from '../core/parser.js';
 import { findInstanceIdAttribute } from '../core/instanceIdentity.js';
-import { updateSchemaSettings } from '../core/settingsStore.js';
+import { updateSchemaSettings, isDataStored } from '../core/settingsStore.js';
 import * as toolbar from './toolbar.js';
+import { openModal, closeModal } from './modal.js';
 
 let _appState = null;
 
@@ -32,7 +32,7 @@ function fromSetting(setting) {
 }
 
 function closeDialog() {
-  document.getElementById('schema-settings-overlay')?.classList.add('hidden');
+  closeModal(document.getElementById('schema-settings-overlay'));
 }
 
 function addOption(select, value, text) {
@@ -113,22 +113,24 @@ function openDialog() {
   saveBtn.addEventListener('click', () => {
     schemaParser.instanceIdSource = toSetting(select.value);
     const stored = updateSchemaSettings(_appState.schemaSettingsKey, { instanceIdSource: schemaParser.instanceIdSource });
-    toolbar.setStatus(stored ? 'Schema settings saved' : 'Schema settings apply to this session only (browser storage is unavailable)');
+    toolbar.setStatus(
+      !stored
+        ? 'Schema settings apply to this session only (browser storage is unavailable)'
+        : isDataStored()
+          ? 'Schema settings saved'
+          : 'Schema settings apply to this session only (not storing data in this browser)'
+    );
     closeDialog();
   });
   footer.append(cancelBtn, saveBtn);
 
   dialog.append(header, body, footer);
   overlay.appendChild(dialog);
-  overlay.classList.remove('hidden');
-  select.focus();
+  select.autofocus = true;
+  openModal(overlay);
 }
 
 export function wireSchemaSettings({ appState }) {
   _appState = appState;
   document.getElementById('schema-settings-btn')?.addEventListener('click', openDialog);
-  const overlay = document.getElementById('schema-settings-overlay');
-  overlay?.addEventListener('click', (e) => {
-    if (e.target === overlay) closeDialog();
-  });
 }

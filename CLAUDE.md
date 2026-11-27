@@ -64,10 +64,15 @@ returning null, so add support there rather than working around it in the module
 What is covered: flattener, parser, xmlReader/xmlWriter (including the full fixture round-trip),
 facets (pattern→maxLength derivation, the native input constraints `controlFactory` applies),
 formEngine, coloringService, undoService, searchService, testDataFiller, exportProfile, instanceIdentity, navModel (the nav tree as data, manifest order, the `schemaVersion`/`sourceSchemaFile` manifest fields), packager (ZIP bytes
-parsed back out of the central directory), autosaveStore, plus `test/moduleGraph.test.mjs` — a
+parsed back out of the central directory), autosaveStore, settingsStore (preferences,
+`lastSchema`, the once-only storage-failure report), the theme token set (`test/themes.test.mjs`
+— `theme.js` defaults, `themes/default.theme.json` and `main.css`'s `:root` must agree, and every
+`var(--…)` in the stylesheet must be a settable token), plus `test/moduleGraph.test.mjs` — a
 static check that every import resolves, every named import exists, `js/core/` imports no
-`js/ui/`, and `index.html` still declares every container the UI builds into. That last one is
-the closest thing this repo has to a compiler.
+`js/ui/`, `index.html` still declares every container the UI builds into, nothing but
+`settingsStore.js` touches `localStorage`, and nothing outside the harness fallbacks calls
+`window.alert`/`confirm`/`prompt`. That last group is the closest thing this repo has to a
+compiler.
 
 `test/coloringService.test.mjs` is where the activation-context rules live now (parity 1.1–1.3,
 done): it covers the colors *and* the error list, since both come out of one `analyzeForm` call.
@@ -312,10 +317,8 @@ Both exist because FormEngine state lives only in memory and the browser can tak
   session's crash log is also reachable from the debug panel's **Errors** tab, since the panel
   itself is dismissable.
 - `autosave.js` writes a debounced snapshot keyed by schema identity, and **`offerRecovery()` is
-  called after `withBusyOverlay` returns**, never inside it — a modal shown under the loading
-  overlay swallows its own clicks (see the comment on `#choose-root-dialog-overlay` in
-  `css/main.css`). `setSchemaIdentity` is called after `undoService.clearHistory()` for the
-  opposite reason: `clearHistory` fires `changed`, which autosave listens to, and a blank-state
+  called after `withBusyOverlay` returns**, so it is asked over the loaded form rather than a
+  spinner. `setSchemaIdentity` is called after `undoService.clearHistory()` because `clearHistory` fires `changed`, which autosave listens to, and a blank-state
   write must not land before the stored snapshot has been read.
 - `setSchemaIdentity` holds every autosave write until `offerRecovery()` settles — the load
   itself schedules blank-state writes that would otherwise overwrite the snapshot being offered.
@@ -332,9 +335,34 @@ Both exist because FormEngine state lives only in memory and the browser can tak
 - Which attribute identifies a repeatable form's instance is `parser.js`'s
   `selectInstanceIdSource` (heuristic, or the per-schema override in File → Schema Settings).
   Generated ids must be legal for that attribute, because the writer backfills them.
-- `settingsStore.js` is the only module in `core/` allowed to use `localStorage`
-  (`moduleGraph.test.mjs` enforces it). Per-schema settings are keyed more loosely than autosave
-  snapshots, so they survive a schema revision.
+- `settingsStore.js` is the only module **anywhere in `js/`** allowed to use `localStorage`
+  (`moduleGraph.test.mjs` enforces it) — UI preferences go through its
+  `loadPreference`/`savePreference`, so the first failure is reported once, as the
+  `#settings-status` notice, instead of being swallowed per call site. Per-schema settings are
+  keyed more loosely than autosave snapshots, so they survive a schema revision.
+- **The user can turn off storing their data** ("Store my data in this browser", beside both
+  Load Schema buttons). Data = anything from their schemas, files or entries: the keys in
+  `settingsStore.js`'s `DATA_KEYS`, plus autosave snapshots. While off, `settingsStore` keeps
+  those keys in memory instead, and `autosave.js` writes nothing and offers nothing. **A new
+  persisted value derived from user data must be added to `DATA_KEYS` (or gated on
+  `isDataStored()` if it lives elsewhere)** — that is the whole promise of the switch. Display
+  preferences (theme, zoom, layout, widths) are not data.
+
+### Dialogs (`modal.js`, `dialogs.js`)
+
+Every modal — the busy overlay, choose root, recovery, packaging, schema settings, the error
+boundary, and messages/confirms — is a `<dialog>` in `index.html`, opened with `modal.js`'s
+`openModal` (`showModal()`) and closed with `closeModal`. The top layer does the stacking: the
+most recently opened is on top and the only interactive one, so a dialog raised inside
+`withBusyOverlay` works, and the error boundary, opened last, is always clickable. **There is no
+z-index ordering between modals; don't reintroduce one**, and don't give a `<dialog>` the
+`.hidden` class (it's `!important`, and would hide it while open). `openModal` routes Escape and
+backdrop clicks to one `onDismiss` (or ignores them, `dismissible: false`), and stops keydown at
+the dialog so the app's document-level shortcuts don't act on the page behind it.
+
+Messages and confirmations go through `js/ui/dialogs.js` (`showMessage`, `confirmAction`,
+`showDialog`), never `window.alert`/`confirm` — those can be suppressed by the browser, after
+which `confirm` silently answers "no".
 
 ### Fixtures
 
@@ -376,5 +404,7 @@ Tier 1 for the behavior each one should have instead:
 
 - **The bundled export profile is unverified.** `export-profiles/mef-state.profile.json` carries
   over the original app's rules; nobody has checked it against the published manifest schema.
-- `dev/phase6-check.html` and `dev/phase9-check.html` throw partway, and one `phase7-check.html`
-  row fails ("all 4 tab buttons"). All three predate Phase 3 of `dev/IMPLEMENTATION_ORDER.md`.
+- `dev/phase9-check.html` throws partway; this predates Phase 3 of `dev/IMPLEMENTATION_ORDER.md`.
+  (`phase6-check.html`'s throw was fixed in Phase 4; `phase7-check.html`'s "all 4 tab buttons"
+  row was a stale count — the debug panel has had five tabs since Phase 0 added Errors — and was
+  corrected in Phase 6.)
